@@ -206,6 +206,19 @@ class _TunnelRunCommand extends Command<void> {
       exitCode = ExitProtocol.failure;
       return;
     }
+    if (probeResult == EndpointProbeResult.unresponsive) {
+      await _kill(appProcess);
+      print(
+        '❌ something IS listening on ${config.target}, but it never answered '
+        'a plain GET — the probe cannot verify an authentication challenge '
+        'there.\n'
+        '--> fix: check the endpoint answers a GET (an MCP streamable '
+        'endpoint speaks POST); if it is intentionally unauthenticated, '
+        'pass --i-know-its-unauthenticated.',
+      );
+      exitCode = ExitProtocol.failure;
+      return;
+    }
     if (probeResult == EndpointProbeResult.unauthenticated &&
         !config.allowUnauthenticated) {
       await _kill(appProcess);
@@ -255,23 +268,52 @@ class _TunnelRunCommand extends Command<void> {
     print('   forwarding ${config.target} — ctrl-c to shut everything down.');
 
     // FR-008: one owner owns both lifetimes. The tunnel dies when the
-    // wrapped app exits; the app dies when the wrapper is interrupted.
-    var appExited = false;
-    if (appProcess != null) {
-      await appExitedFirst.future;
-      appExited = true;
-    } else {
-      // An injected interrupt (tests, embedders) or a real signal.
-      final interrupt = _interrupt;
-      if (interrupt != null) {
-        await interrupt.future;
-      } else {
-        await Future.any([
-          ProcessSignal.sigint.watch().first,
-          ProcessSignal.sigterm.watch().first,
-        ]);
+    // wrapped app exits; the app dies when the wrapper is interrupted or
+    // the tunnel fails for good. Race ALL THREE shutdown sources and
+    // subscribe to the event stream before the wait: waiting on app exit
+    // alone left SIGINT/SIGTERM on the VM's default disposition (cloudflared
+    // and the app orphaned, state claiming running: true), and a spent
+    // restart budget produced a TunnelFailed nobody observed — the command
+    // hung with a dead tunnel and exit code 0.
+    TunnelFailed? failure;
+    final failed = Completer<_ShutdownCause>();
+    final eventSub = supervisor.events.listen((event) {
+      if (event is TunnelFailed && !failed.isCompleted) {
+        failure = event;
+        failed.complete(_ShutdownCause.tunnelFailed);
       }
+    });
+    // An injected interrupt (tests, embedders) or a real signal — watching
+    // the OS signals here is what takes them off the VM's default kill.
+    final interrupt = _interrupt;
+    final stopSignal = interrupt != null
+        ? interrupt.future
+        : Future.any([
+            ProcessSignal.sigint.watch().first,
+            ProcessSignal.sigterm.watch().first,
+          ]);
+    final cause = await Future.any<_ShutdownCause>([
+      if (appProcess != null)
+        appExitedFirst.future.then((_) => _ShutdownCause.appExit),
+      stopSignal.then((_) => _ShutdownCause.interrupt),
+      failed.future,
+    ]);
+    await eventSub.cancel();
+
+    if (cause == _ShutdownCause.tunnelFailed) {
+      // The supervisor already killed cloudflared and recorded the failure
+      // (_fail: state flushed before the event) — the wrapped app is the
+      // only process left to own.
+      await _kill(appProcess);
+      print(
+        '❌ the tunnel failed: ${failure?.reason}\n'
+        '--> fix: see `zfa tunnel status` for the recorded failure, then '
+        're-run `zfa tunnel run`.',
+      );
+      exitCode = ExitProtocol.failure;
+      return;
     }
+    final appExited = cause == _ShutdownCause.appExit;
 
     await supervisor.stop(
       reason: appExited ? 'the wrapped app exited' : 'operator interrupt',
@@ -306,7 +348,15 @@ class _TunnelRunCommand extends Command<void> {
   ) async {
     final Process appProcess;
     try {
-      appProcess = await Process.start(rest.first, rest.skip(1).toList());
+      // inheritStdio: the wrapped app's output belongs to the operator's
+      // terminal, and an unread Pipe stdout/stderr fills the OS pipe buffer
+      // (~64 KB) and blocks the app mid-write — the tunnel would serve a
+      // stuck app.
+      appProcess = await Process.start(
+        rest.first,
+        rest.skip(1).toList(),
+        mode: ProcessStartMode.inheritStdio,
+      );
     } on ProcessException catch (e) {
       print(
         '❌ the wrapped app command failed to start: ${e.executable}\n'
@@ -424,7 +474,10 @@ class _TunnelStatusCommand extends Command<void> {
         const Duration(seconds: 3),
       );
       await response.drain<void>();
-      return true;
+      // 530 = the Cloudflare edge reports NO active tunnel connector (error
+      // 1033): the edge answered, not the tunneled app — a dead tunnel must
+      // not report reachable.
+      return response.statusCode != 530;
     } on Exception {
       return false;
     } finally {
@@ -432,3 +485,6 @@ class _TunnelStatusCommand extends Command<void> {
     }
   }
 }
+
+/// Which shutdown source won the three-way race in `tunnel run`.
+enum _ShutdownCause { appExit, interrupt, tunnelFailed }

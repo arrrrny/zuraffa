@@ -21,6 +21,13 @@ enum EndpointProbeResult {
   /// Nothing answered — there is nothing to tunnel (or the wrapped app has
   /// not opened its port yet).
   unreachable,
+
+  /// The connection was ACCEPTED but no HTTP answer ever came back within
+  /// the timeout — something is listening, the probe is just the wrong
+  /// shape for it (e.g. an MCP endpoint that only speaks POST, or a very
+  /// slow app). Not the same as `unreachable`: the fix line must not claim
+  /// nothing is there.
+  unresponsive,
 }
 
 class EndpointAuthProbe {
@@ -38,20 +45,37 @@ class EndpointAuthProbe {
     final ownClient = client == null;
     final hc = client ?? (HttpClient()..connectionTimeout = timeout);
     try {
-      final request = await hc.openUrl('GET', target).timeout(timeout);
+      final HttpClientRequest request;
+      try {
+        request = await hc.openUrl('GET', target).timeout(timeout);
+      } on TimeoutException {
+        // The CONNECT never completed — nothing accepted the connection.
+        return EndpointProbeResult.unreachable;
+      }
       request.followRedirects = false;
-      final response = await request.close().timeout(timeout);
-      await response.drain<void>();
-      if (response.statusCode == HttpStatus.unauthorized ||
-          response.statusCode == HttpStatus.forbidden) {
+      final HttpClientResponse response;
+      try {
+        response = await request.close().timeout(timeout);
+      } on TimeoutException {
+        // The connection was ACCEPTED but no HTTP answer arrived in time —
+        // something is listening. Distinguishing this from `unreachable`
+        // keeps the operator's fix line honest (an MCP endpoint that only
+        // speaks POST is not "nothing").
+        return EndpointProbeResult.unresponsive;
+      }
+      // The status is known as soon as the headers arrive — a long-lived
+      // body (an SSE stream) must never hold the classification hostage,
+      // so the drain is bounded and a drain timeout is non-fatal.
+      final status = response.statusCode;
+      await response.drain<void>().timeout(timeout, onTimeout: () {});
+      if (status == HttpStatus.unauthorized || status == HttpStatus.forbidden) {
         return EndpointProbeResult.authenticated;
       }
       return EndpointProbeResult.unauthenticated;
     } on SocketException {
+      // Connection refused: truly nothing there.
       return EndpointProbeResult.unreachable;
     } on HttpException {
-      return EndpointProbeResult.unreachable;
-    } on TimeoutException {
       return EndpointProbeResult.unreachable;
     } finally {
       if (ownClient) {

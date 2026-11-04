@@ -66,6 +66,49 @@ void main() {
       expect(zero.validationErrors().join(' '), contains('port'));
     });
 
+    test('a non-loopback host is refused (FR-009)', () {
+      // Wildcards, LAN addresses and hostnames must never pass: the tunnel
+      // scope is always exactly one loopback port.
+      for (final host in [
+        '0.0.0.0',
+        '10.0.0.5',
+        '192.168.1.10',
+        'intranet.corp',
+        '::2',
+        '127.999.1.1',
+      ]) {
+        final config = TunnelConfig(
+          mode: TunnelMode.quick,
+          port: 8080,
+          host: host,
+        );
+        expect(config.isValid, isFalse, reason: host);
+        expect(
+          config.validationErrors().join(' '),
+          contains('loopback'),
+          reason: host,
+        );
+      }
+    });
+
+    test('every loopback spelling of --host is accepted', () {
+      for (final host in [
+        'localhost',
+        'LOCALHOST',
+        '127.0.0.1',
+        '127.8.8.8',
+        '::1',
+        '[::1]',
+      ]) {
+        final config = TunnelConfig(
+          mode: TunnelMode.quick,
+          port: 8080,
+          host: host,
+        );
+        expect(config.isValid, isTrue, reason: host);
+      }
+    });
+
     test('allowUnauthenticated override is carried on the config', () {
       const config = TunnelConfig(
         mode: TunnelMode.quick,

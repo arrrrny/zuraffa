@@ -256,6 +256,42 @@ void main() {
       expect(result.exit, ExitProtocol.success);
       expect(result.output, isNot(contains(token)));
     });
+
+    test(
+      'wrap mode: an interrupt stops the tunnel AND kills the app',
+      () async {
+        // The test's server holds the port; the "wrapped app" is a bare
+        // sleeper. The run must treat the interrupt as a shutdown source even
+        // in wrap mode — otherwise SIGINT/SIGTERM hit the VM's default
+        // disposition and orphan cloudflared AND the wrapped app.
+        final port = await serve(HttpStatus.ok);
+        final run = runDirect([
+          'run',
+          '--port',
+          '$port',
+          '--i-know-its-unauthenticated',
+          '--',
+          'sleep',
+          '30',
+        ]);
+        // Let the wrapped app start and the tunnel raise, then interrupt.
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        interrupt.complete();
+        final result = await run.timeout(const Duration(seconds: 20));
+
+        expect(result.exit, ExitProtocol.success);
+        expect(
+          result.output,
+          contains('tunnel shut down (interrupt)'),
+          reason: 'the interrupt was observed in wrap mode too',
+        );
+        expect(fake.killCalled, isTrue, reason: 'the tunnel is stopped too');
+        final record = TunnelState(projectRoot: tmp.path).read();
+        expect(record, isNotNull);
+        expect(record!.running, isFalse);
+        expect(result.output, isNot(contains('❌')));
+      },
+    );
   });
 }
 

@@ -56,6 +56,15 @@ class TunnelConfig {
     if (port < 1 || port > 65535) {
       errors.add('--port must be between 1 and 65535 (got $port)');
     }
+    // FR-009: the origin is loopback-only. `--host 10.0.0.5` (or 0.0.0.0)
+    // would point cloudflared at a non-loopback service the tunnel then
+    // publishes — validated here, not left to the help text.
+    if (!_isLoopbackHost(host)) {
+      errors.add(
+        '--host must be a loopback host (localhost, 127.0.0.1, ::1) — '
+        'the tunnel scope is always one local port; got "$host"',
+      );
+    }
     switch (mode) {
       case TunnelMode.quick:
         break;
@@ -78,4 +87,25 @@ class TunnelConfig {
   }
 
   bool get isValid => validationErrors().isEmpty;
+
+  /// FR-009: the origin host is loopback-only — `localhost`, the 127/8
+  /// loopback range, or IPv6 `::1` with or without brackets.
+  static bool _isLoopbackHost(String host) {
+    final normalized = host.toLowerCase();
+    if (normalized == 'localhost' || normalized == '::1') {
+      return true;
+    }
+    if (normalized.startsWith('[') && normalized.endsWith(']')) {
+      return _isLoopbackHost(normalized.substring(1, normalized.length - 1));
+    }
+    if (normalized.startsWith('127.')) {
+      final octets = normalized.split('.');
+      return octets.length == 4 &&
+          octets.skip(1).every((o) {
+            final value = int.tryParse(o);
+            return value != null && value >= 0 && value <= 255;
+          });
+    }
+    return false;
+  }
 }

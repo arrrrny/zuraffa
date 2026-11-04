@@ -12,7 +12,9 @@ class TunnelUrlParser {
   const TunnelUrlParser();
 
   static final RegExp _quickUrl = RegExp(
-    r'https://[A-Za-z0-9-]+\.trycloudflare\.com',
+    // `api.` is the quick-tunnel CONTROL endpoint — a failed request logs
+    // `https://api.trycloudflare.com/tunnel`, which is not a tunnel address.
+    r'https://(?!api\.)[A-Za-z0-9-]+\.trycloudflare\.com',
   );
 
   /// The first quick-tunnel URL found in [line], or `null`.

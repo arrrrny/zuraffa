@@ -80,9 +80,18 @@ class TunnelState {
   Future<void> save(TunnelStateRecord record) async {
     final file = File(stateFilePath);
     await file.parent.create(recursive: true);
-    await file.writeAsString(
-      const JsonEncoder.withIndent('  ').convert(record.toJson()),
+    // Write-then-rename: `writeAsString` in place truncates the file first,
+    // so a concurrent `zfa tunnel status` (another process) can read a torn
+    // JSON and report "no tunnel has been recorded". The uniquely-suffixed
+    // temp file in the SAME directory keeps the rename atomic.
+    final tmp = File(
+      '${file.path}.${DateTime.now().microsecondsSinceEpoch}.tmp',
     );
+    await tmp.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(record.toJson()),
+      flush: true,
+    );
+    await tmp.rename(file.path);
   }
 
   /// The last saved record, or `null` when nothing (usable) was saved.

@@ -38,6 +38,18 @@ void main() {
       expect(parser.parse('http://quick-words.trycloudflare.com'), isNull);
     });
 
+    test('the quick-tunnel API endpoint is never mistaken for a tunnel', () {
+      // A FAILED quick-tunnel request logs the control endpoint's URL —
+      // reporting that as the tunnel address would surface a tunnel that
+      // does not exist.
+      expect(
+        parser.parse(
+          'failed to request quick Tunnel: https://api.trycloudflare.com/tunnel',
+        ),
+        isNull,
+      );
+    });
+
     test('returns null on empty and garbage lines', () {
       expect(parser.parse(''), isNull);
       expect(parser.parse('INF Registered tunnel connection'), isNull);

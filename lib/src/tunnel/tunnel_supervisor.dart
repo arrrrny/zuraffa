@@ -165,6 +165,13 @@ class TunnelSupervisor {
   ManagedProcess? _process;
   bool _stopping = false;
 
+  /// Persist calls are serialized behind this chain: `_raise` is fired
+  /// unawaited, so an unserialized write could complete AFTER a later
+  /// stop/failure write and leave the record claiming `running: true` for
+  /// a tunnel that is down. Call order is enqueue order; errors never
+  /// break the chain (they are handled in [_persist]).
+  Future<void> _persistQueue = Future<void>.value();
+
   /// Spawns the tunnel and resolves with the public URL once raised
   /// (`null` for token mode, which has no local URL contract). Throws
   /// [TunnelStartFailed] on the start timeout.
@@ -172,7 +179,19 @@ class TunnelSupervisor {
     final completer = Completer<Uri?>();
     _handle = TunnelHandle(config: config);
     _stopping = false;
-    unawaited(_launch(config, 0, completer));
+    // A spawn failure (executable missing its +x bit, a wrapped binary that
+    // cannot launch) throws ProcessException from the factory — routed to
+    // `_fail` here so it is a recorded failure with a remediation, never an
+    // uncaught async error on an unawaited future.
+    unawaited(
+      _launch(config, 0, completer).catchError((Object e) async {
+        final reason = 'could not start cloudflared: $e';
+        await _fail(config, reason);
+        if (!completer.isCompleted) {
+          completer.completeError(TunnelStartFailed(reason));
+        }
+      }),
+    );
     Timer(startTimeout, () {
       unawaited(() async {
         if (completer.isCompleted || _stopping) return;
@@ -276,7 +295,21 @@ class TunnelSupervisor {
     );
     await Future<void>.delayed(delay);
     if (_stopping) return;
-    await _launch(config, attempt, firstStart);
+    // The restart path carries the same spawn-failure guard as the first
+    // launch — a ProcessException here must fail the tunnel (recorded via
+    // `_fail`), not surface as an uncaught async error on the exitCode
+    // callback's future.
+    try {
+      await _launch(config, attempt, firstStart);
+    } on Object catch (e) {
+      final reason =
+          'could not restart cloudflared after '
+          '$attempt failure(s): $e';
+      await _fail(config, reason);
+      if (firstStart != null && !firstStart.isCompleted) {
+        firstStart.completeError(TunnelStartFailed(reason));
+      }
+    }
   }
 
   Duration _backoff(int attempt) {
@@ -362,29 +395,38 @@ class TunnelSupervisor {
     required String? failureReason,
     required bool running,
     bool lastRestartAt = false,
-  }) async {
+  }) {
     final state = _state;
     final handle = _handle;
-    if (state == null || config == null || handle == null) return;
-    try {
-      await state.save(
-        TunnelStateRecord(
-          mode: config.mode.name,
-          port: config.port,
-          url: url,
-          pid: handle.pid,
-          restarts: handle.restarts,
-          startedAt: handle.startedAt,
-          lastRestartAt: lastRestartAt ? DateTime.now() : null,
-          failureReason: failureReason,
-          running: running,
-        ),
-      );
-    } on FileSystemException catch (e) {
-      // State is observability, not the tunnel's lifeblood — a failed
-      // write never takes a live tunnel down.
-      _onOutput?.call('[tunnel] warning: could not persist tunnel state: $e');
+    if (state == null || config == null || handle == null) {
+      return Future<void>.value();
     }
+    // Serialized: every write waits behind the previous one, so a late
+    // `_raise` flush can never land after a stop/failure flush and resurrect
+    // `running: true` in the record.
+    final write = _persistQueue.then((_) async {
+      try {
+        await state.save(
+          TunnelStateRecord(
+            mode: config.mode.name,
+            port: config.port,
+            url: url,
+            pid: handle.pid,
+            restarts: handle.restarts,
+            startedAt: handle.startedAt,
+            lastRestartAt: lastRestartAt ? DateTime.now() : null,
+            failureReason: failureReason,
+            running: running,
+          ),
+        );
+      } on FileSystemException catch (e) {
+        // State is observability, not the tunnel's lifeblood — a failed
+        // write never takes a live tunnel down.
+        _onOutput?.call('[tunnel] warning: could not persist tunnel state: $e');
+      }
+    });
+    _persistQueue = write;
+    return write;
   }
 
   List<String> _secretsFor(TunnelConfig config) => [
