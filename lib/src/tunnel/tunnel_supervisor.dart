@@ -241,6 +241,14 @@ class TunnelSupervisor {
     Completer<Uri?>? firstStart,
   ) async {
     final process = await _processFactory(cloudflaredPath, _argsFor(config));
+    if (_stopping) {
+      // stop() ran while the spawn was pending — it already reported
+      // TunnelStopped against the previous (dead) process, so storing this
+      // new process would leave it unowned and the tunnel registered after
+      // the wrapper exited. Kill it instead of adopting it.
+      process.kill();
+      return;
+    }
     _process = process;
     final handle = _handle!;
     handle.pid = process.pid;
