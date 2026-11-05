@@ -438,41 +438,56 @@ flutter:
       });
     });
 
-    // ── BUG 735 regression ──────────────────────────────────────────────────
-    // zfa setup injected assets/zuraffa_app_icons/ into pubspec.yaml but never
-    // created the directory when the brand asset source was absent (minimal
-    // CI clone, findZuraffaRoot failure). Every flutter test then failed with
-    // "Error: unable to find directory entry in pubspec.yaml".
+    // ── Issue 2050 regression (supersedes the bug 735 defense) ──────────────
+    // Bug 735's fix created assets/zuraffa_app_icons/ EMPTY so the injected
+    // pubspec entry "is never dangling" — but git cannot track an empty
+    // directory, so once the app repo commits the pubspec line the entry
+    // dangles in EVERY fresh clone and the Flutter tool fails there with
+    // "unable to find directory entry in pubspec.yaml" (issue 2050, fired
+    // live on zik_zak: the bot commit carried the entry; the empty
+    // directory it created on disk was never committed).
     //
-    // These tests deliberately do NOT skip when brand assets are absent —
-    // that blind spot (U4/U5's markTestSkipped) is exactly how bug 735
-    // shipped. A temp zuraffaRoot with no assets/zuraffa_app_icons/ inside
-    // simulates the minimal CI clone deterministically on any machine.
-    group('bug 735: pubspec assets entry is never dangling', () {
-      Future<(Directory, File)> seedTargetProject() async {
-        final tmp = await Directory.systemTemp.createTemp('branding_735_');
-        addTearDown(() => tmp.deleteSync(recursive: true));
+    // New invariant: the pubspec entry is injected only when at least one
+    // brand file was actually copied. These tests deliberately do NOT skip
+    // when the real brand assets are absent — that blind spot (U4/U5's
+    // markTestSkipped) is exactly how bug 735 shipped. A temp zuraffaRoot
+    // simulates any missing/empty source deterministically on any machine.
+    group(
+      'issue 2050: pubspec entry is injected only when brand files were copied',
+      () {
+        Future<(Directory, File)> seedTargetProject() async {
+          final tmp = await Directory.systemTemp.createTemp('branding_2050_');
+          addTearDown(() => tmp.deleteSync(recursive: true));
 
-        final projectRoot = p.join(tmp.path, 'my_app');
-        final pubspecFile = File(p.join(projectRoot, 'pubspec.yaml'));
-        pubspecFile.createSync(recursive: true);
-        pubspecFile.writeAsStringSync('''
+          final projectRoot = p.join(tmp.path, 'my_app');
+          final pubspecFile = File(p.join(projectRoot, 'pubspec.yaml'));
+          pubspecFile.createSync(recursive: true);
+          pubspecFile.writeAsStringSync('''
 name: my_app
 flutter:
   uses-material-design: true
 ''');
-        return (tmp, pubspecFile);
-      }
+          return (tmp, pubspecFile);
+        }
 
-      test(
-        'creates assets/zuraffa_app_icons/ when brand asset source is absent',
-        () async {
-          // Fresh temp root WITHOUT assets/zuraffa_app_icons/ — simulates a
-          // minimal CI clone where the brand assets are not checked out.
+        Future<Directory> fakeZuraffaRoot({
+          bool seedEmptySource = false,
+        }) async {
           final fakeRoot = await Directory.systemTemp.createTemp(
-            'branding_735_root_',
+            'branding_2050_root_',
           );
           addTearDown(() => fakeRoot.deleteSync(recursive: true));
+          if (seedEmptySource) {
+            Directory(
+              p.join(fakeRoot.path, 'assets', 'zuraffa_app_icons'),
+            ).createSync(recursive: true);
+          }
+          return fakeRoot;
+        }
+
+        test('does not inject the pubspec entry when no brand file was copied '
+            '(source absent)', () async {
+          final fakeRoot = await fakeZuraffaRoot();
           expect(
             Directory(
               p.join(fakeRoot.path, 'assets', 'zuraffa_app_icons'),
@@ -481,7 +496,127 @@ flutter:
             reason: 'precondition: brand asset source must be absent',
           );
 
-          final (tmp, _) = await seedTargetProject();
+          final (tmp, pubspecFile) = await seedTargetProject();
+          final dest = Directory(
+            p.join(tmp.path, 'my_app', 'assets', 'zuraffa_app_icons'),
+          );
+
+          final writer = BrandingWriter(zuraffaRoot: fakeRoot.path);
+          await writer.writeFlutterBranding(
+            projectRoot: p.join(tmp.path, 'my_app'),
+            dryRun: false,
+            verbose: false,
+          );
+
+          final content = pubspecFile.readAsStringSync();
+          expect(
+            content.contains('zuraffa_app_icons'),
+            isFalse,
+            reason:
+                'git cannot commit an empty directory: an entry injected '
+                'with nothing copied dangles in every fresh clone and the '
+                'flutter tool fails there with "unable to find directory '
+                'entry in pubspec.yaml" (issue 2050)',
+          );
+          expect(
+            dest.existsSync(),
+            isFalse,
+            reason:
+                'nothing was copied, so no vestigial empty directory is '
+                'left behind — git would drop it from any commit anyway',
+          );
+        });
+
+        test('does not inject the pubspec entry when the brand asset source '
+            'exists but is empty', () async {
+          final fakeRoot = await fakeZuraffaRoot(seedEmptySource: true);
+
+          final (tmp, pubspecFile) = await seedTargetProject();
+          final dest = Directory(
+            p.join(tmp.path, 'my_app', 'assets', 'zuraffa_app_icons'),
+          );
+
+          final writer = BrandingWriter(zuraffaRoot: fakeRoot.path);
+          await writer.writeFlutterBranding(
+            projectRoot: p.join(tmp.path, 'my_app'),
+            dryRun: false,
+            verbose: false,
+          );
+
+          final content = pubspecFile.readAsStringSync();
+          expect(
+            content.contains('zuraffa_app_icons'),
+            isFalse,
+            reason:
+                'an empty source copies nothing, so the destination stays '
+                'empty and the entry would dangle in every fresh clone '
+                '(issue 2050)',
+          );
+          expect(
+            dest.existsSync(),
+            isFalse,
+            reason:
+                'an empty source must not create the destination: a '
+                'destination created empty would make every later retry '
+                'skip the copy at the existing-files check, pinning the '
+                'pubspec entry off until hand-deleted (issue 2050)',
+          );
+        });
+
+        test('populates an existing EMPTY destination on retry and injects '
+            'the pubspec entry', () async {
+          final fakeRoot = await fakeZuraffaRoot();
+          Directory(
+            p.join(fakeRoot.path, 'assets', 'zuraffa_app_icons'),
+          ).createSync(recursive: true);
+          File(
+            p.join(fakeRoot.path, 'assets', 'zuraffa_app_icons', 'logo.png'),
+          ).writeAsStringSync('png');
+
+          final (tmp, pubspecFile) = await seedTargetProject();
+          final projectRoot = p.join(tmp.path, 'my_app');
+          // A run whose source had nothing committable left an empty
+          // destination behind; the next run must populate it, not skip.
+          Directory(
+            p.join(projectRoot, 'assets', 'zuraffa_app_icons'),
+          ).createSync(recursive: true);
+
+          final writer = BrandingWriter(zuraffaRoot: fakeRoot.path);
+          await writer.writeFlutterBranding(
+            projectRoot: projectRoot,
+            dryRun: false,
+            verbose: false,
+          );
+
+          expect(
+            File(
+              p.join(projectRoot, 'assets', 'zuraffa_app_icons', 'logo.png'),
+            ).existsSync(),
+            isTrue,
+            reason:
+                'an existing EMPTY destination must be populated on retry '
+                '— skipping on a bare existsSync() check blocks branding '
+                'and the pubspec entry forever',
+          );
+          expect(
+            pubspecFile.readAsStringSync().contains(
+              'assets/zuraffa_app_icons/',
+            ),
+            isTrue,
+            reason: 'the populated destination makes the entry committable',
+          );
+        });
+
+        test('does not copy .DS_Store nor inject the pubspec entry when the '
+            'source holds only git-ignored metadata', () async {
+          final fakeRoot = await fakeZuraffaRoot();
+          final sourceDir = Directory(
+            p.join(fakeRoot.path, 'assets', 'zuraffa_app_icons'),
+          );
+          sourceDir.createSync(recursive: true);
+          File(p.join(sourceDir.path, '.DS_Store')).writeAsStringSync('junk');
+
+          final (tmp, pubspecFile) = await seedTargetProject();
           final dest = Directory(
             p.join(tmp.path, 'my_app', 'assets', 'zuraffa_app_icons'),
           );
@@ -495,50 +630,62 @@ flutter:
 
           expect(
             dest.existsSync(),
-            isTrue,
+            isFalse,
             reason:
-                'assets/zuraffa_app_icons/ must exist even when the brand '
-                'asset source is absent — otherwise every flutter test '
-                'fails with "unable to find directory entry in '
-                'pubspec.yaml" (bug 735)',
+                'a destination holding only .DS_Store is invisible to git: '
+                'Flutter\'s app template .gitignore drops it, so nothing '
+                'was actually committed — copying it must not create the '
+                'directory either (issue 2050)',
           );
-        },
-      );
+          expect(
+            pubspecFile.readAsStringSync().contains('zuraffa_app_icons'),
+            isFalse,
+            reason:
+                'a .DS_Store-only destination cannot anchor the pubspec '
+                'entry: git omits the directory from a fresh clone and the '
+                'entry dangles there (issue 2050)',
+          );
+        });
 
-      test('pubspec assets entry is backed by an existing directory', () async {
-        final fakeRoot = await Directory.systemTemp.createTemp(
-          'branding_735_root_',
-        );
-        addTearDown(() => fakeRoot.deleteSync(recursive: true));
+        test(
+          'injects the pubspec entry when at least one brand file was copied',
+          () async {
+            final fakeRoot = await fakeZuraffaRoot();
+            Directory(
+              p.join(fakeRoot.path, 'assets', 'zuraffa_app_icons'),
+            ).createSync(recursive: true);
+            File(
+              p.join(fakeRoot.path, 'assets', 'zuraffa_app_icons', 'logo.png'),
+            ).writeAsStringSync('png');
 
-        final (tmp, pubspecFile) = await seedTargetProject();
-        final dest = Directory(
-          p.join(tmp.path, 'my_app', 'assets', 'zuraffa_app_icons'),
-        );
+            final (tmp, pubspecFile) = await seedTargetProject();
+            final dest = Directory(
+              p.join(tmp.path, 'my_app', 'assets', 'zuraffa_app_icons'),
+            );
 
-        final writer = BrandingWriter(zuraffaRoot: fakeRoot.path);
-        await writer.writeFlutterBranding(
-          projectRoot: p.join(tmp.path, 'my_app'),
-          dryRun: false,
-          verbose: false,
-        );
+            final writer = BrandingWriter(zuraffaRoot: fakeRoot.path);
+            await writer.writeFlutterBranding(
+              projectRoot: p.join(tmp.path, 'my_app'),
+              dryRun: false,
+              verbose: false,
+            );
 
-        final content = pubspecFile.readAsStringSync();
-        expect(
-          content.contains('assets/zuraffa_app_icons/'),
-          isTrue,
-          reason:
-              'pubspec.yaml should still reference the assets entry '
-              '(spec 053 branding contract is unchanged)',
+            final content = pubspecFile.readAsStringSync();
+            expect(
+              content.contains('assets/zuraffa_app_icons/'),
+              isTrue,
+              reason:
+                  'a copied brand file makes the entry committable: git '
+                  'tracks the directory through its file',
+            );
+            expect(
+              File(p.join(dest.path, 'logo.png')).existsSync(),
+              isTrue,
+              reason: 'the copied file backs the injected entry',
+            );
+          },
         );
-        expect(
-          dest.existsSync(),
-          isTrue,
-          reason:
-              'the pubspec entry must never dangle: the referenced '
-              'directory has to exist on disk (bug 735)',
-        );
-      });
-    });
+      },
+    );
   });
 }
