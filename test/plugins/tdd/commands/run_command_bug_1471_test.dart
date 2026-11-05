@@ -55,7 +55,7 @@ void main() {
     // Issue #1528: run's entry preflight is a SILENT NO-OP when the TDD
     // profile exists (no writes at all — no pubspec read, no baseline
     // writes) — seed it so these tests keep pinning run's own behavior
-    // byte-for-byte in a pubspec-less fixture. The missing-profile
+    // byte-for-byte in a minimal fixture. The missing-profile
     // auto-init path is covered by commands/issue_1528_setup_error_test.dart.
     final memoryDir = Directory(p.join(tmpDir.path, '.specify', 'memory'));
     memoryDir.createSync(recursive: true);
@@ -82,6 +82,20 @@ coverage: 'dart test --coverage'
   tearDown(() {
     if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
   });
+
+  /// Issue #2053: the #2021 project-wiring preflight refuses `tdd run`
+  /// before any side effect on a tree with no wiring marker (`.zfa.json` /
+  /// `pubspec.yaml` / `dart_test.yaml`) at the root or any ancestor — a
+  /// `/var/folders` temp fixture has none. A real run target is by
+  /// definition a Dart-wired tree, so the run-driving groups seed the
+  /// minimal marker (same shape as the sibling refactor test's) instead of
+  /// deferring the gate past its side-effecting preflights. Nothing under
+  /// test reads the package graph, so the marker changes no assertion.
+  void seedWiringMarker() {
+    File(p.join(tmpDir.path, 'pubspec.yaml')).writeAsStringSync(
+      'name: tdd_bug_1471_fixture\nenvironment:\n  sdk: ^3.11.0\n',
+    );
+  }
 
   Directory seedBugFeature({
     String bugSlug = slug,
@@ -325,6 +339,8 @@ esac
   });
 
   group('Bug #1471 — zfa tdd run resolves the bug directory', () {
+    setUp(seedWiringMarker);
+
     test(
       'an explicit bug-directory reference is no longer a usage error',
       () async {
@@ -456,6 +472,8 @@ esac
   });
 
   group('Bug #1471 — the driver hands children the canonical bug ref', () {
+    setUp(seedWiringMarker);
+
     List<String> stepArgv(String logPath) => File(logPath)
         .readAsLinesSync()
         .map((l) => l.trim())
