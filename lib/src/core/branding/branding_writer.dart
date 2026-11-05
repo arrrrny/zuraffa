@@ -124,12 +124,14 @@ class BrandingWriter {
   }
 
   /// Copies brand assets to {projectRoot}/assets/zuraffa_app_icons/.
-  /// Idempotent: skips if destination already exists.
+  /// Idempotent: skips a destination that already holds a brand file. An
+  /// existing EMPTY destination is populated on retry instead of blocking
+  /// it, and git-ignored metadata (.DS_Store) is never copied.
   Future<void> _copyBrandAssetsToAssets(String projectRoot) async {
     final destDir = Directory(
       p.join(projectRoot, 'assets', 'zuraffa_app_icons'),
     );
-    if (destDir.existsSync()) return; // already branded
+    if (_hasCommittableBrandFile(destDir)) return; // already branded
     final sourceDir = Directory(_brandAssetsSource);
     if (!sourceDir.existsSync()) {
       // Graceful degradation: the brand assets may not be checked out
@@ -143,13 +145,41 @@ class BrandingWriter {
       // surface the missing source. See spec 053 edge case.
       return;
     }
-    destDir.createSync(recursive: true);
+    // The destination is created lazily, on the first copied file: a
+    // source that yields nothing committable (empty, or only git-ignored
+    // metadata like .DS_Store) must leave nothing behind — a destination
+    // created empty here would make every later retry skip the copy at the
+    // _hasCommittableBrandFile gate above, pinning the pubspec entry off
+    // until the empty directory is hand-deleted (issue 2050).
+    var created = false;
     await for (final entity in sourceDir.list()) {
       if (entity is File) {
-        final destPath = p.join(destDir.path, p.basename(entity.path));
-        await entity.copy(destPath);
+        final base = p.basename(entity.path);
+        if (_isIgnoredMetadata(base)) continue;
+        if (!created) {
+          destDir.createSync(recursive: true);
+          created = true;
+        }
+        await entity.copy(p.join(destDir.path, base));
       }
     }
+  }
+
+  /// OS metadata a Flutter app's .gitignore drops (`.DS_Store` among them),
+  /// so it never reaches a fresh clone of the target project.
+  static bool _isIgnoredMetadata(String basename) =>
+      basename.toLowerCase() == '.ds_store';
+
+  /// True when [dir] holds at least one file git can actually carry —
+  /// ignored metadata (e.g. `.DS_Store`, which Flutter's app template
+  /// .gitignore drops) is invisible to a fresh clone, so it cannot anchor
+  /// the pubspec assets entry (issue 2050).
+  static bool _hasCommittableBrandFile(Directory dir) {
+    if (!dir.existsSync()) return false;
+    return dir.listSync().any(
+      (entity) =>
+          entity is File && !_isIgnoredMetadata(p.basename(entity.path)),
+    );
   }
 
   /// Copies iOS and Android app icons to platform-specific directories.
@@ -196,7 +226,8 @@ class BrandingWriter {
   /// empty directory, so an entry written for an empty one dangles in every
   /// fresh clone of the target app — the flutter tool fails there with
   /// "unable to find directory entry in pubspec.yaml" (the bug 735
-  /// empty-directory defense did not survive git).
+  /// empty-directory defense did not survive git). Git-ignored metadata
+  /// (.DS_Store) does not count as a copied file either.
   Future<void> _updatePubspecAssets(String projectRoot) async {
     final pubspecFile = File(p.join(projectRoot, 'pubspec.yaml'));
     if (!pubspecFile.existsSync()) return;
@@ -205,16 +236,14 @@ class BrandingWriter {
     if (content.contains('zuraffa_app_icons')) return; // already added
 
     // Never write an entry git cannot carry: an empty destination directory
-    // is untracked, so the committed pubspec line dangles in every fresh
-    // clone (issue 2050). Inject only when at least one brand file was
-    // actually copied.
+    // is untracked, and ignored metadata (.DS_Store — Flutter's app
+    // template .gitignore drops it) never reaches a fresh clone either, so
+    // a pubspec line anchored on either dangles there (issue 2050). Inject
+    // only when at least one committable brand file exists.
     final destDir = Directory(
       p.join(projectRoot, 'assets', 'zuraffa_app_icons'),
     );
-    final hasCopiedFiles =
-        destDir.existsSync() &&
-        destDir.listSync().any((entity) => entity is File);
-    if (!hasCopiedFiles) return;
+    if (!_hasCommittableBrandFile(destDir)) return;
 
     // Inject after "uses-material-design: true" — MERGING into an
     // existing `flutter: assets:` list when one is present. Appending a

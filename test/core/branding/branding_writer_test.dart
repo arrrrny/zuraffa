@@ -532,6 +532,9 @@ flutter:
           final fakeRoot = await fakeZuraffaRoot(seedEmptySource: true);
 
           final (tmp, pubspecFile) = await seedTargetProject();
+          final dest = Directory(
+            p.join(tmp.path, 'my_app', 'assets', 'zuraffa_app_icons'),
+          );
 
           final writer = BrandingWriter(zuraffaRoot: fakeRoot.path);
           await writer.writeFlutterBranding(
@@ -548,6 +551,99 @@ flutter:
                 'an empty source copies nothing, so the destination stays '
                 'empty and the entry would dangle in every fresh clone '
                 '(issue 2050)',
+          );
+          expect(
+            dest.existsSync(),
+            isFalse,
+            reason:
+                'an empty source must not create the destination: a '
+                'destination created empty would make every later retry '
+                'skip the copy at the existing-files check, pinning the '
+                'pubspec entry off until hand-deleted (issue 2050)',
+          );
+        });
+
+        test('populates an existing EMPTY destination on retry and injects '
+            'the pubspec entry', () async {
+          final fakeRoot = await fakeZuraffaRoot();
+          Directory(
+            p.join(fakeRoot.path, 'assets', 'zuraffa_app_icons'),
+          ).createSync(recursive: true);
+          File(
+            p.join(fakeRoot.path, 'assets', 'zuraffa_app_icons', 'logo.png'),
+          ).writeAsStringSync('png');
+
+          final (tmp, pubspecFile) = await seedTargetProject();
+          final projectRoot = p.join(tmp.path, 'my_app');
+          // A run whose source had nothing committable left an empty
+          // destination behind; the next run must populate it, not skip.
+          Directory(
+            p.join(projectRoot, 'assets', 'zuraffa_app_icons'),
+          ).createSync(recursive: true);
+
+          final writer = BrandingWriter(zuraffaRoot: fakeRoot.path);
+          await writer.writeFlutterBranding(
+            projectRoot: projectRoot,
+            dryRun: false,
+            verbose: false,
+          );
+
+          expect(
+            File(
+              p.join(projectRoot, 'assets', 'zuraffa_app_icons', 'logo.png'),
+            ).existsSync(),
+            isTrue,
+            reason:
+                'an existing EMPTY destination must be populated on retry '
+                '— skipping on a bare existsSync() check blocks branding '
+                'and the pubspec entry forever',
+          );
+          expect(
+            pubspecFile.readAsStringSync().contains(
+              'assets/zuraffa_app_icons/',
+            ),
+            isTrue,
+            reason: 'the populated destination makes the entry committable',
+          );
+        });
+
+        test('does not copy .DS_Store nor inject the pubspec entry when the '
+            'source holds only git-ignored metadata', () async {
+          final fakeRoot = await fakeZuraffaRoot();
+          final sourceDir = Directory(
+            p.join(fakeRoot.path, 'assets', 'zuraffa_app_icons'),
+          );
+          sourceDir.createSync(recursive: true);
+          File(p.join(sourceDir.path, '.DS_Store')).writeAsStringSync('junk');
+
+          final (tmp, pubspecFile) = await seedTargetProject();
+          final dest = Directory(
+            p.join(tmp.path, 'my_app', 'assets', 'zuraffa_app_icons'),
+          );
+
+          final writer = BrandingWriter(zuraffaRoot: fakeRoot.path);
+          await writer.writeFlutterBranding(
+            projectRoot: p.join(tmp.path, 'my_app'),
+            dryRun: false,
+            verbose: false,
+          );
+
+          expect(
+            dest.existsSync(),
+            isFalse,
+            reason:
+                'a destination holding only .DS_Store is invisible to git: '
+                'Flutter\'s app template .gitignore drops it, so nothing '
+                'was actually committed — copying it must not create the '
+                'directory either (issue 2050)',
+          );
+          expect(
+            pubspecFile.readAsStringSync().contains('zuraffa_app_icons'),
+            isFalse,
+            reason:
+                'a .DS_Store-only destination cannot anchor the pubspec '
+                'entry: git omits the directory from a fresh clone and the '
+                'entry dangles there (issue 2050)',
           );
         });
 
