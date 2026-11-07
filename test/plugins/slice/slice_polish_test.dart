@@ -120,6 +120,12 @@ void main() {
         ).run(['slice', 'cut', 'product_feature', '--entry', 'product']),
       );
 
+      await captureOutput(
+        () => runnerWith(
+          SliceCommand(projectRoot: projectRoot),
+        ).run(['slice', 'verify', 'product_feature', '--json']),
+      );
+
       // Agent modifies one file.
       File(
         '$projectRoot/.zuraffa/slices/product_feature/'
@@ -168,6 +174,12 @@ void main() {
         () => runnerWith(
           cutCommand,
         ).run(['slice', 'cut', 'product_feature', '--entry', 'product']),
+      );
+
+      await captureOutput(
+        () => runnerWith(
+          SliceCommand(projectRoot: projectRoot),
+        ).run(['slice', 'verify', 'product_feature', '--json']),
       );
 
       final mergeCommand = SliceCommand(projectRoot: projectRoot);
