@@ -14,6 +14,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:test/test.dart';
+import 'package:zuraffa/src/cli/exit_protocol.dart';
 import 'package:zuraffa/src/plugins/slice/slice_command.dart';
 
 import 'helpers/capture_output.dart';
@@ -221,7 +222,7 @@ void main() {
       ]),
     );
 
-    expect(command.exitCode, equals(2));
+    expect(command.exitCode, ExitProtocol.usage);
     expect(output, contains('depth'));
     expect(output, contains('view'));
     expect(output, contains('full'));
