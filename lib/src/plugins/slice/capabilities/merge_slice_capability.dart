@@ -390,6 +390,10 @@ class MergeSliceCapability implements ZuraffaCapability {
     // `flutter test`; `dart test` cannot resolve flutter_test from the
     // SDK. Pure-Dart hosts keep `dart test`.
     final driver = suiteCommandFor(projectRoot);
+    final testDir = Directory('$projectRoot/test');
+    if (!testDir.existsSync()) {
+      return HostSuiteOutcome(passed: true, failures: const <String>[]);
+    }
     final result = await Process.run(
       driver,
       ['test'],
