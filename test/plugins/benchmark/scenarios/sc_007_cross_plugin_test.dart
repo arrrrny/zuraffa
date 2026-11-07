@@ -45,10 +45,14 @@ void main() {
     expect(suite.overallStatus, BenchmarkStatus.passed);
 
     // No cross-contamination: each scenario's custom metrics land only in
-    // its own result, under its own namespace.
+    // its own result, under its own namespace. The `<id>_ops` expectation
+    // is scoped to the first-party `-benchmark` scenarios (they emit
+    // `operations`/`checksum`/`micros_elapsed`, not `<id>_ops`), but the
+    // leak check runs for EVERY result — that is the isolation proof.
     for (final result in suite.results) {
-      if (!result.scenarioId.endsWith('-benchmark')) continue;
-      expect(result.metrics, containsPair('${result.scenarioId}_ops', 1));
+      if (result.scenarioId.endsWith('-benchmark')) {
+        expect(result.metrics, containsPair('${result.scenarioId}_ops', 1));
+      }
       for (final other in suite.results) {
         if (other.scenarioId == result.scenarioId) continue;
         expect(

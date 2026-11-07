@@ -28,7 +28,9 @@ bool isFlutterPackage(String dir) {
       inDevDependencies = line == 'dev_dependencies:';
       continue;
     }
-    if (inDependencies && (line == 'flutter:' || (line.startsWith('flutter:') && line.contains('sdk')))) {
+    if (inDependencies &&
+        (line == 'flutter:' ||
+            (line.startsWith('flutter:') && line.contains('sdk')))) {
       return true;
     }
     if (inDevDependencies && line.startsWith('flutter_test:')) return true;

@@ -32,9 +32,22 @@ import '../verifier/suite_command.dart';
 /// Outcome of one host suite run (injectable seam).
 class HostSuiteOutcome {
   final bool passed;
+
+  /// True when the host declares no suite at all (no `test/`
+  /// directory): nothing ran, nothing failed. Named so the merge report
+  /// never renders the absence as green.
+  final bool noSuite;
+
   final List<String> failures;
 
-  const HostSuiteOutcome({required this.passed, this.failures = const []});
+  const HostSuiteOutcome({
+    required this.passed,
+    this.noSuite = false,
+    this.failures = const [],
+  });
+
+  /// The named no-suite outcome: the host has no `test/` directory.
+  const HostSuiteOutcome.noSuite() : this(passed: true, noSuite: true);
 }
 
 /// Runs the host suite; injectable so merge stays hermetic in tests.
@@ -256,13 +269,21 @@ class MergeSliceCapability implements ZuraffaCapability {
 
   /// The host-suite report and success verdict (sync core): merge
   /// succeeds only when the merger was clean AND the host suite ran
-  /// green; the report names failures with a fix hint on red.
+  /// green; the report names failures with a fix hint on red. A host
+  /// that declares no suite at all is reported as "none declared" —
+  /// never as green — and must not fail the merge.
   static ({bool success, String report}) hostSuiteReport({
     required bool mergeClean,
     required HostSuiteOutcome? outcome,
   }) {
     if (outcome == null) {
       return (success: mergeClean, report: '');
+    }
+    if (outcome.noSuite) {
+      // Same absence rule as the sandbox side: the absence is named,
+      // not folded into a pass — but a suite-less host must not gate
+      // the merge either.
+      return (success: mergeClean, report: ' Host suite: none declared.');
     }
     if (outcome.passed) {
       return (success: mergeClean, report: ' Host suite: green.');
@@ -392,7 +413,9 @@ class MergeSliceCapability implements ZuraffaCapability {
     final driver = suiteCommandFor(projectRoot);
     final testDir = Directory('$projectRoot/test');
     if (!testDir.existsSync()) {
-      return HostSuiteOutcome(passed: true, failures: const <String>[]);
+      // The host declares no suite at all: report the named noSuite
+      // outcome — never a green that never happened (issue #1144).
+      return const HostSuiteOutcome.noSuite();
     }
     final result = await Process.run(
       driver,

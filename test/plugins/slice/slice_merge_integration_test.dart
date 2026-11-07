@@ -53,7 +53,7 @@ void main() {
       'A5 (T091): merge copies back only the modified file and cleans up',
       () async {
         await cut();
-      await verify();
+        await verify();
 
         // Simulate the agent: modify the view, leave everything else alone.
         final viewRel = 'lib/src/presentation/pages/product/product_view.dart';
@@ -87,7 +87,7 @@ void main() {
       'A6 (T092): a modified shared file warns and needs confirmation',
       () async {
         await cut();
-      await verify();
+        await verify();
 
         final rel = 'lib/src/presentation/widgets/primary_button.dart';
         final original = await projectFile(rel).readAsString();

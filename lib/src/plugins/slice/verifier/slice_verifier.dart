@@ -31,10 +31,22 @@ import 'self_containment.dart';
 class SuiteOutcome {
   final bool passed;
 
+  /// True when the sandbox declares no suite at all (no `test/`
+  /// directory): nothing ran, nothing failed. Named so the verdict
+  /// never renders the absence as a plain green.
+  final bool noSuite;
+
   /// Failing test names (or the runner's failure summary lines).
   final List<String> failures;
 
-  const SuiteOutcome({required this.passed, this.failures = const []});
+  const SuiteOutcome({
+    required this.passed,
+    this.noSuite = false,
+    this.failures = const [],
+  });
+
+  /// The named no-suite outcome: the sandbox has no `test/` directory.
+  const SuiteOutcome.noSuite() : this(passed: true, noSuite: true);
 }
 
 /// Runs the sandbox suite; injectable so verify stays hermetic in tests.
@@ -187,6 +199,14 @@ class SliceVerifier {
       );
     }
     final outcome = _suiteRunner(sandboxDir);
+    // A sandbox with no `test/` directory declares no suite: report the
+    // named noSuite outcome — the verdict is not failed (nothing ran,
+    // nothing failed) but the absence is carried, never folded into a
+    // plain green. A test/ directory present without a runnable suite
+    // still fails below (absence never passes, errors-are-an-api).
+    if (outcome.noSuite) {
+      return const SliceCheck(name: 'suiteState', pass: true, noSuite: true);
+    }
     return SliceCheck(
       name: 'suiteState',
       pass: outcome.passed,

@@ -179,6 +179,37 @@ void main() {
       final suite = verdict['suiteState'] as Map;
       expect(suite['pass'], isFalse);
     });
+
+    test('B5: a sandbox with no test/ dir verifies as noSuite — named, '
+        'never green', () async {
+      await captureOutput(
+        () =>
+            runner.run(['slice', 'cut', 'login_feature', '--entry', 'product']),
+      );
+      expect(command.exitCode, equals(0));
+      // No dependency declared: cut scaffolds no test/ directory, so
+      // the sandbox declares no suite at all.
+      expect(Directory('${sandbox()}/test').existsSync(), isFalse);
+
+      await captureOutput(
+        () => runner.run(['slice', 'verify', '--json', 'login_feature']),
+      );
+
+      final verdictFile = File('${sandbox()}/verify-verdict.json');
+      expect(verdictFile.existsSync(), isTrue);
+      final verdict = jsonDecode(verdictFile.readAsStringSync()) as Map;
+      final suite = verdict['suiteState'] as Map;
+      // The verdict is NOT failed (nothing ran, nothing failed)…
+      expect(verdict['passed'], isTrue);
+      expect(command.exitCode, equals(0));
+      // …but the absence is named, never folded into a plain green.
+      expect(suite['pass'], isTrue);
+      expect(
+        suite['noSuite'],
+        isTrue,
+        reason: 'the no-suite outcome carries its marker in the verdict',
+      );
+    });
   });
 
   group('suite driver selection (issue #1144)', () {
@@ -202,5 +233,33 @@ void main() {
         expect(suiteCommandFor(dir.path), equals('flutter'));
       },
     );
+
+    test('B4b: dev_dependencies flutter_test also selects flutter', () async {
+      final dir = await Directory.systemTemp.createTemp('suite_driver_dev_');
+      addTearDown(() => dir.delete(recursive: true));
+
+      // A package whose ONLY Flutter signal is the dev-dependency
+      // (flutter_test pulls the Flutter SDK) must run under
+      // `flutter test` — `dart test` cannot resolve it.
+      File('${dir.path}/pubspec.yaml').writeAsStringSync(
+        'name: devdep\n'
+        'environment:\n'
+        '  sdk: ^3.11.0\n'
+        'dev_dependencies:\n'
+        '  flutter_test:\n'
+        '    sdk: flutter\n',
+      );
+      expect(suiteCommandFor(dir.path), equals('flutter'));
+
+      // A commented-out entry is skipped by the comment guard: the
+      // package stays pure Dart.
+      File('${dir.path}/pubspec.yaml').writeAsStringSync(
+        'name: commented\n'
+        'dev_dependencies:\n'
+        '  # flutter_test:\n'
+        '  test: ^1.25.0\n',
+      );
+      expect(suiteCommandFor(dir.path), equals('dart'));
+    });
   });
 }
