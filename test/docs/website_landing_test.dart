@@ -1,21 +1,23 @@
 // Issue #1727 — zuraffa.com must showcase apps built with Zuraffa and link
-// ZikZak (the sponsor at zuzu.dev) from that showcase. The landing page is a
-// single static file (website/static/index.html) deployed to GitHub Pages, so
-// this pin reads it directly and fails if the showcase or the ZikZak link
-// disappears.
+// ZikZak (the sponsor at zuzu.dev) from that showcase. The framework landing
+// page is a single static file (website/static/framework/index.html) deployed
+// to GitHub Pages — zuraffa.com itself flipped to the Browser home and the
+// framework page moved to /framework (the 176d2c24 site flip) — so this pin
+// reads it directly and fails if the showcase or the ZikZak link disappears.
 
 import 'dart:io';
 
 import 'package:test/test.dart';
 
 void main() {
-  final landing = File('website/static/index.html');
+  final landing = File('website/static/framework/index.html');
 
   test('the landing page exists', () {
     expect(
       landing.existsSync(),
       isTrue,
-      reason: 'website/static/index.html is the zuraffa.com landing page',
+      reason:
+          'website/static/framework/index.html is the framework landing page',
     );
   });
 
