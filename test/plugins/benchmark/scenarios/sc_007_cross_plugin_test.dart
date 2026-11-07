@@ -24,7 +24,7 @@ void main() {
 
     // All scenarios from all plugins are present and runnable together.
     final all = await benchmarkPlugin.registry.getAll();
-    expect(all, hasLength(4));
+    expect(all, hasLength(6));
     expect(
       all.map((s) => s.id),
       containsAll([
@@ -32,6 +32,8 @@ void main() {
         'sync-push-benchmark',
         'sync-pull-benchmark',
         'cache-eviction-benchmark',
+        'string-utils-casing',
+        'spec-library-field-emit',
       ]),
     );
 
@@ -39,12 +41,13 @@ void main() {
     final runner = DefaultBenchmarkRunner();
     final suite = await runner.run(all);
 
-    expect(suite.results, hasLength(4));
+    expect(suite.results, hasLength(6));
     expect(suite.overallStatus, BenchmarkStatus.passed);
 
     // No cross-contamination: each scenario's custom metrics land only in
     // its own result, under its own namespace.
     for (final result in suite.results) {
+      if (!result.scenarioId.endsWith('-benchmark')) continue;
       expect(result.metrics, containsPair('${result.scenarioId}_ops', 1));
       for (final other in suite.results) {
         if (other.scenarioId == result.scenarioId) continue;

@@ -44,11 +44,16 @@ void main() {
     () => runner.run(['slice', 'cut', 'product_feature', '--entry', 'product']),
   );
 
+  Future<void> verify() => captureOutput(
+    () => runner.run(['slice', 'verify', 'product_feature', '--json']),
+  );
+
   group('slice merge acceptance (US2)', () {
     test(
       'A5 (T091): merge copies back only the modified file and cleans up',
       () async {
         await cut();
+      await verify();
 
         // Simulate the agent: modify the view, leave everything else alone.
         final viewRel = 'lib/src/presentation/pages/product/product_view.dart';
@@ -82,6 +87,7 @@ void main() {
       'A6 (T092): a modified shared file warns and needs confirmation',
       () async {
         await cut();
+      await verify();
 
         final rel = 'lib/src/presentation/widgets/primary_button.dart';
         final original = await projectFile(rel).readAsString();
@@ -120,6 +126,7 @@ void main() {
 
     test('A7 (T093): concurrent main-project changes are a conflict', () async {
       await cut();
+      await verify();
 
       final rel = 'lib/src/presentation/pages/product/product_view.dart';
 
@@ -147,6 +154,7 @@ void main() {
     test('A8 (T094): no modifications reports no changes and deletes the '
         'slice', () async {
       await cut();
+      await verify();
 
       final output = await captureOutput(
         () => runner.run(['slice', 'merge', 'product_feature']),

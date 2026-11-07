@@ -18,18 +18,20 @@ bool isFlutterPackage(String dir) {
   final file = File('$dir/pubspec.yaml');
   if (!file.existsSync()) return false;
   var inDependencies = false;
+  var inDevDependencies = false;
   for (final rawLine in file.readAsLinesSync()) {
     final line = rawLine.trim();
     if (line.isEmpty || line.startsWith('#')) continue;
     final isTopLevel = rawLine.startsWith(RegExp(r'\S'));
     if (isTopLevel) {
       inDependencies = line == 'dependencies:';
+      inDevDependencies = line == 'dev_dependencies:';
       continue;
     }
-    if (inDependencies && line == 'flutter:') return true;
-    if (inDependencies && line.startsWith('flutter:') && line.contains('sdk')) {
+    if (inDependencies && (line == 'flutter:' || (line.startsWith('flutter:') && line.contains('sdk')))) {
       return true;
     }
+    if (inDevDependencies && line.startsWith('flutter_test:')) return true;
   }
   return false;
 }

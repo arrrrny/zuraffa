@@ -87,7 +87,7 @@ void main() {
     final verifyRunner = CommandRunner<void>('zfa', 'test')
       ..addCommand(verifyCommand);
     final verifyOutput = await captureOutput(
-      () => verifyRunner.run(['slice', 'verify', 'product_feature']),
+      () => verifyRunner.run(['slice', 'verify', 'product_feature', '--json']),
     );
     expect(verifyCommand.exitCode, equals(0), reason: verifyOutput);
 
