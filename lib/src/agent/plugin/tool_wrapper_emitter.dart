@@ -65,9 +65,10 @@ class ToolWrapperEmitter {
 import 'dart:convert';
 
 import 'package:get_it/get_it.dart';
+import 'package:zuraffa/src/agent/plugin/tool_params_registry.dart';
 import 'package:zuraffa/src/core/module/mcp_tool.dart';
 
-import '$packageRoot/domain/usecases/$entitySnake/${_snakeFromClassName(className)}.dart';
+import '${packageRoot}domain/usecases/$entitySnake/${_snakeFromClassName(className)}.dart';
 
 /// Generated MCP tool wrapper for [$className].
 ///
@@ -75,7 +76,9 @@ import '$packageRoot/domain/usecases/$entitySnake/${_snakeFromClassName(classNam
 /// DO NOT EDIT inside the GENERATED markers — manual edits outside markers
 /// survive regeneration.
 class $toolClassName extends McpTool {
-  const $toolClassName();
+  // Not const: [McpTool] has no const constructor, so a const subclass
+  // constructor would not compile.
+  $toolClassName();
 
   @override
   String get name => ${_dartStringLiteral(toolName)};
@@ -103,7 +106,7 @@ class $toolClassName extends McpTool {
     } catch (e, st) {
       return McpToolResult(
         isError: true,
-        text: 'Error invoking \$toolName: \$e\\n\$st',
+        text: 'Error invoking \$name: \$e\\n\$st',
       );
     }
   }
@@ -113,9 +116,15 @@ class $toolClassName extends McpTool {
   /// a `Params.fromJson(arguments)` factory if available, falling back
   /// to direct construction.
   dynamic _buildParams(Map<String, dynamic> arguments) {
-    // Pass through to the usecase's expected Params type. The UseCase's
-    // Params type MAY provide a fromJson; if not, callers can override
-    // _buildParams in a manually-written subclass outside the markers.
+    // Coerce to the typed Params class via the host-registered fromWire
+    // factory when one exists (zuraffa#2061); otherwise pass the raw
+    // arguments map through. Callers can still override _buildParams in
+    // a manually-written subclass outside the markers.
+    final coerced = ToolParamsRegistry.coerce(
+      ${_dartStringLiteral(metadata.paramsType)},
+      arguments,
+    );
+    if (coerced != null) return coerced;
     return arguments;
   }
 
