@@ -221,7 +221,7 @@ void main() {
       ]),
     );
 
-    expect(command.exitCode, equals(64));
+    expect(command.exitCode, equals(2));
     expect(output, contains('depth'));
     expect(output, contains('view'));
     expect(output, contains('full'));

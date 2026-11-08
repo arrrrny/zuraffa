@@ -42,5 +42,23 @@ Object? subject_u6() {
     MergeSliceCapability.hostSuiteReport(mergeClean: true, outcome: null),
     (r) => r.success && r.report.isEmpty,
   );
+
+  // No test/ directory: the host declares no suite at all. The report
+  // names the absence — never "green" — and must not fail the merge.
+  final none = MergeSliceCapability.hostSuiteReport(
+    mergeClean: true,
+    outcome: const HostSuiteOutcome.noSuite(),
+  );
+  expect(none.success, isTrue, reason: 'a suite-less host must not gate merge');
+  expect(none.report, contains('Host suite: none declared.'));
+  expect(none.report, isNot(contains('green')));
+  // The named outcome stays distinguishable from a run-and-passed suite.
+  expect(
+    MergeSliceCapability.hostSuiteReport(
+      mergeClean: true,
+      outcome: const HostSuiteOutcome(passed: true),
+    ).report,
+    isNot(contains('none declared')),
+  );
   return null;
 }
