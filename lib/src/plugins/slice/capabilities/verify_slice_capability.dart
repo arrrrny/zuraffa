@@ -49,8 +49,34 @@ class VerifySliceCapability implements ZuraffaCapability {
   /// run to completion in-process. A Flutter sandbox runs `flutter test`
   /// (`dart test` cannot resolve flutter_test from the SDK); a pure-Dart
   /// sandbox runs `dart test` (issue #1144).
+  ///
+  /// A sandbox with no `test/` directory declares no suite at all: the
+  /// runner reports the named [SuiteOutcome.noSuite] outcome — never a
+  /// plain pass — and skips dependency resolution, because there is
+  /// nothing to resolve for a suite that will never run.
   static SuiteOutcome _processSuiteRunner(String sandboxDir) {
+    final testDir = Directory('$sandboxDir/test');
+    if (!testDir.existsSync()) {
+      return const SuiteOutcome.noSuite();
+    }
     final driver = suiteCommandFor(sandboxDir);
+    // Ensure the sandbox's dependencies are resolvable before running its
+    // suite (issue: sandbox ships without .dart_tool/package_config.json).
+    final pkgConfig = File('$sandboxDir/.dart_tool/package_config.json');
+    if (!pkgConfig.existsSync()) {
+      final pub = Process.runSync(
+        driver,
+        ['pub', 'get'],
+        workingDirectory: sandboxDir,
+        runInShell: true,
+      );
+      if (pub.exitCode != 0) {
+        return SuiteOutcome(
+          passed: false,
+          failures: ['pub get failed: ${pub.stderr}'],
+        );
+      }
+    }
     final result = Process.runSync(
       driver,
       ['test'],

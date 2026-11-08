@@ -1,10 +1,9 @@
 .DS_Store
 .dart_tool/
-# The slice fixture (spec 043) needs its resolved package config committed:
-# the walker's PackageResolver reads it, and CI has no local .dart_tool for
-# the fixture. All its rootUris are relative, so it works in any copy.
-!test/fixtures/slice_test_project/.dart_tool/
-!test/fixtures/slice_test_project/.dart_tool/package_config.json
+# The slice fixture (spec 043) carries no committed .dart_tool: the test
+# harness synthesizes a minimal RELATIVE package_config.json into every
+# fixture copy (copy_fixture_project.dart), so no host's resolution state
+# is committed. The walker's PackageResolver needs only the self package.
 .idea/
 .packages
 # Issue #1986: pubspec.lock is COMMITTED on purpose — it pins the resolved

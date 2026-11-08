@@ -14,13 +14,26 @@ class SliceCheck {
   final bool pass;
   final List<String> offenders;
 
+  /// The named no-suite outcome (suiteState only): the sandbox declares
+  /// no `test/` directory, so nothing ran and nothing failed. The check
+  /// passes but is rendered `none` — never as a plain green (absence is
+  /// named, not folded into a pass).
+  final bool noSuite;
+
   const SliceCheck({
     required this.name,
     required this.pass,
+    this.noSuite = false,
     this.offenders = const [],
   });
 
-  Map<String, Object> toJson() => {'pass': pass, 'offenders': offenders};
+  Map<String, Object> toJson() => {
+    'pass': pass,
+    'offenders': offenders,
+    // Sparse: only the no-suite outcome carries the marker, keeping the
+    // normal verdict bytes identical to the pre-noSuite shape.
+    if (noSuite) 'noSuite': true,
+  };
 }
 
 /// The full verify verdict.
@@ -85,6 +98,7 @@ class SliceVerdict {
       return SliceCheck(
         name: name,
         pass: node['pass'] == true,
+        noSuite: node['noSuite'] == true,
         offenders: offenders,
       );
     }
@@ -96,11 +110,19 @@ class SliceVerdict {
     );
   }
 
+  /// The suite-state word of the summary line: `none` when the sandbox
+  /// declares no suite (named absence), `pass`/`fail` otherwise.
+  String get _suiteRendering => suiteState.noSuite
+      ? 'none'
+      : suiteState.pass
+      ? 'pass'
+      : 'fail';
+
   /// The final stdout summary line.
   String summaryLine(String feature) =>
       'slice-verify: feature=$feature '
       'self-containment=${selfContainment.pass ? 'pass' : 'fail'} '
       'mock-certification=${mockCertification.pass ? 'pass' : 'fail'} '
-      'suite=${suiteState.pass ? 'pass' : 'fail'} '
+      'suite=$_suiteRendering '
       'outcome=${passed ? 'verified' : 'failed'}';
 }
