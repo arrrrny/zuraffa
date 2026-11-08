@@ -77,8 +77,8 @@ class SliceCommand extends Command<void> {
   @override
   ArgParser get argParser => ArgParser.allowAnything();
 
-  /// Exit code of the last invocation: 0 on success, 64 on usage errors,
-  /// 1 on execution failures.
+  /// Exit code of the last invocation: 0 on success,
+  /// [ExitProtocol.usage] (2) on usage errors, 1 on execution failures.
   int exitCode = 0;
 
   static const _usage = '''
