@@ -68,7 +68,7 @@ import 'package:get_it/get_it.dart';
 import 'package:zuraffa/src/agent/plugin/tool_params_registry.dart';
 import 'package:zuraffa/src/core/module/mcp_tool.dart';
 
-import '$packageRoot/domain/usecases/$entitySnake/${_snakeFromClassName(className)}.dart';
+import '${packageRoot}domain/usecases/$entitySnake/${_snakeFromClassName(className)}.dart';
 
 /// Generated MCP tool wrapper for [$className].
 ///
@@ -76,7 +76,9 @@ import '$packageRoot/domain/usecases/$entitySnake/${_snakeFromClassName(classNam
 /// DO NOT EDIT inside the GENERATED markers — manual edits outside markers
 /// survive regeneration.
 class $toolClassName extends McpTool {
-  const $toolClassName();
+  // Not const: [McpTool] has no const constructor, so a const subclass
+  // constructor would not compile.
+  $toolClassName();
 
   @override
   String get name => ${_dartStringLiteral(toolName)};
@@ -104,7 +106,7 @@ class $toolClassName extends McpTool {
     } catch (e, st) {
       return McpToolResult(
         isError: true,
-        text: 'Error invoking \$toolName: \$e\\n\$st',
+        text: 'Error invoking \$name: \$e\\n\$st',
       );
     }
   }

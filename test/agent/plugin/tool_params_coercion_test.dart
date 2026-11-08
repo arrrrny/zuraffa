@@ -18,7 +18,7 @@ void main() {
     test(
       'returns null when no fromWire is registered — pass-through stays',
       () {
-        ToolParamsRegistry.fromWire.remove('IdentifierLookupParams');
+        ToolParamsRegistry.unregister('IdentifierLookupParams');
         expect(
           ToolParamsRegistry.coerce('IdentifierLookupParams', {'code': 'abc'}),
           isNull,
@@ -27,8 +27,16 @@ void main() {
     );
 
     test('coerces the wire map through the registered fromWire factory', () {
-      ToolParamsRegistry.fromWire['IdentifierLookupParams'] = (wire) =>
-          IdentifierLookupParams(code: wire['code'] as String);
+      // Tear down right after the write: a failing expect below must not
+      // leak the factory into later tests (the cleanup is exception-safe,
+      // a trailing remove in the body is not).
+      ToolParamsRegistry.register(
+        'IdentifierLookupParams',
+        (wire) => IdentifierLookupParams(code: wire['code'] as String),
+      );
+      addTearDown(
+        () => ToolParamsRegistry.unregister('IdentifierLookupParams'),
+      );
 
       final coerced = ToolParamsRegistry.coerce('IdentifierLookupParams', {
         'code': 'abc',
@@ -36,20 +44,21 @@ void main() {
 
       expect(coerced, isA<IdentifierLookupParams>());
       expect((coerced as IdentifierLookupParams).code, equals('abc'));
-
-      ToolParamsRegistry.fromWire.remove('IdentifierLookupParams');
     });
 
     test('keys are independent per params type', () {
-      ToolParamsRegistry.fromWire['IdentifierLookupParams'] = (wire) =>
-          IdentifierLookupParams(code: wire['code'] as String);
+      ToolParamsRegistry.register(
+        'IdentifierLookupParams',
+        (wire) => IdentifierLookupParams(code: wire['code'] as String),
+      );
+      addTearDown(
+        () => ToolParamsRegistry.unregister('IdentifierLookupParams'),
+      );
 
       expect(
         ToolParamsRegistry.coerce('SomeOtherParams', {'code': 'abc'}),
         isNull,
       );
-
-      ToolParamsRegistry.fromWire.remove('IdentifierLookupParams');
     });
   });
 

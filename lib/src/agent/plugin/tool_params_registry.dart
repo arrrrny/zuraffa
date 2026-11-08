@@ -19,6 +19,21 @@ class ToolParamsRegistry {
   /// appears in `UseCase<Output, Params>` (the wrapper's paramsType).
   static final Map<String, ToolParamsFromWire> fromWire = {};
 
+  /// Registers [factory] for [paramsType], replacing any previous one.
+  ///
+  /// The map stays public for hosts that populate it declaratively;
+  /// [register]/[unregister] exist so callers manage the global state
+  /// without reaching into the map — a failing test can still clean up
+  /// via `addTearDown(() => unregister(...))`.
+  static void register(String paramsType, ToolParamsFromWire factory) {
+    fromWire[paramsType] = factory;
+  }
+
+  /// Removes the factory for [paramsType] (no-op when none is registered).
+  static void unregister(String paramsType) {
+    fromWire.remove(paramsType);
+  }
+
   /// Returns the coerced params object for [paramsType], or `null` when no
   /// factory is registered (callers should then pass the raw map through).
   static Object? coerce(String paramsType, Map<String, dynamic> wire) {
