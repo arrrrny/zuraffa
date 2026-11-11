@@ -118,7 +118,7 @@
 - [x] T071 `dart analyze` clean on changed files
 - [x] T072 Write `tdd/verification.md` audit (scenarios ↔ evidence table); re-cycle on any FAIL (cap 3)
 - [x] T073 Run quickstart.md examples as a smoke (the snippets are the API surface)
-- [ ] T074 Commit chain, push, byte-verify, open PR citing #2071
+- [x] T074 Commit chain, push, byte-verify, open PR citing #2071
 
 ## Dependencies & Execution Order
 
