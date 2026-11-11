@@ -71,7 +71,28 @@
 - The publish order and inventory live inside `publish_fleet.sh`; when a
   package or a dependency edge is added, update its `INVENTORY`/`EDGES` and
   `update_fleet.sh`'s `FLEET_REPOS` in the same change.
-- pub does NOT strip `dependency_overrides` from published archives —
-  dev-only overrides must be removed before publishing (update_fleet's
-  `--sibling` overrides are dev-mode only; the strip-before-push/publish
-  convention applies to hand-added ones).
+- pub does NOT strip `dependency_overrides` from published archives, and
+  publish_fleet.sh does not strip them either. `update_fleet.sh` adds dev-mode
+  sibling overrides that DO land committed; BEFORE publishing, strip the
+  sibling `path:` entries from every fleet pubspec (keep the `xml: 7.1.0`
+  pin), commit as
+  "build(fleet): strip sibling path overrides from the adapter pubspecs", and
+  push. Reference: zuraffa_notifications cb06a07; the 7.3.8 archives on
+  pub.dev still carry the pollution, verified 2026-11-11.
+- Workspace members must never carry `dependency_overrides`: a pub workspace
+  shares one resolution governed by its root, and a member with its own
+  override makes `dart pub publish` in the member fail with
+  "overridden in both" (bit the zuraffa_ffi family during the 7.4.1 release).
+- Per-repo pre-publish compile gate: a repo may carry an executable
+  `scripts/prepublish_compile_gate.sh`; publish_fleet.sh runs it once before
+  that repo's first package publishes and aborts the fleet run on failure.
+  First user: zuraffa_notifications (`flutter build macos --release` of the
+  example) — a resolvability gate cannot catch native Swift that never
+  compiles (#6, then #15 / zuraffa#2063).
+- Split default branch (e.g. zuraffa_notifications: default `main`, pool PRs
+  targeting `master`): unify before publishing — merge the alignment into
+  the PR branch and fast-forward the default to the same commit, or the fix
+  lands on a branch the publish never sees.
+- 7.4.1 released 2026-11-11: whole fleet (64 packages incl. `vendure`'s
+  first publish) live at 7.4.1; `zuraffa_notifications_macos` 7.4.1 verified
+  to carry the #15 Swift fix in the hosted archive.
