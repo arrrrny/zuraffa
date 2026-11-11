@@ -270,9 +270,11 @@ wait_resolvable() {
 
 echo -e "${BLUE}=== publishing the zuraffa fleet at $VERSION ===${NC}"
 declare -A PUBSPEC_OF
+declare -A REPO_OF
 while IFS='|' read -r name repo path; do
   [ -n "$name" ] || continue
   PUBSPEC_OF["$name"]="$DEV_ROOT/$repo/$path"
+  REPO_OF["$name"]="$repo"
 done <<< "$INVENTORY"
 
 FAILED=0
@@ -284,6 +286,7 @@ SKIPPED=0
 # after the whole family is published.
 DEFER_GATES="${ZURAFFA_DEFER_GATES:-zuraffa_ffi zuraffa_ffi_platform zuraffa_ffi_android zuraffa_ffi_ios zuraffa_ffi_macos}"
 DEFERRED_PUBLISHED=()
+GATED_REPOS=()
 for pkg in $ORDER; do
   spec="${PUBSPEC_OF[$pkg]}"
   dir=$(dirname "$spec")
@@ -293,6 +296,21 @@ for pkg in $ORDER; do
     echo -e "  ${GREEN}$pkg $VERSION already on pub.dev — skip${NC}"
     SKIPPED=$((SKIPPED+1))
     continue
+  fi
+
+  # Per-repo pre-publish compile gate (PR #15 follow-up #2): a resolvability
+  # gate cannot catch a plugin whose native Swift never compiles (7.3.x #6,
+  # then 7.4.0 #15 / zuraffa#2063). If the repo carries an executable
+  # scripts/prepublish_compile_gate.sh, run it ONCE before the repo's first
+  # package publishes; a gate failure aborts the whole fleet run.
+  repo="${REPO_OF[$pkg]:-}"
+  if [ "$DRY_ONLY" != "1" ] && [ -n "$repo" ] \
+     && [ -x "$DEV_ROOT/$repo/scripts/prepublish_compile_gate.sh" ] \
+     && [[ " ${GATED_REPOS[*]:-} " != *" $repo "* ]]; then
+    echo -e "  ${YELLOW}pre-publish compile gate: $repo${NC}"
+    ( cd "$DEV_ROOT/$repo" && ./scripts/prepublish_compile_gate.sh ) \
+      || { echo -e "${RED}compile gate FAILED for $repo${NC}"; FAILED=1; break; }
+    GATED_REPOS+=("$repo")
   fi
 
   # wait for this package's fleet deps to be resolvable at the target

@@ -1,3 +1,21 @@
+<!-- ZURAFFA-LAUNCH-PROMO (valid until Dec 1, 2026) -->
+## 🦒 [Zuraffa Browser](https://zuraffa.com) — now live
+
+<div align="center">
+  <a href="https://zuraffa.com"><img src="https://zuraffa.com/img/zuraffa-browser-home.jpg" alt="Zuraffa Browser — 10 Browsers. One window." width="800"></a>
+</div>
+
+**[Zuraffa Browser](https://zuraffa.com)** — the multi-tasking browser for AI agents & humans — is live on the [Mac App Store](https://apps.apple.com/app/id6811352058).
+
+🎁 **Launch offer: 6 months free with code `ZURAFFA`** — no credit card, no subscription, no payment. Redeem in-app until **Dec 1, 2026**.
+
+<div align="center">
+<a href="https://www.producthunt.com/products/zuraffa-browser?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-zuraffa-browser" target="_blank" rel="noopener noreferrer"><img alt="Zuraffa Browser - Solves all CAPTCHAs with 100% Accuracy.  | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1312357&amp;theme=light&amp;t=1794403507600"></a>
+</div>
+
+
+---
+
 # 🦒 Zuraffa 
 
 [![Pub Version](https://img.shields.io/pub/v/zuraffa)](https://pub.dev/packages/zuraffa)
@@ -58,10 +76,10 @@ Add Zuraffa to your project:
 
 ```yaml
 dependencies:
-  zuraffa: ^7.3.6
+  zuraffa: ^7.4.1
 
 dev_dependencies:
-  zuraffa: ^7.3.6
+  zuraffa: ^7.4.1
   zorphy_annotation: ^1.7.0
   build_runner: ^2.4.0
 ```

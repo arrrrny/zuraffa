@@ -6,13 +6,21 @@
 ///   `http.Client` so tests never touch the network.
 /// - [DryRunPrCommentPoster] — renders locally, zero network access.
 ///
-/// Every body a [GithubPrCommentPoster] publishes passes the snippet
-/// gate ([SnippetPostingGate], PR #1703 review fix): each ```dart fenced
-/// block is validated through the spec-1685 gate (deny-list scan + REAL
-/// analyzer compile check) and the comment is refused when a block does
-/// not compile — the #1685 misfire class is closed mechanically at the
-/// transport, not by caller convention. Code suggestions must be sourced
-/// from the validated catalog via [GithubPrCommentPoster.postSnippetSuggestion].
+/// Every body a [GithubPrCommentPoster] publishes passes two gates before
+/// posting:
+///
+/// - the snippet gate ([SnippetPostingGate], PR #1703 review fix): each
+///   ```dart fenced block is validated through the spec-1685 gate
+///   (deny-list scan + REAL analyzer compile check) and the comment is
+///   refused when a block does not compile — the #1685 misfire class is
+///   closed mechanically at the transport, not by caller convention.
+/// - the suggestion diff gate ([SuggestionDiffGuard], issue #2064): each
+///   ```diff fenced block is scanned so a suggestion whose added lines
+///   would break a block comment (`*/` terminator inside a comment
+///   target) is never published.
+///
+/// Code suggestions must be sourced from the validated catalog via
+/// [GithubPrCommentPoster.postSnippetSuggestion].
 library;
 
 import 'dart:io';
@@ -21,6 +29,7 @@ import 'package:http/http.dart' as http;
 
 import 'review_snippets.dart';
 import 'snippet_compile_check.dart';
+import 'suggestion_diff_guard.dart';
 
 /// The comment sink contract: posts [body], returns whether it landed.
 abstract interface class PrCommentPoster {
@@ -38,7 +47,7 @@ final class SnippetPostingGate {
   final SnippetCompileCheck check;
 
   static final RegExp _dartFence = RegExp(
-    '```dart[ \t]*\n(.*?)```',
+    '```dart[ \t]*\r?\n(.*?)```',
     dotAll: true,
   );
 
@@ -90,7 +99,8 @@ class GithubPrCommentPoster implements PrCommentPoster {
     if (blocked != null) {
       // Fail CLOSED: an un-compilable suggestion never reaches the PR.
       stderr.writeln(
-        'pr_comment_poster: snippet gate blocked the comment — $blocked',
+        'pr_comment_poster: ${blocked.gate} gate blocked the comment — '
+        '${blocked.reason}',
       );
       return false;
     }
@@ -116,19 +126,40 @@ class GithubPrCommentPoster implements PrCommentPoster {
     }
   }
 
-  /// The gate verdict for [body]: `null` when clear. Fast path — a body
-  /// with no dart fence (every verdict comment) never touches the
-  /// analyzer. Any gate failure (findings, missing package context)
-  /// BLOCKS the post: a transport that publishes through a broken gate
-  /// is not gated.
-  Future<String?> _gateBlockedReason(String body) async {
-    if (!body.contains('```dart')) return null;
+  /// The gate verdict for [body]: `null` when clear, otherwise the gate
+  /// that refused (`snippet` — the spec-1685 dart-block gate — or
+  /// `suggestion-diff` — the #2064 block-comment scan) and its rendered
+  /// reason, so CI logs name the gate that actually blocked the post.
+  /// Fast path — a body with no dart fence (every verdict comment) never
+  /// touches the analyzer; a body with no diff fence never touches the
+  /// suggestion guard. Any gate failure (findings, missing package
+  /// context) BLOCKS the post: a transport that publishes through a broken
+  /// gate is not gated.
+  Future<({String gate, String reason})?> _gateBlockedReason(
+    String body,
+  ) async {
+    final hasDart = body.contains('```dart');
+    final hasDiff = body.contains('```diff');
+    if (!hasDart && !hasDiff) return null;
     try {
-      return await snippetGate.blockedReason(body);
+      if (hasDart) {
+        final blocked = await snippetGate.blockedReason(body);
+        if (blocked != null) return (gate: 'snippet', reason: blocked);
+      }
+      if (hasDiff) {
+        final diffIssues = SuggestionDiffGuard.scanBody(body);
+        if (diffIssues.isNotEmpty) {
+          return (
+            gate: 'suggestion-diff',
+            reason: diffIssues.map((i) => '$i').join('\n'),
+          );
+        }
+      }
+      return null;
     } on Exception catch (e) {
-      return 'gate failed closed: $e';
+      return (gate: 'snippet', reason: 'gate failed closed: $e');
     } on StateError catch (e) {
-      return 'gate failed closed: $e';
+      return (gate: 'snippet', reason: 'gate failed closed: $e');
     }
   }
 
