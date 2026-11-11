@@ -6,8 +6,9 @@
 /// - the whole-feature [FeatureFlagProvider] failing or returning null
 ///   falls back to the build-time static default (US6.AC3);
 /// - an individual gate resolver failing/throwing fails CLOSED (a
-///   membership/locale/custom gate must not fail open for paid or
-///   restricted features — design decision recorded in plan.md).
+///   membership/locale/platform/custom gate must not fail open for paid
+///   or restricted features — design decision recorded in plan.md;
+///   `platform:` follows the same rule per issue #2066).
 library;
 
 import '../feature_flag.dart';
@@ -18,14 +19,21 @@ abstract interface class FeatureFlagProvider {
   bool? isEnabled(String feature, ProviderContext context);
 }
 
-/// Context handed to providers: user tier, locale, and the resolved
-/// variant for the feature when a variant gate is declared.
+/// Context handed to providers: user tier, locale, the resolved OS
+/// (when a platform resolver is wired), and the resolved variant for
+/// the feature when a variant gate is declared.
 class ProviderContext {
   final String? membershipTier;
   final String? locale;
+  final String? platform;
   final String? variant;
 
-  const ProviderContext({this.membershipTier, this.locale, this.variant});
+  const ProviderContext({
+    this.membershipTier,
+    this.locale,
+    this.platform,
+    this.variant,
+  });
 }
 
 /// Membership entitlement resolver (FR-006). Returns the current tier
@@ -36,6 +44,11 @@ typedef MembershipResolver = String? Function();
 /// Locale resolver (FR-007). Returns e.g. `en-US` or null when
 /// unavailable.
 typedef LocaleResolver = String? Function();
+
+/// Platform resolver (issue #2066). Returns the OS the app runs on —
+/// e.g. `macos`, `ios`, `android`, `linux`, `windows` — or null when
+/// unavailable. Absent or null fails a `platform:` gate CLOSED.
+typedef PlatformResolver = String? Function();
 
 /// A/B variant picker (FR-008): given the feature and its declared
 /// variants, return the active variant for this session.
@@ -50,8 +63,9 @@ class Resolvers {
   final MembershipResolver? membership;
   final LocaleResolver? locale;
   final VariantResolver? variants;
+  final PlatformResolver? platform;
 
-  const Resolvers({this.membership, this.locale, this.variants});
+  const Resolvers({this.membership, this.locale, this.variants, this.platform});
 }
 
 /// The runtime behind the generated `FeatureFlags` registry. Static by
@@ -143,13 +157,16 @@ class FeatureFlagRuntime {
     final resolvers = _resolvers;
     String? tier;
     String? locale;
+    String? platform;
     if (resolvers != null) {
       tier = _safe(() => resolvers.membership?.call());
       locale = _safe(() => resolvers.locale?.call());
+      platform = _safe(() => resolvers.platform?.call());
     }
     return ProviderContext(
       membershipTier: tier,
       locale: locale,
+      platform: platform,
       variant: resolveVariant(feature),
     );
   }
@@ -196,6 +213,17 @@ class FeatureFlagRuntime {
         } catch (_) {
           return false;
         }
+
+      case FeatureGateType.platform:
+        // Fail closed: a missing resolver (or a null answer) must not
+        // open a platform-restricted feature (issue #2066 — same rule as
+        // membership/locale/custom).
+        final os = context.platform;
+        if (os == null) return false;
+        for (final allowed in gate.values) {
+          if (os.toLowerCase() == allowed.toLowerCase()) return true;
+        }
+        return false;
     }
   }
 

@@ -3,13 +3,13 @@
 /// A feature is declared in the `features:` section of `.zfa.json`:
 /// `{ "name": "pro-analytics", "enabled": true, "gates": ["membership:pro"] }`.
 /// Gates are colon-delimited conditions (`membership:<tier>`,
-/// `locale:<l1>,<l2>`, `variant:<a|b>`, `custom:<name>`) evaluated at
-/// runtime against injectable providers — see
-/// `runtime/feature_flag_provider.dart`.
+/// `locale:<l1>,<l2>`, `variant:<a|b>`, `custom:<name>`,
+/// `platform:<os1>,<os2>`) evaluated at runtime against injectable
+/// providers — see `runtime/feature_flag_provider.dart`.
 library;
 
 /// Gate kinds supported by the feature-flag system.
-enum FeatureGateType { membership, locale, variant, custom }
+enum FeatureGateType { membership, locale, variant, custom, platform }
 
 /// A single parsed gate condition attached to a feature.
 final class FeatureGate {
@@ -77,10 +77,27 @@ final class FeatureGate {
         return FeatureGate._(FeatureGateType.custom, valuePart, [
           valuePart,
         ], raw);
+      case 'platform':
+        final platforms = valuePart
+            .split(',')
+            .map((p) => p.trim())
+            .where((p) => p.isNotEmpty)
+            .toList(growable: false);
+        if (platforms.isEmpty) {
+          throw FormatException(
+            'invalid gate syntax "$rawGate" — empty platform list',
+          );
+        }
+        return FeatureGate._(
+          FeatureGateType.platform,
+          valuePart,
+          platforms,
+          raw,
+        );
       default:
         throw FormatException(
           'unknown gate type "$typePart" in gate "$rawGate" '
-          '(supported: membership, locale, variant, custom)',
+          '(supported: membership, locale, variant, custom, platform)',
         );
     }
   }
