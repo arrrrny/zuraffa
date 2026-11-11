@@ -99,6 +99,24 @@ void main() {
       );
     });
 
+    test('2066: parses a platform gate through the config layer', () {
+      // The config layer accepts `platform:` only because `_parseFlagObject`
+      // delegates to FeatureGate.parse — this case locks the end-to-end
+      // `.zfa.json` → config → runtime path as the vocabulary grows.
+      final config = FeatureFlagConfig.fromJson(const {
+        'features': [
+          {
+            'name': 'agent-access',
+            'enabled': true,
+            'gates': ['platform:macos,ios'],
+          },
+        ],
+      });
+      final gate = config.flag('agent-access')!.gates.single;
+      expect(gate.type, FeatureGateType.platform);
+      expect(gate.values, ['macos', 'ios']);
+    });
+
     test('parses the map shape (name implied by key)', () {
       final config = FeatureFlagConfig.fromJson(const {
         'features': {

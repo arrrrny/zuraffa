@@ -20,8 +20,6 @@ Mono-version fleet alignment to 7.3.2: outbound send port lands in zuraffa_inten
   now exports the whole feature-flag system (`FeatureGate`, `FeatureFlagRuntime`,
   `Resolvers`, `ProviderContext`, `FeatureConfigException`) so consuming apps
   stop importing `src/` internals.
-
-### Added
 - **Blocking (awaited) lifecycle hooks for the classic `UseCase` (issue
   #2032)**: `Hook.blocking` (default `false`, honored only in the `pre`
   phase) makes `UseCase.call` await the hook to completion BEFORE

@@ -3,9 +3,9 @@
 /// A feature is declared in the `features:` section of `.zfa.json`:
 /// `{ "name": "pro-analytics", "enabled": true, "gates": ["membership:pro"] }`.
 /// Gates are colon-delimited conditions (`membership:<tier>`,
-/// `locale:<l1>,<l2>`, `variant:<a|b>`, `custom:<name>`) evaluated at
-/// runtime against injectable providers — see
-/// `runtime/feature_flag_provider.dart`.
+/// `locale:<l1>,<l2>`, `variant:<a|b>`, `custom:<name>`,
+/// `platform:<os[,os…]>`) evaluated at runtime against injectable
+/// providers — see `runtime/feature_flag_provider.dart`.
 library;
 
 /// Gate kinds supported by the feature-flag system.
