@@ -31,5 +31,6 @@
 library;
 
 export 'src/feature_flags/feature_flag.dart';
-export 'src/feature_flags/feature_flag_config.dart' show FeatureConfigException;
+export 'src/feature_flags/feature_flag_config.dart'
+    show FeatureConfigException, FeatureFlagConfig;
 export 'src/feature_flags/runtime/feature_flag_provider.dart';

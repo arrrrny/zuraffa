@@ -49,8 +49,10 @@ ${gateLines.isEmpty ? '' : gateLines.join('\n')}
   final FeatureFlagRuntime _runtime;
 
   /// [provider] swaps build-time resolution for a remote /
-  /// entitlements-backed implementation (FR-009).
-  $className({FeatureFlagProvider? provider})
+  /// entitlements-backed implementation (FR-009). [resolvers] answers
+  /// runtime-evaluated gate kinds on the static path — e.g.
+  /// `Resolvers.platform` for `platform:` gates.
+  $className({FeatureFlagProvider? provider, Resolvers? resolvers})
       : _runtime = FeatureFlagRuntime(
           enabled: _enabled.toSet(),
           gates: _gateSpecs.map(
@@ -60,6 +62,7 @@ ${gateLines.isEmpty ? '' : gateLines.join('\n')}
             ),
           ),
           provider: provider,
+          resolvers: resolvers,
         );
 
   /// Whether [name] is active for this user/session.

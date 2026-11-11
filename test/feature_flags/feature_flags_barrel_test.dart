@@ -19,5 +19,19 @@ void main() {
 
   test('exports the config layer', () {
     expect(FeatureConfigException, isNotNull);
+    // `FeatureFlagConfig` itself must be exported too, not just the
+    // exception — a barrel consumer parses `.zfa.json` without any
+    // `src/` import (barrel-only: this file imports the barrel alone).
+    final config = FeatureFlagConfig.fromJson(const {
+      'features': [
+        {
+          'name': 'agent-access',
+          'enabled': true,
+          'gates': ['platform:macos'],
+        },
+      ],
+    });
+    expect(config.flag('agent-access')!.enabled, isTrue);
+    expect(config.flag('agent-access')!.gates.single.raw, 'platform:macos');
   });
 }
