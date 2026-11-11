@@ -9,6 +9,11 @@
 
 🎁 **Launch offer: 6 months free with code `ZURAFFA`** — no credit card, no subscription, no payment. Redeem in-app until **Dec 1, 2026**.
 
+<div align="center">
+<a href="https://www.producthunt.com/products/zuraffa-browser?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-zuraffa-browser" target="_blank" rel="noopener noreferrer"><img alt="Zuraffa Browser - Solves all CAPTCHAs with 100% Accuracy.  | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1312357&amp;theme=light&amp;t=1794403507600"></a>
+</div>
+
+
 ---
 
 # 🦒 Zuraffa 
