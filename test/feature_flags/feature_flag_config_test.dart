@@ -37,6 +37,26 @@ void main() {
     test('rejects gate with empty value', () {
       expect(() => FeatureGate.parse('locale:'), throwsFormatException);
     });
+
+    test('2066: parses platform gate with a single OS value', () {
+      final gate = FeatureGate.parse('platform:macos');
+      expect(gate.type, FeatureGateType.platform);
+      expect(gate.value, 'macos');
+      expect(gate.values, ['macos']);
+    });
+
+    test('2066: parses platform gate with comma-separated OS allow-list', () {
+      final gate = FeatureGate.parse('platform:macos,ios');
+      expect(gate.type, FeatureGateType.platform);
+      expect(gate.values, ['macos', 'ios']);
+    });
+
+    test('2066: rejects platform gate with an empty OS list', () {
+      // Same semantics as the locale allow-list: trailing separators are
+      // tolerated, a list with nothing usable is malformed.
+      expect(() => FeatureGate.parse('platform: , '), throwsFormatException);
+      expect(() => FeatureGate.parse('platform:,, '), throwsFormatException);
+    });
   });
 
   group('FeatureFlagConfig parsing (features: section)', () {

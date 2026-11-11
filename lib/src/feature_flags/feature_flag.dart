@@ -9,7 +9,12 @@
 library;
 
 /// Gate kinds supported by the feature-flag system.
-enum FeatureGateType { membership, locale, variant, custom }
+///
+/// [platform] (issue #2066) scopes a feature to the operating systems the
+/// injected [PlatformResolver] reports — `platform:macos` or
+/// `platform:macos,ios` — so consuming apps decide "does this feature ship
+/// here" through the gateway instead of hand-rolled platform tables.
+enum FeatureGateType { membership, locale, variant, custom, platform }
 
 /// A single parsed gate condition attached to a feature.
 final class FeatureGate {
@@ -77,6 +82,28 @@ final class FeatureGate {
         return FeatureGate._(FeatureGateType.custom, valuePart, [
           valuePart,
         ], raw);
+      case 'platform':
+        // Issue #2066: comma-separated OS allow-list, the same list shape
+        // `locale:` uses. Whitespace around each name is trimmed; an empty
+        // list (nothing usable left) is a malformed gate, not a vacuous
+        // pass — the parse layer must never hand the runtime a gate that
+        // could be read as "enabled everywhere by listing nothing".
+        final platforms = valuePart
+            .split(',')
+            .map((os) => os.trim())
+            .where((os) => os.isNotEmpty)
+            .toList(growable: false);
+        if (platforms.isEmpty) {
+          throw FormatException(
+            'invalid gate syntax "$rawGate" — empty platform list',
+          );
+        }
+        return FeatureGate._(
+          FeatureGateType.platform,
+          valuePart,
+          platforms,
+          raw,
+        );
       default:
         throw FormatException(
           'unknown gate type "$typePart" in gate "$rawGate" '
