@@ -76,10 +76,10 @@ Add Zuraffa to your project:
 
 ```yaml
 dependencies:
-  zuraffa: ^7.3.8
+  zuraffa: ^7.4.1
 
 dev_dependencies:
-  zuraffa: ^7.3.8
+  zuraffa: ^7.4.1
   zorphy_annotation: ^1.7.0
   build_runner: ^2.4.0
 ```
