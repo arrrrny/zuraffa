@@ -12,13 +12,13 @@ class Signal<T> implements ReadonlySignal<T> {
   Signal(T initialValue, {bool Function(T a, T b)? equals})
     : _value = initialValue,
       _equals = equals ?? _defaultEquals,
-      _listeners = HashSet<_SignalListener<T>>.identity() {
+      _listeners = [] {
     SignalScope._registerSignal(this);
   }
 
   T _value;
   final bool Function(T a, T b) _equals;
-  final HashSet<_SignalListener<T>> _listeners;
+  final List<_SignalListener<T>> _listeners;
   bool _disposed = false;
 
   // ── Public API ──
@@ -117,8 +117,13 @@ class Signal<T> implements ReadonlySignal<T> {
   }
 
   void _notify() {
-    // Iterate over a copy to allow mutation during iteration.
+    if (_disposed) return;
+    // Iterate over a copy to allow mutation during iteration, but guard each
+    // delivery: a listener cancelled mid-notification (or a signal disposed
+    // mid-notification) must not receive stale deliveries.
     for (final listener in _listeners.toList(growable: false)) {
+      if (_disposed) return; // hostile dispose mid-notification: stop remaining
+      if (!_listeners.contains(listener)) continue; // cancelled mid-flight
       listener.callback(_value);
     }
   }
@@ -143,8 +148,8 @@ class SignalSubscription {
   void cancel() => _cancel();
 }
 
-/// Internal listener wrapper. Identity-based equality so [HashSet]
-/// deduplication works correctly.
+/// Internal listener wrapper. Identity-based equality so cancellation
+/// and the mid-notification membership check are precise.
 class _SignalListener<T> {
   _SignalListener(this.callback);
   final void Function(T value) callback;

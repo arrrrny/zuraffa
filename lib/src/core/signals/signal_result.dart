@@ -184,6 +184,10 @@ class SignalResult<T> {
       parentSub.cancel();
       innerSub?.cancel();
     });
+    // Parent disposal cascades to the derived output: without this, `out`
+    // would outlive its parent as an orphan (listeners never released,
+    // loading states stuck forever).
+    _disposables.add(out.dispose);
     return out;
   }
 

@@ -49,3 +49,15 @@ Notes: C1/C2/C4 already pass under `==`-only (correctly suppressed writes); the 
 | D1–D6 (6 tests) | RED: `Error: Method not found: 'SignalScope'` | GREEN: 6/6 passed | GREEN: `dart test test/core/signals/signal_scope_test.dart` → All tests passed! |
 
 Notes: D6 added beyond the list (run restores previous active scope in finally — the boundary-composition guarantee). Construction-time parent link gives nesting; `Signal` constructor registers into the active scope only. Regression after GREEN: `signal_pipeline_test.dart` 36/36, `batch_test.dart` 6/6 — unmodified.
+
+### E. Notification path — reentrancy hardening (US5, FR-005)
+
+| Behavior | RED | GREEN | Notes |
+| -- | -- | -- | -- |
+| E1, E2, E3 (3 of 5 failing) | RED: E1 `Expected: <1> Actual: <2>` (B received stale delivery after mid-notify dispose); E2 `Expected: <1> Actual: <2>`; E3 `Expected: true Actual: <false>` (flatMap out orphaned) | GREEN: 5/5 passed | GREEN: `dart test test/core/signals/signal_reentrancy_test.dart` → All tests passed! |
+
+Notes (honest): first GREEN attempt fixed E1/E3 but E2 still failed — `_listeners` was a `HashSet` with UNSPECIFIED iteration order, so "A cancels B mid-notification" could run B first, legitimately. REFACTOR: listeners became a FIFO `List` (subscription-order delivery, a documented contract upgrade, not a workaround). After refactor: all 5 green. flatMap fix: parent `_disposables` gains `out.dispose` (cascade), verified against E3b (output disposed while parent alive stops propagation).
+
+### F. Backward compatibility (FR-007, T070)
+
+`dart test test/state/ test/core/signals/ test/core/signal_pipeline_test.dart --concurrency=2` → **134/134 passed**, zero existing tests modified. Baseline suites (pipeline 36, slice 7, presenter 7, cache_observer 10) individually re-verified green after every cycle.

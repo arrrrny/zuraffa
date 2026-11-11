@@ -95,12 +95,12 @@
 
 ### Tests first
 
-- [ ] T050 [P] [US5] `test/core/signals/signal_reentrancy_test.dart`: mid-notify-dispose halts (E1), mid-notify-cancel takes effect immediately (E2), parent-SignalResult-dispose cascades to flatMap out (E3), double-dispose safe (E4)
+- [x] T050 [P] [US5] `test/core/signals/signal_reentrancy_test.dart`: mid-notify-dispose halts (E1), mid-notify-cancel takes effect immediately (E2), parent-SignalResult-dispose cascades to flatMap out (E3), double-dispose safe (E4)
 
 ### Implementation
 
-- [ ] T051 [US5] `signal.dart`: hardened `_notify()` (disposed guard + contains guard)
-- [ ] T052 [US5] `signal_result.dart`: `flatMap` registers `out.dispose()` on parent `_disposables`
+- [x] T051 [US5] `signal.dart`: hardened `_notify()` (disposed guard + contains guard)
+- [x] T052 [US5] `signal_result.dart`: `flatMap` registers `out.dispose()` on parent `_disposables`
 
 **Checkpoint**: US5 green; hostile listeners can no longer produce stale deliveries or orphans.
 
@@ -114,7 +114,7 @@
 
 ## Phase 9: Cross-cutting & verification
 
-- [ ] T070 Run full signals-affected suites: 4 new files + `signal_pipeline_test.dart` + `signal_slice_test.dart` + `slice_presenter_test.dart` + `cache_observer_test.dart` (FR-007 unmodified-green evidence)
+- [x] T070 Run full signals-affected suites: 4 new files + `signal_pipeline_test.dart` + `signal_slice_test.dart` + `slice_presenter_test.dart` + `cache_observer_test.dart` (FR-007 unmodified-green evidence)
 - [ ] T071 `dart analyze` clean on changed files
 - [ ] T072 Write `tdd/verification.md` audit (scenarios ↔ evidence table); re-cycle on any FAIL (cap 3)
 - [ ] T073 Run quickstart.md examples as a smoke (the snippets are the API surface)
