@@ -4,10 +4,15 @@ import 'dart:collection';
 ///
 /// [Signal] provides O(1) reads and fine-grained subscriptions.
 /// Unlike [ValueNotifier], it does not notify on every [set] — only when
-/// the value actually changes (by [==] or custom [equals]).
+/// the value actually changes (identity, then `==`, or custom [equals]).
 ///
 /// Disposal is explicit via [dispose]. Listeners are automatically
-/// cleaned up when the signal is disposed.
+/// cleaned up when the signal is disposed, and a listener that disposes
+/// this signal (or cancels another listener's subscription) during a
+/// notification stops the remaining deliveries of that notification.
+///
+/// Related: [batch] for write coalescing, [SignalScope] for automatic
+/// ownership, [Computed] for lazy derived values.
 class Signal<T> implements ReadonlySignal<T> {
   Signal(T initialValue, {bool Function(T a, T b)? equals})
     : _value = initialValue,
@@ -54,6 +59,24 @@ class Signal<T> implements ReadonlySignal<T> {
   }
 
   /// Subscribe to value changes. Returns an unsubscribable [SignalSubscription].
+  ///
+  /// ## Contract (read this before wiring listeners)
+  ///
+  /// - **Eager delivery**: the current value is delivered SYNCHRONOUSLY at
+  ///   subscribe time, before this method returns. Code that both listens and
+  ///   reacts by writing the same signal must guard against reentrancy.
+  /// - **Delivery order**: listeners are notified in subscription order
+  ///   (FIFO).
+  /// - **Cancellation**: a subscription cancelled during a notification
+  ///   receives no further values from that notification; if the signal is
+  ///   disposed during a notification, the remaining listeners are skipped.
+  /// - **Error propagation**: a listener that throws stops the notification
+  ///   cascade at that listener and the exception propagates to the caller
+  ///   that set the value (or to the exit of the enclosing [batch]). There is
+  ///   no isolation between listeners — keep them non-throwing.
+  ///
+  /// Subscribing the same callback twice creates two independent
+  /// registrations and two deliveries.
   @override
   SignalSubscription listen(void Function(T value) callback) {
     _assertNotDisposed();

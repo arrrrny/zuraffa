@@ -108,16 +108,16 @@
 
 ## Phase 8: US6 — Honest doc contracts (Priority: P6)
 
-- [ ] T060 [US6] dartdoc on `Signal.listen` (eager subscribe-time delivery), `set value`/notification path (listener error halts cascade, propagates to setter), `Computed` (lazy contract), `batch` (sync boundary, no rollback), `SignalScope` (ownership semantics)
+- [x] T060 [US6] dartdoc on `Signal.listen` (eager subscribe-time delivery), `set value`/notification path (listener error halts cascade, propagates to setter), `Computed` (lazy contract), `batch` (sync boundary, no rollback), `SignalScope` (ownership semantics)
 
 ---
 
 ## Phase 9: Cross-cutting & verification
 
 - [x] T070 Run full signals-affected suites: 4 new files + `signal_pipeline_test.dart` + `signal_slice_test.dart` + `slice_presenter_test.dart` + `cache_observer_test.dart` (FR-007 unmodified-green evidence)
-- [ ] T071 `dart analyze` clean on changed files
-- [ ] T072 Write `tdd/verification.md` audit (scenarios ↔ evidence table); re-cycle on any FAIL (cap 3)
-- [ ] T073 Run quickstart.md examples as a smoke (the snippets are the API surface)
+- [x] T071 `dart analyze` clean on changed files
+- [x] T072 Write `tdd/verification.md` audit (scenarios ↔ evidence table); re-cycle on any FAIL (cap 3)
+- [x] T073 Run quickstart.md examples as a smoke (the snippets are the API surface)
 - [ ] T074 Commit chain, push, byte-verify, open PR citing #2071
 
 ## Dependencies & Execution Order
