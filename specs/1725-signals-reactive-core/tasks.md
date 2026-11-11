@@ -44,11 +44,11 @@
 
 ### Tests first
 
-- [ ] T020 [P] [US2] `test/core/signals/batch_test.dart`: exactly-one-notification (B1), reads-see-writes-inside (B2), throwing-callback-still-flushes (B3), nested-batch-outermost-flush (B4), per-signal-coalescing (B5), no-batch-change-behavior-unchanged (B6)
+- [x] T020 [P] [US2] `test/core/signals/batch_test.dart`: exactly-one-notification (B1), reads-see-writes-inside (B2), throwing-callback-still-flushes (B3), nested-batch-outermost-flush (B4), per-signal-coalescing (B5), no-batch-change-behavior-unchanged (B6)
 
 ### Implementation
 
-- [ ] T021 [US2] `signal.dart`: `_batchDepth` + `_pendingSignals` state, `set value` deferral branch, top-level `batch()` with finally-flush; sync-boundary dartdoc
+- [x] T021 [US2] `signal.dart`: `_batchDepth` + `_pendingSignals` state, `set value` deferral branch, top-level `batch()` with finally-flush; sync-boundary dartdoc
 
 **Checkpoint**: US2 green; notification storms collapsed to one cascade.
 
@@ -61,11 +61,11 @@
 
 ### Tests first
 
-- [ ] T030 [P] [US3] `test/core/signals/equality_test.dart`: identical-reread zero-notify (C1), equal-by-== zero-notify (C2), custom-equals preserved (C3), different value notifies (C4)
+- [x] T030 [P] [US3] `test/core/signals/equality_test.dart`: identical-reread zero-notify (C1), equal-by-== zero-notify (C2), custom-equals preserved (C3), different value notifies (C4)
 
 ### Implementation
 
-- [ ] T031 [US3] `signal.dart`: `_defaultEquals` becomes identity-first; dartdoc states the gate order
+- [x] T031 [US3] `signal.dart`: `_defaultEquals` becomes identity-first; dartdoc states the gate order
 
 **Checkpoint**: US3 green; fast-path wins measurable (zero notify on identity).
 

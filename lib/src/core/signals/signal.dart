@@ -30,11 +30,19 @@ class Signal<T> implements ReadonlySignal<T> {
 
   /// Replace the current value. Notifies listeners only if [equals]
   /// returns `false`.
+  ///
+  /// Inside a [batch] boundary the write takes effect immediately (reads see
+  /// the new value) but the listener notification is deferred to the exit of
+  /// the outermost batch, coalesced per-signal to the final value.
   set value(T newValue) {
     _assertNotDisposed();
     if (_equals(_value, newValue)) return;
     _value = newValue;
-    _notify();
+    if (_batchDepth > 0) {
+      _pendingSignals.add(this);
+    } else {
+      _notify();
+    }
   }
 
   /// Functional update: `signal.update((v) => v + 1)`.
@@ -120,7 +128,10 @@ class Signal<T> implements ReadonlySignal<T> {
     _disposeHooks!.add(hook);
   }
 
-  static bool _defaultEquals<T>(T a, T b) => a == b;
+  /// Default change gate: identity first (near-free), then structural
+  /// equality. Re-assigning the identical instance never notifies even when
+  /// `==` would report a change.
+  static bool _defaultEquals<T>(T a, T b) => identical(a, b) || a == b;
 }
 
 /// Lightweight subscription handle. Call [cancel] to unsubscribe.
@@ -151,4 +162,60 @@ abstract class ReadonlySignal<T> {
 
 extension ReadonlySignalExtension<T> on Signal<T> {
   // Signal already satisfies ReadonlySignal<T> via direct interface conformance.
+}
+
+// ── Batching ──
+//
+// Synchronous notification-deferral boundary. Writes inside a batch update
+// the value immediately (reads are never deferred); only the listener
+// notifications defer until the outermost batch exits.
+
+int _batchDepth = 0;
+final LinkedHashSet<Signal<dynamic>> _pendingSignals = LinkedHashSet();
+
+/// Run [callback] as a synchronous batching boundary for signal writes.
+///
+/// Every signal written inside the boundary notifies its listeners exactly
+/// once — at the exit of the OUTERMOST [batch], carrying the final value
+/// (repeated writes to the same signal coalesce). Reads inside the boundary
+/// always see freshly written values.
+///
+/// ## Contract
+///
+/// - **Synchronous only**: the boundary ends when [callback] returns. Work
+///   scheduled after an `await` inside the callback runs OUTSIDE the batch.
+/// - **No rollback**: if [callback] throws, the deferred notifications are
+///   still flushed (the flush runs in a `finally`), and the error propagates
+///   to the caller.
+/// - Nested batches defer to the outermost boundary.
+///
+/// Example:
+///
+/// ```dart
+/// batch(() {
+///   a.value = 1;
+///   b.value = 2; // listeners see exactly one update: (1, 2)
+/// });
+/// ```
+T batch<T>(T Function() callback) {
+  _batchDepth++;
+  try {
+    return callback();
+  } finally {
+    _batchDepth--;
+    if (_batchDepth == 0) {
+      _flushBatch();
+    }
+  }
+}
+
+void _flushBatch() {
+  if (_pendingSignals.isEmpty) return;
+  final pending = _pendingSignals.toList(growable: false);
+  _pendingSignals.clear();
+  for (final signal in pending) {
+    if (!signal._disposed) {
+      signal._notify();
+    }
+  }
 }
