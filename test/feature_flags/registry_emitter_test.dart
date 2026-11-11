@@ -79,6 +79,29 @@ void main() {
       );
     });
 
+    test(
+      'U5: forwards Resolvers so platform gates resolve on the static path',
+      () {
+        // The generated registry evaluates gates at runtime; without a
+        // forwarded `Resolvers`, a `platform:` gate has no platform answer
+        // and fails closed even when the caller supplies one.
+        final source = emitRegistry(
+          className: 'FeatureFlags',
+          resolved: _resolved(),
+        );
+        expect(
+          source,
+          contains('{FeatureFlagProvider? provider, Resolvers? resolvers}'),
+          reason: 'emitted constructor must accept an optional Resolvers',
+        );
+        expect(
+          source,
+          contains('resolvers: resolvers'),
+          reason: 'emitted constructor must forward Resolvers to the runtime',
+        );
+      },
+    );
+
     test('gates are embedded for gated features', () {
       final source = emitRegistry(
         className: 'FeatureFlags',

@@ -260,6 +260,76 @@ void main() {
       expect(provider.context?.variant, 'b');
     });
   });
+  group('platform gate (issue #2066)', () {
+    FeatureFlagRuntime runtimeWith(String? Function() platform) =>
+        FeatureFlagRuntime(
+          enabled: {'agent-access'},
+          gates: {
+            'agent-access': [FeatureGate.parse('platform:macos')],
+          },
+          resolvers: Resolvers(platform: platform),
+        );
+
+    test('listed OS passes the gate', () {
+      expect(runtimeWith(() => 'macos').isEnabled('agent-access'), isTrue);
+    });
+
+    test('unlisted OS fails the gate (fail closed)', () {
+      expect(runtimeWith(() => 'ios').isEnabled('agent-access'), isFalse);
+      expect(runtimeWith(() => 'linux').isEnabled('agent-access'), isFalse);
+    });
+
+    test('null platform fails closed', () {
+      expect(runtimeWith(() => null).isEnabled('agent-access'), isFalse);
+    });
+
+    test('throwing resolver fails closed', () {
+      expect(
+        runtimeWith(() => throw StateError('no os')).isEnabled('agent-access'),
+        isFalse,
+      );
+    });
+
+    test('multi-OS allow-list passes for either listed OS', () {
+      final runtime = FeatureFlagRuntime(
+        enabled: {'agent-access'},
+        gates: {
+          'agent-access': [FeatureGate.parse('platform:macos,ios')],
+        },
+        resolvers: Resolvers(platform: () => 'ios'),
+      );
+      expect(runtime.isEnabled('agent-access'), isTrue);
+    });
+
+    test('absent resolver fails closed, never open', () {
+      final runtime = FeatureFlagRuntime(
+        enabled: {'agent-access'},
+        gates: {
+          'agent-access': [FeatureGate.parse('platform:macos')],
+        },
+      );
+      expect(runtime.isEnabled('agent-access'), isFalse);
+    });
+
+    test('resolved platform reaches ProviderContext for custom handlers', () {
+      String? seen;
+      final runtime = FeatureFlagRuntime(
+        enabled: {'heavy-report'},
+        gates: {
+          'heavy-report': [FeatureGate.parse('custom:heavy')],
+        },
+        resolvers: Resolvers(platform: () => 'macos'),
+        customGates: {
+          'heavy': (context) {
+            seen = context.platform;
+            return true;
+          },
+        },
+      );
+      expect(runtime.isEnabled('heavy-report'), isTrue);
+      expect(seen, 'macos');
+    });
+  });
 }
 
 class ResolverContext {

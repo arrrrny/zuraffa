@@ -18,14 +18,26 @@ abstract interface class FeatureFlagProvider {
   bool? isEnabled(String feature, ProviderContext context);
 }
 
-/// Context handed to providers: user tier, locale, and the resolved
-/// variant for the feature when a variant gate is declared.
+/// Context handed to providers: user tier, locale, the resolved
+/// variant for the feature when a variant gate is declared, and the
+/// operating system the [PlatformResolver] reported (issue #2066).
 class ProviderContext {
   final String? membershipTier;
   final String? locale;
   final String? variant;
 
-  const ProviderContext({this.membershipTier, this.locale, this.variant});
+  /// The host OS as reported by the injected [PlatformResolver]
+  /// (e.g. `macos`, `ios`, `linux`) — null when no resolver is wired or
+  /// it failed. Custom gate handlers read this to scope behavior the
+  /// gate vocabulary cannot express.
+  final String? platform;
+
+  const ProviderContext({
+    this.membershipTier,
+    this.locale,
+    this.variant,
+    this.platform,
+  });
 }
 
 /// Membership entitlement resolver (FR-006). Returns the current tier
@@ -45,13 +57,21 @@ typedef VariantResolver =
 /// Custom gate handler: receives a [ProviderContext] and decides the gate.
 typedef CustomGateHandler = bool Function(ProviderContext context);
 
+/// Platform resolver (issue #2066): returns the host operating system
+/// (e.g. `macos`, `ios`) or null when unavailable. Apps wire
+/// `Platform.operatingSystem` here; tests wire an explicit value.
+typedef PlatformResolver = String? Function();
+
 /// Injectable resolver bundle.
 class Resolvers {
   final MembershipResolver? membership;
   final LocaleResolver? locale;
   final VariantResolver? variants;
 
-  const Resolvers({this.membership, this.locale, this.variants});
+  /// The host OS source for `platform:` gates (issue #2066).
+  final PlatformResolver? platform;
+
+  const Resolvers({this.membership, this.locale, this.variants, this.platform});
 }
 
 /// The runtime behind the generated `FeatureFlags` registry. Static by
@@ -143,14 +163,17 @@ class FeatureFlagRuntime {
     final resolvers = _resolvers;
     String? tier;
     String? locale;
+    String? os;
     if (resolvers != null) {
       tier = _safe(() => resolvers.membership?.call());
       locale = _safe(() => resolvers.locale?.call());
+      os = _safe(() => resolvers.platform?.call());
     }
     return ProviderContext(
       membershipTier: tier,
       locale: locale,
       variant: resolveVariant(feature),
+      platform: os,
     );
   }
 
@@ -196,6 +219,18 @@ class FeatureFlagRuntime {
         } catch (_) {
           return false;
         }
+
+      case FeatureGateType.platform:
+        // Issue #2066: the resolver's OS must be listed, case-insensitively.
+        // An absent resolver, a null answer, or a throw fails CLOSED — the
+        // same rule membership/locale/custom follow: a restricted feature
+        // must never fail open because the platform could not be read.
+        final os = context.platform;
+        if (os == null) return false;
+        for (final allowed in gate.values) {
+          if (os.toLowerCase() == allowed.toLowerCase()) return true;
+        }
+        return false;
     }
   }
 

@@ -13,6 +13,17 @@ Mono-version fleet alignment to 7.3.2: outbound send port lands in zuraffa_inten
 ## [Unreleased]
 
 ### Added
+- **`platform:` gate for the feature-flag gateway (issue #2066)**:
+  `FeatureGate.parse('platform:macos')` (or a comma-separated OS allow-list,
+  `platform:macos,ios`) scopes a feature to the operating systems the new
+  `Resolvers.platform` resolver reports; the resolved OS also lands on
+  `ProviderContext.platform` for custom handlers. Platform gates fail CLOSED —
+  an absent resolver, a null answer, or a throwing resolver disables the
+  feature, the same rule `membership:`/`locale:`/`custom:` follow.
+- **Public feature-flags barrel (issue #2066)**: `package:zuraffa/feature_flags.dart`
+  now exports the whole feature-flag system (`FeatureGate`, `FeatureFlagRuntime`,
+  `Resolvers`, `ProviderContext`, `FeatureConfigException`) so consuming apps
+  stop importing `src/` internals.
 - **Blocking (awaited) lifecycle hooks for the classic `UseCase` (issue
   #2032)**: `Hook.blocking` (default `false`, honored only in the `pre`
   phase) makes `UseCase.call` await the hook to completion BEFORE

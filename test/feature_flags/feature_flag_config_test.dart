@@ -37,6 +37,45 @@ void main() {
     test('rejects gate with empty value', () {
       expect(() => FeatureGate.parse('locale:'), throwsFormatException);
     });
+
+    test(
+      '2066: the unknown-type error names platform among the supported kinds',
+      () {
+        // `platform:` joined the vocabulary, so the parse error must teach it:
+        // an error listing the old four sends a typo'd `platforms:macos`
+        // hunting for a gate kind that does not exist.
+        expect(
+          () => FeatureGate.parse('tenant:xyz'),
+          throwsA(
+            isA<FormatException>().having(
+              (e) => e.message,
+              'message',
+              allOf(contains('membership'), contains('platform')),
+            ),
+          ),
+        );
+      },
+    );
+
+    test('2066: parses platform gate with a single OS value', () {
+      final gate = FeatureGate.parse('platform:macos');
+      expect(gate.type, FeatureGateType.platform);
+      expect(gate.value, 'macos');
+      expect(gate.values, ['macos']);
+    });
+
+    test('2066: parses platform gate with comma-separated OS allow-list', () {
+      final gate = FeatureGate.parse('platform:macos,ios');
+      expect(gate.type, FeatureGateType.platform);
+      expect(gate.values, ['macos', 'ios']);
+    });
+
+    test('2066: rejects platform gate with an empty OS list', () {
+      // Same semantics as the locale allow-list: trailing separators are
+      // tolerated, a list with nothing usable is malformed.
+      expect(() => FeatureGate.parse('platform: , '), throwsFormatException);
+      expect(() => FeatureGate.parse('platform:,, '), throwsFormatException);
+    });
   });
 
   group('FeatureFlagConfig parsing (features: section)', () {
@@ -58,6 +97,24 @@ void main() {
         config.flag('beta-scheduler')!.gates.single.raw,
         'locale:en-US,en-GB',
       );
+    });
+
+    test('2066: parses a platform gate through the config layer', () {
+      // The config layer accepts `platform:` only because `_parseFlagObject`
+      // delegates to FeatureGate.parse — this case locks the end-to-end
+      // `.zfa.json` → config → runtime path as the vocabulary grows.
+      final config = FeatureFlagConfig.fromJson(const {
+        'features': [
+          {
+            'name': 'agent-access',
+            'enabled': true,
+            'gates': ['platform:macos,ios'],
+          },
+        ],
+      });
+      final gate = config.flag('agent-access')!.gates.single;
+      expect(gate.type, FeatureGateType.platform);
+      expect(gate.values, ['macos', 'ios']);
     });
 
     test('parses the map shape (name implied by key)', () {
