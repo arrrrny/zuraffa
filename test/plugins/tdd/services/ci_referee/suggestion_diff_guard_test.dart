@@ -167,6 +167,173 @@ void main() {
     });
   });
 
+  // PR #2065 review round: the refinements the reviewer findings asked
+  // for — own-line fence extraction, per-hunk classification,
+  // context-derived comment state, and the closer carve-outs.
+  group('PR #2065 review round — guard refinements', () {
+    test('an inline ``` inside a diff line cannot terminate extraction — '
+        'the added line after it is still scanned', () {
+      // The old fence regex stopped at the first three backticks: the
+      // removed `Example: ```js` line ended the block and the unsafe
+      // added line escaped validation entirely.
+      const body =
+          '```diff\n'
+          '- * Example: ```js\n'
+          '- * old text\n'
+          '+ * new text mentioning **/*.spec.ts\n'
+          '```\n';
+
+      expect(
+        SuggestionDiffGuard.scanBody(
+          body,
+        ).any((i) => i.code == 'comment_terminator_in_suggestion'),
+        isTrue,
+        reason:
+            'the closing fence must be a line of its own — the inline '
+            '```js marker is diff content, not a fence',
+      );
+    });
+
+    test('an unterminated diff fence still matches nothing', () {
+      expect(
+        SuggestionDiffGuard.scanBody('```diff\n- * text, never closed\n'),
+        isEmpty,
+      );
+    });
+
+    test('per-hunk classification: a docblock hunk is flagged even when '
+        'another hunk in the same block removes plain code', () {
+      // Aggregating removals across the whole block (the pre-#2065 shape)
+      // let the code hunk's `const` line cancel the docblock hunk's
+      // interior signal and the unsafe addition passed.
+      const body =
+          '```diff\n'
+          '@@ -10,3 +10,3 @@\n'
+          '- * old doc text\n'
+          '+ * new doc text mentioning **/*.spec.ts\n'
+          '@@ -40,2 +40,2 @@\n'
+          '- const include = [];\n'
+          '+ const include = ["**/*.spec.ts"];\n'
+          '```\n';
+
+      final issues = SuggestionDiffGuard.scanBody(body);
+      expect(
+        issues.any((i) => i.code == 'comment_terminator_in_suggestion'),
+        isTrue,
+        reason: 'the docblock hunk must be classified on its own',
+      );
+      // ...and only the docblock hunk's line is flagged.
+      expect(issues, hasLength(1));
+    });
+
+    test('context-derived state: a hunk whose removed lines are bare '
+        'docblock text (no `*` marker) is flagged when unchanged context '
+        'opens the comment', () {
+      const body =
+          '```diff\n'
+          ' /*\n'
+          '- old description\n'
+          '+ Match **/*.spec.ts\n'
+          ' */\n'
+          '```\n';
+
+      expect(
+        SuggestionDiffGuard.scanBody(
+          body,
+        ).any((i) => i.code == 'comment_terminator_in_suggestion'),
+        isTrue,
+        reason:
+            'the comment opened on an unchanged line must participate — '
+            'removed docblock text needs no `*` continuation marker',
+      );
+    });
+
+    test('opener-inclusive hunk: rewriting the docblock `/**` first line '
+        'with a `*/` in the new text is flagged', () {
+      const body =
+          '```diff\n'
+          '- /** Parses config files.\n'
+          '+ /** Parses **/*.spec.ts configs.\n'
+          ' */\n'
+          '```\n';
+
+      expect(
+        SuggestionDiffGuard.scanBody(
+          body,
+        ).any((i) => i.code == 'comment_terminator_in_suggestion'),
+        isTrue,
+        reason:
+            'a `/*`-prefixed removed line is comment interior too — the '
+            'glob in the rewritten opener would close the comment early',
+      );
+    });
+
+    test('single-line docblock reword carrying `*/` mid-line is flagged', () {
+      const body =
+          '```diff\n'
+          '- /** old */\n'
+          '+ /** matches **/*.spec.ts */\n'
+          '```\n';
+
+      expect(
+        SuggestionDiffGuard.scanBody(
+          body,
+        ).any((i) => i.code == 'comment_terminator_in_suggestion'),
+        isTrue,
+        reason:
+            'the first `*/` inside `**/` closes the reworded docblock '
+            'early and the rest of the line becomes live code',
+      );
+    });
+
+    test('widened interior rule keeps a code target unflagged: a docblock '
+        'line replaced by plain code with a glob passes', () {
+      // The `/*` arm of _isCommentInteriorLine must not make a comment
+      // line replaced BY code a comment target: the glob sits in a string
+      // literal of a code line, not in comment text.
+      const body =
+          '```diff\n'
+          '- /** Parses config files. */\n'
+          '+ const include = ["**/*.spec.ts"];\n'
+          '```\n';
+
+      expect(SuggestionDiffGuard.scanBody(body), isEmpty);
+    });
+
+    test('closer-preserving replacement: a reword that ends with the '
+        'comment closer is allowed', () {
+      const body =
+          '```diff\n'
+          '- * Old description\n'
+          '- */\n'
+          '+ * New description */\n'
+          '```\n';
+
+      expect(
+        SuggestionDiffGuard.scanBody(body),
+        isEmpty,
+        reason:
+            'the replacement keeps the comment boundary — nothing after '
+            'the closing `*/` is exposed',
+      );
+    });
+
+    test('pure closer insertion: an added bare ` */` is not flagged', () {
+      const body =
+          '```diff\n'
+          '+ */\n'
+          '```\n';
+
+      expect(
+        SuggestionDiffGuard.scanBody(body),
+        isEmpty,
+        reason:
+            'inserting the legitimate docblock closer is exactly the '
+            'right edit — it terminates the comment cleanly',
+      );
+    });
+  });
+
   // Keep the import used: SnippetValidationIssue is the finding type the
   // guard reports (shared with the spec-1685 gate vocabulary).
   test('guard findings use the shared validation-issue vocabulary', () {
