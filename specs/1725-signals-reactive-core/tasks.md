@@ -11,7 +11,7 @@
 - [x] T001 Branch `1725-signals-reactive-core` created (before_specify hook, FEATURE_NUM 1725)
 - [x] T002 Spec + requirements checklist written and committed (9b235cc)
 - [x] T003 Plan, research, data-model, contracts, quickstart written
-- [ ] T004 Bootstrap Dart SDK in verification rig + `dart pub get` (pub.zuzu.dev token); confirm baseline: existing `test/core/signal_pipeline_test.dart` + `test/state/signal_slice_test.dart` green BEFORE any source edit (FR-007 evidence)
+- [x] T004 Bootstrap Dart SDK in verification rig + `dart pub get` (pub.zuzu.dev token); confirm baseline: existing `test/core/signal_pipeline_test.dart` + `test/state/signal_slice_test.dart` green BEFORE any source edit (FR-007 evidence)
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
@@ -26,12 +26,12 @@
 
 ### Tests first (must FAIL before implementation)
 
-- [ ] T010 [P] [US1] `test/core/signals/computed_test.dart`: lazy window (A1), recompute-once-after-change (A2), cache-hit (A3), two-deps-one-change (A4), read-in-own-compute throws (A5), disposed-dep read propagates StateError (A6), Computed satisfies ReadonlySignal + listen eager delivery (A7)
+- [x] T010 [P] [US1] `test/core/signals/computed_test.dart`: lazy window (A1), recompute-once-after-change (A2), cache-hit (A3), two-deps-one-change (A4), read-in-own-compute throws (A5), disposed-dep read propagates StateError (A6), Computed satisfies ReadonlySignal + listen eager delivery (A7)
 
 ### Implementation
 
-- [ ] T011 [US1] Create `lib/src/core/signals/computed.dart`: `Computed<T>` with dirty-flag cache, explicit dependency list, push-only-when-listened, recursion guard, dispose
-- [ ] T012 [US1] Export `computed.dart` in `lib/zuraffa.dart`
+- [x] T011 [US1] Create `lib/src/core/signals/computed.dart`: `Computed<T>` with dirty-flag cache, explicit dependency list, push-only-when-listened, recursion guard, dispose
+- [x] T012 [US1] Export `computed.dart` in `lib/zuraffa.dart`
 
 **Checkpoint**: US1 green; lazy semantics proven by counters.
 

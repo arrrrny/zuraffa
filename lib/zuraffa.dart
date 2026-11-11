@@ -376,6 +376,7 @@ export 'src/utils/test_utils.dart';
 
 /// Signal — zero-cost reactive primitive.
 export 'src/core/signals/signal.dart';
+export 'src/core/signals/computed.dart';
 
 /// SignalResult — reactive Result wrapper backed by Signal.
 export 'src/core/signals/signal_result.dart';
