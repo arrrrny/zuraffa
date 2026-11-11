@@ -78,11 +78,11 @@
 
 ### Tests first
 
-- [ ] T040 [P] [US4] `test/core/signals/signal_scope_test.dart`: dispose-all-owned (D1), nesting (D2), outside-not-captured (D3), listeners-released (D4), scope dispose idempotent (D5)
+- [x] T040 [P] [US4] `test/core/signals/signal_scope_test.dart`: dispose-all-owned (D1), nesting (D2), outside-not-captured (D3), listeners-released (D4), scope dispose idempotent (D5)
 
 ### Implementation
 
-- [ ] T041 [US4] `signal.dart`: `SignalScope` class (static `_active`, `run`, `dispose`, child registration), constructor hook in `Signal`
+- [x] T041 [US4] `signal.dart`: `SignalScope` class (static `_active`, `run`, `dispose`, child registration), constructor hook in `Signal`
 
 **Checkpoint**: US4 green; manual registration bookkeeping now optional.
 

@@ -41,3 +41,11 @@ Regression after GREEN: `signal_pipeline_test.dart` 36/36, `computed_test.dart` 
 | C1–C4 (5 tests) | RED: C1b `Expected: <1> Actual: <2>` (pathological `==` always false → identical write notified) | GREEN: 5/5 passed | GREEN: `dart test test/core/signals/equality_test.dart` → All tests passed! |
 
 Notes: C1/C2/C4 already pass under `==`-only (correctly suppressed writes); the GATE ORDER is proven observable by C1b where `==` lies about identity. Fix: `_defaultEquals` → `identical(a, b) || a == b` (one line + dartdoc). Custom equals untouched (C3). Regression after GREEN: `signal_pipeline_test.dart` 36/36, `signal_slice_test.dart` 7/7 — unmodified.
+
+### D. SignalScope — auto-ownership (US4, FR-004)
+
+| Behavior | RED | GREEN | Notes |
+| -- | -- | -- | -- |
+| D1–D6 (6 tests) | RED: `Error: Method not found: 'SignalScope'` | GREEN: 6/6 passed | GREEN: `dart test test/core/signals/signal_scope_test.dart` → All tests passed! |
+
+Notes: D6 added beyond the list (run restores previous active scope in finally — the boundary-composition guarantee). Construction-time parent link gives nesting; `Signal` constructor registers into the active scope only. Regression after GREEN: `signal_pipeline_test.dart` 36/36, `batch_test.dart` 6/6 — unmodified.

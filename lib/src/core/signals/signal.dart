@@ -12,7 +12,9 @@ class Signal<T> implements ReadonlySignal<T> {
   Signal(T initialValue, {bool Function(T a, T b)? equals})
     : _value = initialValue,
       _equals = equals ?? _defaultEquals,
-      _listeners = HashSet<_SignalListener<T>>.identity();
+      _listeners = HashSet<_SignalListener<T>>.identity() {
+    SignalScope._registerSignal(this);
+  }
 
   T _value;
   final bool Function(T a, T b) _equals;
@@ -218,4 +220,82 @@ void _flushBatch() {
       signal._notify();
     }
   }
+}
+
+// ── Scope ownership ──
+//
+// A SignalScope automatically owns every Signal constructed inside its
+// [SignalScope.run] boundary, removing manual register/dispose bookkeeping.
+
+/// An automatic ownership group for signals.
+///
+/// Every [Signal] constructed while a scope's [run] boundary is active is
+/// owned by that scope; [dispose] disposes them all (releasing their
+/// listeners). Scopes nest: a scope CONSTRUCTED inside another scope's
+/// `run` becomes its child and is disposed with it.
+///
+/// ## Contract
+///
+/// - Ownership is creation-scoped, not global: signals created outside any
+///   `run` boundary are never captured.
+/// - [run] restores the previously active scope when it exits (a `finally`),
+///   so boundaries compose and interleave safely.
+/// - [dispose] is idempotent and disposes children before owned signals.
+///
+/// Example:
+///
+/// ```dart
+/// final scope = SignalScope();
+/// scope.run(() {
+///   final a = Signal(1); // auto-owned
+/// });
+/// scope.dispose(); // a is disposed, listeners released
+/// ```
+class SignalScope {
+  SignalScope() {
+    final parent = _activeScope;
+    if (parent != null) {
+      parent._children.add(this);
+    }
+  }
+
+  static SignalScope? _activeScope;
+  static void _registerSignal(Signal<dynamic> signal) {
+    _activeScope?._owned.add(signal);
+  }
+
+  final List<SignalScope> _children = [];
+  final List<Signal<dynamic>> _owned = [];
+  bool _disposed = false;
+
+  /// Run [callback] with this scope as the active signal-creation boundary.
+  /// Signals constructed during the callback are owned by this scope.
+  T run<T>(T Function() callback) {
+    final previous = _activeScope;
+    _activeScope = this;
+    try {
+      return callback();
+    } finally {
+      _activeScope = previous;
+    }
+  }
+
+  /// Dispose this scope: child scopes first, then every owned signal.
+  /// Idempotent.
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    final children = List.of(_children);
+    _children.clear();
+    for (final child in children) {
+      child.dispose();
+    }
+    final owned = List.of(_owned);
+    _owned.clear();
+    for (final signal in owned) {
+      signal.dispose();
+    }
+  }
+
+  bool get isDisposed => _disposed;
 }
