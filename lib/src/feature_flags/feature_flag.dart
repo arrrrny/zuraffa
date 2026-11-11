@@ -107,7 +107,7 @@ final class FeatureGate {
       default:
         throw FormatException(
           'unknown gate type "$typePart" in gate "$rawGate" '
-          '(supported: membership, locale, variant, custom)',
+          '(supported: membership, locale, variant, custom, platform)',
         );
     }
   }

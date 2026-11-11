@@ -38,6 +38,25 @@ void main() {
       expect(() => FeatureGate.parse('locale:'), throwsFormatException);
     });
 
+    test(
+      '2066: the unknown-type error names platform among the supported kinds',
+      () {
+        // `platform:` joined the vocabulary, so the parse error must teach it:
+        // an error listing the old four sends a typo'd `platforms:macos`
+        // hunting for a gate kind that does not exist.
+        expect(
+          () => FeatureGate.parse('tenant:xyz'),
+          throwsA(
+            isA<FormatException>().having(
+              (e) => e.message,
+              'message',
+              allOf(contains('membership'), contains('platform')),
+            ),
+          ),
+        );
+      },
+    );
+
     test('2066: parses platform gate with a single OS value', () {
       final gate = FeatureGate.parse('platform:macos');
       expect(gate.type, FeatureGateType.platform);
