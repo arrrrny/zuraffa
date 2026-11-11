@@ -18,29 +18,43 @@
 ///   fence occupies its own line (at most three spaces of indent, nothing
 ///   on the line but backticks and trailing whitespace) and is at least as
 ///   long as the opening fence — an inline ``` inside a diff line cannot
-///   terminate extraction early (PR #2065 review finding);
-/// - splits the block at hunk (`@@`) and file (`diff --git`, `---`, `+++`)
-///   boundaries and classifies each hunk independently, so a docblock
-///   rewrite in one hunk is never cancelled by plain-code removals in
-///   another (PR #2065 review finding);
-/// - walks each hunk in order tracking the block-comment state: context
-///   and removed lines are pre-image content and advance the state, and
-///   every added line is checked at the state its position lands in — a
-///   comment opened on an earlier unchanged (or removed) line therefore
-///   participates, even when the removed lines carry no `*` continuation
-///   markers (PR #2065 review finding). When the hunk itself carries no
-///   boundary signal the entry state is seeded from line shapes: removed
-///   lines that are all comment-interior (`*`- or `/*`-prefixed — the
-///   `/*` arm covers hunks that rewrite the docblock's opening line), or,
-///   for a pure insertion, added lines that are all comment-interior;
+///   terminate extraction early (PR #2065 review finding). A CRLF comment
+///   body — fence lines ending `\r\n` — extracts and scans the same way
+///   (PR #2065 second review finding);
+/// - splits the block at hunk (`@@`) and file boundaries and classifies
+///   each hunk independently, so a docblock rewrite in one hunk is never
+///   cancelled by plain-code removals in another (PR #2065 review
+///   finding). A file boundary is the header's full syntax (`diff --git`,
+///   `--- `, `+++ ` followed by the path) — an ADDED line whose content
+///   begins with `++` (e.g. `++**/*.spec.ts`) reads as `+++…` in the diff
+///   but is not a header, so it stays in its hunk and is scanned (PR #2065
+///   second review finding);
+/// - walks each hunk in order over two comment states: the PRE-IMAGE state
+///   advances through context and removed lines, and each context line
+///   re-anchors the additions' scan state to it; every added line is
+///   scanned at that ORIGINAL position — the entry seed or the last
+///   context's state, advanced only by the additions already applied — so
+///   the hunk's own removals (a removed ` */` closer among them) never
+///   reinterpret an addition (PR #2065 second review finding). When the
+///   hunk itself carries no boundary signal the entry state is seeded from
+///   line shapes: removed lines that are all comment-interior (`*`- or
+///   `/*`-prefixed — the `/*` arm covers hunks that rewrite the docblock's
+///   opening line, and only an opener WITHOUT its own `*/`: a line that
+///   opens and closes itself is a complete comment, not interior), or, for
+///   a pure insertion, added lines that are all comment-interior;
 /// - when that state is inside a block comment, an added line that CLOSES
 ///   the comment with live code left over — a `*/` whose remainder on the
 ///   line is not whitespace — is flagged
 ///   `comment_terminator_in_suggestion`: applied verbatim it closes the
-///   comment early. A line that ends the comment cleanly (a bare ` */`
-///   closer, or a reword whose new text ends with the closer) is allowed,
-///   and so is a complete `/** ... */` line that opens and closes its own
-///   comment without exposing code.
+///   comment early. The same code flags a clean ENCLOSING closer (one
+///   ending a comment the line did not open itself) when the hunk retains
+///   content after it: those retained lines leave the comment with the
+///   closer and become live code (PR #2065 second review finding). A line
+///   that ends the comment cleanly with nothing retained after it (a bare
+///   ` */` closer, or a reword whose new text ends with the closer — a
+///   replacement that also removes the original closer included) is
+///   allowed, and so is a complete `/** ... */` line that opens and closes
+///   its own comment without exposing code.
 ///
 /// A flagged suggestion is refused at the transport
 /// ([GithubPrCommentPoster] runs this scan in its posting gate), matching
@@ -56,10 +70,14 @@ abstract final class SuggestionDiffGuard {
   /// A ```diff fence whose closing fence is a real CommonMark closing
   /// fence: a line of its own, at most three spaces of indent, only
   /// backticks (at least as many as the opener captured in group 1) and
-  /// trailing whitespace. An unterminated fence matches nothing, and an
-  /// inline ``` mid-line can never close the block.
+  /// trailing whitespace. Both fence line endings accept an optional `\r`
+  /// so a CRLF comment body extracts the same block an LF body does —
+  /// without it a `\r\n` body matches nothing and the posting gate would
+  /// publish an unscanned suggestion (PR #2065 second review finding). An
+  /// unterminated fence matches nothing, and an inline ``` mid-line can
+  /// never close the block.
   static final RegExp _diffFence = RegExp(
-    '(`{3,})diff[ \t]*\n(.*?)^ {0,3}\\1`{0,}[ \t]*\$',
+    '(`{3,})diff[ \t]*\r?\n(.*?)^ {0,3}\\1`{0,}[ \t]*\r?\$',
     multiLine: true,
     dotAll: true,
   );
@@ -93,11 +111,16 @@ abstract final class SuggestionDiffGuard {
   }
 
   /// A line at which one hunk ends and the next (or the next file) begins.
+  /// The `---`/`+++` file headers are recognized by their full syntax —
+  /// marker, space, path — not by the marker alone: an added line whose
+  /// CONTENT begins with `++` reads as `+++…` in the diff (e.g. the added
+  /// glob line `++**/*.spec.ts`), and dropping it as a header would let
+  /// its `*/` escape the scan (PR #2065 second review finding).
   static bool _isDiffBoundary(String line) =>
       line.startsWith('@@') ||
       line.startsWith('diff --git') ||
-      line.startsWith('---') ||
-      line.startsWith('+++');
+      line.startsWith('--- ') ||
+      line.startsWith('+++ ');
 
   /// Splits [diffBlock] at hunk (`@@`) and file (`diff --git`, `---`,
   /// `+++`) boundaries; the boundary lines themselves are dropped. A block
@@ -117,12 +140,18 @@ abstract final class SuggestionDiffGuard {
     return hunks;
   }
 
-  /// Walks one hunk's lines in order, carrying the block-comment state:
-  /// removed and context lines are the file's pre-image content at their
-  /// position and advance the state; each added line is checked at the
-  /// state its position lands in (an added line that opens a block comment
-  /// is checked as inside one — its own `/*` opener counts) and then
-  /// advances the state as the file's post-image content.
+  /// Walks one hunk's lines in order over two comment states: [preImage]
+  /// is the file's pre-image content — context and removed lines advance
+  /// it — and every added line is scanned at the state of its ORIGINAL
+  /// position: the entry seed or the last context line's state, advanced
+  /// only by the additions already applied before it. A hunk's own
+  /// removals therefore never reinterpret an addition — the removed ` */`
+  /// closer of a replacement cannot close the comment the replacement's
+  /// addition is applied inside (PR #2065 second review finding) — while
+  /// a comment opened on an earlier unchanged or removed line still
+  /// participates through the entry seed and the context re-anchoring, and
+  /// each applied addition advances the scan state as the file's
+  /// post-image content.
   static List<SnippetValidationIssue> _scanHunk(List<String> lines) {
     final removed = <String>[];
     final added = <String>[];
@@ -135,26 +164,37 @@ abstract final class SuggestionDiffGuard {
     }
 
     final issues = <SnippetValidationIssue>[];
-    var inComment = _entryState(removed: removed, added: added);
-    for (final raw in lines) {
+    var preImage = _entryState(removed: removed, added: added);
+    var atOriginal = preImage;
+    for (var i = 0; i < lines.length; i++) {
+      final raw = lines[i];
       if (raw.startsWith('-')) {
-        inComment = _scanLine(raw.substring(1), inComment).endsInComment;
+        preImage = _scanLine(raw.substring(1), preImage).endsInComment;
       } else if (raw.startsWith('+')) {
         final content = raw.substring(1);
-        final scan = _scanLine(
-          content,
-          inComment || _opensBlockComment(content),
-        );
+        final scan = _scanLine(content, atOriginal);
         if (scan.closesEarly) {
           issues.add(_terminatorIssue(content));
+        } else if (scan.closesEnclosing &&
+            _retainsContent(lines.sublist(i + 1))) {
+          issues.add(_retainedContextIssue(content));
         }
-        inComment = scan.endsInComment;
+        atOriginal = scan.endsInComment;
       } else {
-        inComment = _scanLine(raw, inComment).endsInComment;
+        preImage = _scanLine(raw, preImage).endsInComment;
+        atOriginal = preImage;
       }
     }
     return issues;
   }
+
+  /// Whether any post-image line would remain in the applied file after a
+  /// clean enclosing closer: retained context lines and later additions
+  /// become live code once the closer ends the comment they were written
+  /// inside; removals drop out with the hunk, and blank lines are code-
+  /// free either way.
+  static bool _retainsContent(List<String> lines) =>
+      lines.any((raw) => !raw.startsWith('-') && raw.trim().isNotEmpty);
 
   /// The state the hunk's walk starts in, seeded from line shapes when the
   /// hunk reveals no boundary of its own: removed lines that are all
@@ -178,38 +218,53 @@ abstract final class SuggestionDiffGuard {
   /// A docblock body line: trimmed of leading whitespace it starts with
   /// the `*` continuation marker (e.g. ` * module graph — ...`) or the
   /// `/*` opener (e.g. `/** Parses config files.` — a hunk that rewrites
-  /// the docblock's first line is a comment target too).
-  static bool _isCommentInteriorLine(String line) =>
-      line.trimLeft().startsWith('*') || line.trimLeft().startsWith('/*');
-
-  /// Whether [line] opens a block comment right where its text begins —
-  /// the shape of an added docblock line, whose mid-line `*/` hazard
-  /// exists regardless of the state around the line.
-  static bool _opensBlockComment(String line) =>
-      line.trimLeft().startsWith('/*');
+  /// the docblock's first line is a comment target too). The `/*` arm
+  /// accepts only an opener WITHOUT its own `*/`: a line that opens and
+  /// closes itself is a COMPLETE comment, not comment interior — seeding
+  /// "inside a comment" from it would turn a comment-replaced-by-code
+  /// hunk (`/** Parses config files. */` → a code line carrying the glob)
+  /// into a comment target and flag safe code (PR #2065 second review
+  /// finding).
+  static bool _isCommentInteriorLine(String line) {
+    final trimmed = line.trimLeft();
+    if (trimmed.startsWith('*')) return true;
+    return trimmed.startsWith('/*') && !trimmed.contains('*/');
+  }
 
   /// Scans [line] for comment markers starting in block-comment state
   /// [inComment]. [ScanResult.closesEarly] is set when a `*/` terminates
   /// the comment with non-whitespace text left on the line — applied
-  /// verbatim that text is live code. [ScanResult.endsInComment] is the
-  /// state after the line. String literals are not tracked (pure string
-  /// work, fail-closed direction).
+  /// verbatim that text is live code. [ScanResult.closesEnclosing] is set
+  /// when a `*/` terminates a comment the line did NOT open itself (the
+  /// enclosing one): everything the hunk retains after such a closer
+  /// leaves the comment with it. [ScanResult.endsInComment] is the state
+  /// after the line. String literals are not tracked (pure string work,
+  /// fail-closed direction).
   static _ScanResult _scanLine(String line, bool inComment) {
     var i = 0;
     var closesEarly = false;
+    var closesEnclosing = false;
+    var enclosing = inComment;
     while (i < line.length) {
       if (inComment && line.startsWith('*/', i)) {
         if (line.substring(i + 2).trim().isNotEmpty) closesEarly = true;
+        if (enclosing) closesEnclosing = true;
+        enclosing = false;
         inComment = false;
         i += 2;
       } else if (!inComment && line.startsWith('/*', i)) {
         inComment = true;
+        enclosing = false;
         i += 2;
       } else {
         i += 1;
       }
     }
-    return _ScanResult(closesEarly: closesEarly, endsInComment: inComment);
+    return _ScanResult(
+      closesEarly: closesEarly,
+      endsInComment: inComment,
+      closesEnclosing: closesEnclosing,
+    );
   }
 
   static SnippetValidationIssue _terminatorIssue(String line) =>
@@ -225,15 +280,39 @@ abstract final class SuggestionDiffGuard {
             'code span around the slash) or flag the suggestion as not '
             'directly applicable.',
       );
+
+  static SnippetValidationIssue _retainedContextIssue(String line) =>
+      SnippetValidationIssue(
+        severity: SnippetIssueSeverity.error,
+        code: 'comment_terminator_in_suggestion',
+        message:
+            'the added line `${line.trim()}` ends the enclosing block '
+            'comment cleanly, but the hunk retains content after it — '
+            'applied verbatim those retained lines leave the comment with '
+            'the closer and become live code that no longer compiles '
+            '(issue #2064, PR #2065 second review finding). Remove the '
+            'retained lines in the same replacement, keep the comment '
+            'open (drop the early closer), or flag the suggestion as not '
+            'directly applicable.',
+      );
 }
 
 /// One line's comment-marker scan result.
 class _ScanResult {
-  const _ScanResult({required this.closesEarly, required this.endsInComment});
+  const _ScanResult({
+    required this.closesEarly,
+    required this.endsInComment,
+    this.closesEnclosing = false,
+  });
 
   /// A `*/` closed the comment with non-whitespace text left on the line.
   final bool closesEarly;
 
   /// Whether the line leaves the scanner inside a block comment.
   final bool endsInComment;
+
+  /// A `*/` terminated a comment the line did not open itself — the
+  /// enclosing one. Whatever the hunk retains after the line leaves the
+  /// comment with the closer and becomes live code.
+  final bool closesEnclosing;
 }

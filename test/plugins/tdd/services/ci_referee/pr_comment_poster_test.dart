@@ -169,4 +169,34 @@ void main() {
       expect(client.sent, isEmpty);
     });
   });
+
+  // PR #2065 second review round: a CRLF comment body must reach the same
+  // gates an LF body does — the dart fence accepts `\r\n` line endings, so
+  // a CRLF body can no longer bypass snippet validation.
+  group('CRLF bodies reach the gates (PR #2065 second review round)', () {
+    test('gate extraction: a CRLF dart block is found', () {
+      const gate = SnippetPostingGate();
+      const body = 'prose\r\n\r\n```dart\r\nfoo();\r\n```\r\n';
+      expect(gate.dartBlocks(body), ['foo();']);
+    });
+
+    test('a CRLF body whose dart block does not compile is blocked before '
+        'any request is sent', () async {
+      final client = RecordingClient();
+      final poster = GithubPrCommentPoster(
+        repoSlug: 'arrrrny/zuraffa',
+        prNumber: 42,
+        token: 'gh-token',
+        client: client,
+      );
+
+      final ok = await poster.postComment(
+        'Suggestion:\r\n\r\n```dart\r\n'
+        'addTearDown(_tmp.deleteRecursively);\r\n```\r\n',
+      );
+
+      expect(ok, isFalse, reason: 'the CRLF body must not bypass the gate');
+      expect(client.sent, isEmpty);
+    });
+  });
 }

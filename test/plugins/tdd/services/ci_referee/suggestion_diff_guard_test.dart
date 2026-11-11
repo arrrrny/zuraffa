@@ -334,6 +334,177 @@ void main() {
     });
   });
 
+  // PR #2065 second review round: the four findings the reviewer asked
+  // for — CRLF fence extraction, full file-header syntax, the additions'
+  // original-position scan state, and the retained-context check on a
+  // clean enclosing closer.
+  group('PR #2065 second review round — guard refinements', () {
+    test('a CRLF comment body is scanned: the fence accepts CR line '
+        'endings', () {
+      const body =
+          '```diff\r\n'
+          '- * old doc text\r\n'
+          '+ * new doc text mentioning **/*.spec.ts\r\n'
+          '```\r\n';
+
+      expect(
+        SuggestionDiffGuard.scanBody(
+          body,
+        ).any((i) => i.code == 'comment_terminator_in_suggestion'),
+        isTrue,
+        reason:
+            'a CRLF body must reach the guard — the fence must extract '
+            'the block instead of matching nothing and letting the '
+            'posting gate publish an unscanned suggestion',
+      );
+    });
+
+    test('a CRLF safe body still passes', () {
+      const body =
+          '```diff\r\n'
+          '- * old doc text\r\n'
+          '+ * new doc text entirely.\r\n'
+          '```\r\n';
+
+      expect(SuggestionDiffGuard.scanBody(body), isEmpty);
+    });
+
+    test('an added line whose content starts with `++` is scanned, not '
+        'dropped as a file header', () {
+      // The added content `++**/*.spec.ts` reads as `+++…` in the diff;
+      // the prefix check dropped it as a header and the `*/` escaped the
+      // scan entirely.
+      const body =
+          '```diff\n'
+          ' /*\n'
+          '+++**/*.spec.ts\n'
+          ' */\n'
+          '```\n';
+
+      expect(
+        SuggestionDiffGuard.scanBody(
+          body,
+        ).any((i) => i.code == 'comment_terminator_in_suggestion'),
+        isTrue,
+        reason:
+            'the `+++`-prefixed ADDED line is not a file header — its '
+            'glob must be scanned inside the comment the context opened',
+      );
+    });
+
+    test('a real file header still splits hunks', () {
+      const body =
+          '```diff\n'
+          'diff --git a/glob.ts b/glob.ts\n'
+          '--- a/glob.ts\n'
+          '+++ b/glob.ts\n'
+          '@@ -10,3 +10,3 @@\n'
+          '- * old doc text\n'
+          '+ * new doc text mentioning **/*.spec.ts\n'
+          '```\n';
+
+      final issues = SuggestionDiffGuard.scanBody(body);
+      expect(
+        issues.any((i) => i.code == 'comment_terminator_in_suggestion'),
+        isTrue,
+        reason:
+            'the header lines are dropped as boundaries and the hunk is '
+            'classified on its own',
+      );
+      expect(issues, hasLength(1));
+    });
+
+    test('a replacement is scanned at its ORIGINAL position: the removed '
+        'closer cannot close the target comment before the addition is '
+        'scanned', () {
+      const body =
+          '```diff\n'
+          ' /** start\n'
+          '- * old */\n'
+          '+ * paths **/*.spec.ts */\n'
+          '```\n';
+
+      expect(
+        SuggestionDiffGuard.scanBody(
+          body,
+        ).any((i) => i.code == 'comment_terminator_in_suggestion'),
+        isTrue,
+        reason:
+            'the addition replaces ` * old */` INSIDE the comment ` '
+            '/** start` opened — the removed closer must not reset the '
+            'scan state before the addition is checked',
+      );
+    });
+
+    test('a clean enclosing closer with retained context after it is '
+        'flagged', () {
+      const body =
+          '```diff\n'
+          ' /** start\n'
+          '- * old text\n'
+          '+ * new text */\n'
+          ' * details\n'
+          ' */\n'
+          '```\n';
+
+      expect(
+        SuggestionDiffGuard.scanBody(
+          body,
+        ).any((i) => i.code == 'comment_terminator_in_suggestion'),
+        isTrue,
+        reason:
+            'the closer ends the comment the context opened — the '
+            'retained ` * details` line leaves the comment with it and '
+            'becomes live code',
+      );
+    });
+
+    test('blank retained lines after a clean enclosing closer are '
+        'allowed', () {
+      const body =
+          '```diff\n'
+          ' /** start\n'
+          '- * old text\n'
+          '+ * new text */\n'
+          '\n'
+          '```\n';
+
+      expect(SuggestionDiffGuard.scanBody(body), isEmpty);
+    });
+
+    test('a replacement that also removes the original closer keeps its '
+        'retained lines gone — allowed', () {
+      const body =
+          '```diff\n'
+          ' /** start\n'
+          '- * old text\n'
+          '- * details\n'
+          '- */\n'
+          '+ * new text */\n'
+          '```\n';
+
+      expect(SuggestionDiffGuard.scanBody(body), isEmpty);
+    });
+
+    test('a self-contained added docblock followed by code stays '
+        'allowed', () {
+      const body =
+          '```diff\n'
+          '- const x = 1;\n'
+          '+ /** docs */\n'
+          '+ const x = 1;\n'
+          '```\n';
+
+      expect(
+        SuggestionDiffGuard.scanBody(body),
+        isEmpty,
+        reason:
+            'the closer ends a comment the line opened ITSELF — the '
+            'lines after it were never inside a comment',
+      );
+    });
+  });
+
   // Keep the import used: SnippetValidationIssue is the finding type the
   // guard reports (shared with the spec-1685 gate vocabulary).
   test('guard findings use the shared validation-issue vocabulary', () {

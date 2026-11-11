@@ -47,7 +47,7 @@ final class SnippetPostingGate {
   final SnippetCompileCheck check;
 
   static final RegExp _dartFence = RegExp(
-    '```dart[ \t]*\n(.*?)```',
+    '```dart[ \t]*\r?\n(.*?)```',
     dotAll: true,
   );
 
