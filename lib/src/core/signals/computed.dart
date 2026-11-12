@@ -54,16 +54,35 @@ class Computed<T> implements ReadonlySignal<T> {
   bool _dirty = true;
   bool _computing = false;
   bool _disposed = false;
+  int _listenerEpoch = 0; // incremented on listener mutations (O(n²) guard)
+  // Dependency versions captured at last compute time for freshness validation
+  final List<int> _depVersions = [];
 
   /// Current derived value. O(1) — returns the cache unless a dependency
   /// changed since the last compute.
+  ///
+  /// Inside a [batch], reads validate freshness: if any dependency version
+  /// changed since the last compute, the cache is stale and recompute runs
+  /// immediately (the dirty flag won't be set until the batch flushes).
   @override
   T get value {
     _assertNotDisposed();
-    if (_dirty || !_hasValue) {
+    if (_dirty || !_hasValue || _isStale()) {
       _recompute();
     }
     return _value as T;
+  }
+
+  /// Check if any dependency changed since the last compute (batch freshness).
+  bool _isStale() {
+    if (_depVersions.isEmpty) return false; // never computed
+    for (var i = 0; i < _dependencies.length; i++) {
+      final dep = _dependencies[i];
+      if (dep is Signal) {
+        if (dep._version != _depVersions[i]) return true;
+      }
+    }
+    return false;
   }
 
   /// Subscribe to derived value changes. Returns an unsubscribable
@@ -74,9 +93,13 @@ class Computed<T> implements ReadonlySignal<T> {
   SignalSubscription listen(void Function(T value) callback) {
     _assertNotDisposed();
     _listeners.add(callback);
+    _listenerEpoch++; // mutation guard for O(n²) avoidance
     // Eager delivery of current value (same cold-start contract as Signal).
     callback(value);
-    return SignalSubscription(() => _listeners.remove(callback));
+    return SignalSubscription(() {
+      _listeners.remove(callback);
+      _listenerEpoch++; // mutation guard for O(n²) avoidance
+    });
   }
 
   /// Transform this computed into a derived [Signal] of type [R].
@@ -104,6 +127,7 @@ class Computed<T> implements ReadonlySignal<T> {
     final hooks = List.of(_disposeHooks);
     _disposeHooks.clear();
     _listeners.clear();
+    _listenerEpoch++; // mutation guard for O(n²) avoidance
     for (final sub in _subscriptions) {
       sub.cancel();
     }
@@ -132,6 +156,11 @@ class Computed<T> implements ReadonlySignal<T> {
       _value = _compute();
       _hasValue = true;
       _dirty = false;
+      // Capture dependency versions for freshness validation (batch staleness fix)
+      _depVersions.clear();
+      for (final dep in _dependencies) {
+        _depVersions.add(dep is Signal ? dep._version : 0);
+      }
     } finally {
       _computing = false;
     }
@@ -145,6 +174,7 @@ class Computed<T> implements ReadonlySignal<T> {
       return;
     }
     // Push mode: subscribers are readers — recompute now, notify on change.
+    _dirty = true; // a failed recompute must leave the cache invalid for retry
     final hadValue = _hasValue;
     final previous = _value;
     _recompute();
@@ -156,9 +186,12 @@ class Computed<T> implements ReadonlySignal<T> {
   }
 
   void _notifyListeners() {
-    for (final listener in List.of(_listeners)) {
+    final snapshot = List.of(_listeners);
+    final epoch = _listenerEpoch;
+    for (final listener in snapshot) {
       if (_disposed) return;
-      if (!_listeners.contains(listener)) continue;
+      // Only check contains() if the list was mutated (O(n²) → O(n) fast path)
+      if (epoch != _listenerEpoch && !_listeners.contains(listener)) continue;
       listener(_value as T);
     }
   }

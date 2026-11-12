@@ -22,8 +22,10 @@ class Signal<T> implements ReadonlySignal<T> {
   }
 
   T _value;
+  int _version = 0; // incremented on every accepted write for Computed freshness
   final bool Function(T a, T b) _equals;
   final List<_SignalListener<T>> _listeners;
+  int _listenerEpoch = 0; // incremented on listener mutations (O(n²) guard)
   bool _disposed = false;
 
   // ── Public API ──
@@ -45,6 +47,7 @@ class Signal<T> implements ReadonlySignal<T> {
     _assertNotDisposed();
     if (_equals(_value, newValue)) return;
     _value = newValue;
+    _version++; // bump version for Computed freshness tracking
     if (_batchDepth > 0) {
       _pendingSignals.add(this);
     } else {
@@ -82,9 +85,13 @@ class Signal<T> implements ReadonlySignal<T> {
     _assertNotDisposed();
     final listener = _SignalListener<T>(callback);
     _listeners.add(listener);
+    _listenerEpoch++; // mutation guard for O(n²) avoidance
     // Eager delivery of current value (cold-start behaviour).
     callback(_value);
-    return SignalSubscription(() => _listeners.remove(listener));
+    return SignalSubscription(() {
+      _listeners.remove(listener);
+      _listenerEpoch++; // mutation guard for O(n²) avoidance
+    });
   }
 
   /// Transform this signal into a derived [Signal] of type [R].
@@ -128,6 +135,7 @@ class Signal<T> implements ReadonlySignal<T> {
     final hooks = _disposeHooks;
     _disposeHooks = null;
     _listeners.clear();
+    _listenerEpoch++; // mutation guard for O(n²) avoidance
     hooks?.forEach((h) => h());
   }
 
@@ -144,9 +152,12 @@ class Signal<T> implements ReadonlySignal<T> {
     // Iterate over a copy to allow mutation during iteration, but guard each
     // delivery: a listener cancelled mid-notification (or a signal disposed
     // mid-notification) must not receive stale deliveries.
-    for (final listener in _listeners.toList(growable: false)) {
+    final snapshot = _listeners.toList(growable: false);
+    final epoch = _listenerEpoch;
+    for (final listener in snapshot) {
       if (_disposed) return; // hostile dispose mid-notification: stop remaining
-      if (!_listeners.contains(listener)) continue; // cancelled mid-flight
+      // Only check contains() if the list was mutated (O(n²) → O(n) fast path)
+      if (epoch != _listenerEpoch && !_listeners.contains(listener)) continue;
       listener.callback(_value);
     }
   }
@@ -298,6 +309,11 @@ class SignalScope {
 
   /// Run [callback] with this scope as the active signal-creation boundary.
   /// Signals constructed during the callback are owned by this scope.
+  ///
+  /// **Synchronous only**: the boundary ends when [callback] returns. Work
+  /// scheduled after an `await` inside the callback runs OUTSIDE this scope,
+  /// so signals created there may not be owned by this scope (possibly owned
+  /// by nothing).
   T run<T>(T Function() callback) {
     final previous = _activeScope;
     _activeScope = this;
