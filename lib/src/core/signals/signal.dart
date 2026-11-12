@@ -22,7 +22,8 @@ class Signal<T> implements ReadonlySignal<T> {
   }
 
   T _value;
-  int _version = 0; // incremented on every accepted write for Computed freshness
+  int _version =
+      0; // incremented on every accepted write for Computed freshness
   /// Version of the last accepted write. Read by `Computed` for freshness checks.
   int get version => _version;
   final bool Function(T a, T b) _equals;

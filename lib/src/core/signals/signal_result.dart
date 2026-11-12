@@ -161,7 +161,9 @@ class SignalResult<T> {
     final mapped = SignalResult<R>._(
       _signal.map((r) => r.map(transform), autoDispose: false),
     );
-    _disposables.add(mapped.dispose); // parent disposal cascades (as in flatMap)
+    _disposables.add(
+      mapped.dispose,
+    ); // parent disposal cascades (as in flatMap)
     return mapped;
   }
 
