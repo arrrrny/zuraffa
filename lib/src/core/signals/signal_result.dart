@@ -198,7 +198,11 @@ class SignalResult<T> {
     // would outlive its parent as an orphan (listeners never released,
     // loading states stuck forever). Tracked as an object so a caller that
     // disposes `out` releases this reference immediately.
-    _adopt(out);
+    if (isDisposed) {
+      out.dispose();
+    } else {
+      _adopt(out);
+    }
     return out;
   }
 

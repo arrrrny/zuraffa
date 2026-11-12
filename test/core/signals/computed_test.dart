@@ -153,5 +153,25 @@ void main() {
         20,
       ], reason: 'the stale pre-lazy baseline must not suppress this delivery');
     });
+
+    test(
+      'A8: a disposed dependency during construction releases the earlier subscriptions',
+      () {
+        final alive = Signal<int>(1);
+        final dead = Signal<int>(2);
+        dead.dispose();
+
+        // `dead.listen` throws inside the constructor; the caller never receives
+        // a Computed it could dispose, so the constructor must not leave the
+        // earlier subscription behind.
+        expect(
+          () => Computed<int>([alive, dead], () => alive.value + dead.value),
+          throwsStateError,
+        );
+
+        alive.value = 5; // the abandoned computed must not react to this
+        expect(alive.value, 5);
+      },
+    );
   });
 }

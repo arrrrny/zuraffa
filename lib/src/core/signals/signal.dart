@@ -173,10 +173,17 @@ class Signal<T> implements ReadonlySignal<T> {
   /// example [Computed.map]), which must release their own subscriptions when
   /// the derived signal goes away. Hooks run in registration order; registering
   /// after disposal is ignored — the signal is already released.
-  void onDispose(void Function() hook) {
-    if (_disposed) return;
+  ///
+  /// Returns a function that removes the hook again, so a caller that no longer
+  /// needs it (because the resource it releases is gone) does not keep it — and
+  /// whatever the hook captures — alive for the lifetime of this signal.
+  void Function() onDispose(void Function() hook) {
+    if (_disposed) return () {};
     _disposeHooks ??= [];
     _disposeHooks!.add(hook);
+    return () {
+      _disposeHooks?.remove(hook);
+    };
   }
 
   /// Default change gate: identity first (near-free), then structural

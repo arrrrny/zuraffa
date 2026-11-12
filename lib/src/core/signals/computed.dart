@@ -39,7 +39,18 @@ class Computed<T> implements ReadonlySignal<T> {
     : _dependencies = List.of(dependencies),
       _compute = compute {
     for (final dep in _dependencies) {
-      _subscriptions.add(dep.listen((_) => _markDirty()));
+      try {
+        _subscriptions.add(dep.listen((_) => _markDirty()));
+      } catch (e) {
+        // A disposed dependency throws from `listen` and the caller never
+        // receives this Computed, so nobody can dispose it: release the
+        // subscriptions already taken before propagating.
+        for (final sub in _subscriptions) {
+          sub.cancel();
+        }
+        _subscriptions.clear();
+        rethrow;
+      }
     }
   }
 
@@ -133,11 +144,17 @@ class Computed<T> implements ReadonlySignal<T> {
     final sub = listen((v) {
       if (!derived.isDisposed) derived.value = transform(v);
     });
-    // Cancel subscription when derived is disposed, even if parent remains alive
-    derived.onDispose(() => sub.cancel());
-    _onDispose(() {
+    // Cancel the subscription when the mapped output is disposed, even if this
+    // computed remains alive. The parent registration is removed at the same
+    // time: otherwise this computed's dispose hooks keep every disposed output
+    // (and its last value) alive until the computed itself is disposed.
+    final removeParentHook = _onDispose(() {
       sub.cancel();
       if (autoDispose) derived.dispose();
+    });
+    derived.onDispose(() {
+      sub.cancel();
+      removeParentHook();
     });
     return derived;
   }
@@ -221,8 +238,14 @@ class Computed<T> implements ReadonlySignal<T> {
     }
   }
 
-  void _onDispose(void Function() hook) {
+  /// Register [hook] to run when this computed is disposed. Returns a function
+  /// that removes the hook again (a hook whose resource is already gone must
+  /// not keep it — and what it captures — alive).
+  void Function() _onDispose(void Function() hook) {
     _disposeHooks.add(hook);
+    return () {
+      _disposeHooks.remove(hook);
+    };
   }
 }
 
