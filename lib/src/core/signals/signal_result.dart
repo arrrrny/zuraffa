@@ -190,7 +190,11 @@ class SignalResult<T> {
       }
     });
 
-    out._disposables.add(() {
+    // Cancel both subscriptions when the output SIGNAL goes away — from
+    // SignalResult.dispose() or from a SignalScope that owns it. Registering on
+    // the signal is what makes the scope case work: a scope disposes the
+    // signal directly, never this wrapper.
+    out._signal.onDispose(() {
       parentSub.cancel();
       innerSub?.cancel();
     });
@@ -216,10 +220,6 @@ class SignalResult<T> {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
-    for (final fn in _disposables) {
-      fn();
-    }
-    _disposables.clear();
     final children = _children.toList(growable: false);
     _children.clear();
     for (final child in children) {
@@ -234,8 +234,6 @@ class SignalResult<T> {
   bool get isDisposed => _disposed || _signal.isDisposed;
 
   // ── Internal state ──
-
-  final List<void Function()> _disposables = [];
 
   /// Results derived from this one and still owned by it.
   final Set<SignalResult<dynamic>> _children = {};

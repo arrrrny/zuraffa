@@ -136,5 +136,35 @@ void main() {
       parent.dispose();
       expect(mapped.isDisposed, isTrue);
     });
+
+    test(
+      'E7: a scope disposing the flatMap output signal cancels its subscriptions',
+      () {
+        final parent = SignalResult<int>.success(1);
+        // Created OUTSIDE the scope: it outlives the scope, so its emissions
+        // can still reach the (now disposed) output if the cleanup never ran.
+        final inner = SignalResult<int>.success(5);
+        late SignalResult<int> derived;
+        final scope = SignalScope();
+
+        scope.run(() {
+          derived = parent.flatMap((_) => inner);
+        });
+
+        scope.dispose();
+        expect(
+          derived.isDisposed,
+          isTrue,
+          reason: 'the scope owned the output signal',
+        );
+        expect(
+          () => inner.emitSuccess(9),
+          returnsNormally,
+          reason:
+              'the inner subscription must be cancelled with the output signal',
+        );
+        expect(parent.isDisposed, isFalse);
+      },
+    );
   });
 }
