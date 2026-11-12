@@ -3,7 +3,7 @@
 This directory ships **reference `.gym/` artifacts** for the three
 sister packages we develop daily alongside zuraffa:
 
-- `zorphy/` — state management library
+- `zorphy/` — entity/model code-generation library (copyWith, JSON, equality, inheritance)
 - `zikzak_inappwebview/` — Flutter InAppWebView wrapper
 - `vendure-flutter-sdk/` — Vendure GraphQL client for Flutter
 

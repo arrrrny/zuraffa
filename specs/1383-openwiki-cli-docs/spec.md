@@ -5,6 +5,11 @@
 GitHub issue: arrrrny/zuraffa#1383 (verify-misfire / empty-implementation +
 spec-drift, EPIC #1132 Phase A step 5 / B criterion 3, #1104 openwiki fleet docs)
 
+> **RETIRED**: the deliverable surface (`docs/openwiki/cli.md` + its generator
+> `tool/generate_openwiki_cli_docs.dart` and parser
+> `lib/src/docs/openwiki_cli_docs.dart`) was removed in #2069 / PR #2070 —
+> historical record, not open work.
+
 ## Summary
 
 `docs/openwiki/cli.md` — the epic's per-plugin CLI documentation deliverable —

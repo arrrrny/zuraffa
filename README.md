@@ -80,8 +80,8 @@ dependencies:
 
 dev_dependencies:
   zuraffa: ^7.4.1
-  zorphy_annotation: ^1.7.0
-  build_runner: ^2.4.0
+  zorphy_annotation: ^2.4.1
+  build_runner: ^2.16.1
 ```
 
 Install the CLI globally if you want `zfa` on your PATH:
