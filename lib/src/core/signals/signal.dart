@@ -306,6 +306,9 @@ void _flushBatch() {
 ///   `run` boundary are never captured.
 /// - [run] restores the previously active scope when it exits (a `finally`),
 ///   so boundaries compose and interleave safely.
+/// - [run] on a disposed scope throws a [StateError] without running the
+///   callback, and a signal constructed after its active scope was disposed
+///   is disposed immediately: a disposed scope can never release either.
 /// - [dispose] is idempotent and disposes children before owned signals.
 ///
 /// Example:
@@ -328,9 +331,15 @@ class SignalScope {
   static SignalScope? _activeScope;
   static void _registerSignal(Signal<dynamic> signal) {
     final scope = _activeScope;
-    if (scope != null && !scope._disposed) {
-      scope._owned.add(signal);
+    if (scope == null) return;
+    if (scope._disposed) {
+      // The scope was disposed inside its own `run` callback (or before the
+      // signal was constructed): it will never release this signal, so
+      // release it here instead of leaving a live signal nobody owns.
+      signal.dispose();
+      return;
     }
+    scope._owned.add(signal);
   }
 
   final List<SignalScope> _children = [];
@@ -344,7 +353,14 @@ class SignalScope {
   /// scheduled after an `await` inside the callback runs OUTSIDE this scope,
   /// so signals created there may not be owned by this scope (possibly owned
   /// by nothing).
+  ///
+  /// Throws a [StateError] when this scope is already disposed: a disposed
+  /// scope can never release what it owns, so running one would silently
+  /// produce signals nobody owns.
   T run<T>(T Function() callback) {
+    if (_disposed) {
+      throw StateError('SignalScope has been disposed.');
+    }
     final previous = _activeScope;
     _activeScope = this;
     try {
