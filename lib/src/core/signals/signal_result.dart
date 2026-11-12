@@ -197,6 +197,10 @@ class SignalResult<T> {
     out._signal.onDispose(() {
       parentSub.cancel();
       innerSub?.cancel();
+      // The signal is gone, so the wrapper is dead too: dispose it here as
+      // well, otherwise the parent keeps this output (and its own children)
+      // retained until the parent itself is disposed.
+      out.dispose();
     });
     // Parent disposal cascades to the derived output: without this, `out`
     // would outlive its parent as an orphan (listeners never released,

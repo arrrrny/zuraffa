@@ -157,21 +157,61 @@ void main() {
     test(
       'A8: a disposed dependency during construction releases the earlier subscriptions',
       () {
-        final alive = Signal<int>(1);
-        final dead = Signal<int>(2);
-        dead.dispose();
+        final alive = _RecordingSignal<int>(1);
 
         // `dead.listen` throws inside the constructor; the caller never receives
-        // a Computed it could dispose, so the constructor must not leave the
-        // earlier subscription behind.
+        // a Computed it could dispose, so the constructor itself must release
+        // the subscription it already took. `_RecordingSignal` records the
+        // cancel() calls — asserting on `alive.value` alone would pass even
+        // without the cleanup (the abandoned computed has no listeners).
         expect(
-          () => Computed<int>([alive, dead], () => alive.value + dead.value),
+          () => Computed<int>([alive, _DisposedSignal<int>()], () => 0),
           throwsStateError,
         );
-
-        alive.value = 5; // the abandoned computed must not react to this
-        expect(alive.value, 5);
+        expect(
+          alive.cancellations,
+          [0],
+          reason: 'the subscription taken before the failure is cancelled once',
+        );
       },
     );
   });
+}
+
+/// Test double that records every subscription cancellation, so a test can
+/// assert that a subscription was actually released (and how many times).
+class _RecordingSignal<T> implements ReadonlySignal<T> {
+  _RecordingSignal(this._value);
+
+  final T _value;
+  final List<int> cancellations = [];
+  int _nextId = 0;
+
+  @override
+  T get value => _value;
+
+  @override
+  SignalSubscription listen(void Function(T value) callback) {
+    final id = _nextId++;
+    return SignalSubscription(() => cancellations.add(id));
+  }
+
+  @override
+  Signal<R> map<R>(R Function(T value) transform, {bool autoDispose = true}) =>
+      throw UnimplementedError('not used by this test');
+}
+
+/// A dependency that is already disposed: `listen` throws, as `Signal.listen`
+/// does after disposal.
+class _DisposedSignal<T> implements ReadonlySignal<T> {
+  @override
+  T get value => throw StateError('Signal has been disposed.');
+
+  @override
+  SignalSubscription listen(void Function(T value) callback) =>
+      throw StateError('Signal has been disposed.');
+
+  @override
+  Signal<R> map<R>(R Function(T value) transform, {bool autoDispose = true}) =>
+      throw UnimplementedError('not used by this test');
 }
