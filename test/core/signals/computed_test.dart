@@ -175,6 +175,51 @@ void main() {
         );
       },
     );
+    test(
+      'A9: an outer computed sees an inner computed write inside a batch',
+      () {
+        final source = Signal<int>(1);
+        final inner = Computed<int>([source], () => source.value * 10);
+        final outer = Computed<int>([inner], () => inner.value + 1);
+
+        expect(outer.value, 11); // primes both caches
+
+        batch(() {
+          source.value = 5;
+          expect(inner.value, 50, reason: 'inner recomputes on read');
+          expect(
+            outer.value,
+            51,
+            reason:
+                'an invalidated inner computed must invalidate the outer '
+                'cache too, even though neither dirty flag has been set',
+          );
+        });
+
+        expect(outer.value, 51);
+      },
+    );
+
+    test(
+      'A10: an outer computed notifies once with the settled value after a batch',
+      () {
+        final source = Signal<int>(1);
+        final inner = Computed<int>([source], () => source.value * 10);
+        final outer = Computed<int>([inner], () => inner.value + 1);
+
+        final received = <int>[];
+        outer.listen(received.add); // eager 11
+        received.clear();
+
+        batch(() {
+          source.value = 5;
+        });
+
+        expect(received, [
+          51,
+        ], reason: 'one notification, carrying the post-batch value');
+      },
+    );
   });
 }
 

@@ -66,6 +66,9 @@ class Computed<T> implements ReadonlySignal<T> {
   bool _computing = false;
   bool _disposed = false;
   int _listenerEpoch = 0; // incremented on listener mutations (O(n²) guard)
+  // Bumped on every successful recompute; the freshness token a dependent
+  // Computed compares against.
+  int _version = 0;
   // Dependency versions captured at last compute time for freshness validation
   final List<int> _depVersions = [];
   // Last value delivered to listeners; used to detect changes across batch reads
@@ -75,9 +78,11 @@ class Computed<T> implements ReadonlySignal<T> {
   /// Current derived value. O(1) — returns the cache unless a dependency
   /// changed since the last compute.
   ///
-  /// Inside a [batch], reads validate freshness: if any dependency version
-  /// changed since the last compute, the cache is stale and recompute runs
-  /// immediately (the dirty flag won't be set until the batch flushes).
+  /// Inside a [batch], reads validate freshness: if any dependency changed
+  /// since the last compute, the cache is stale and recompute runs immediately
+  /// (the dirty flag won't be set until the batch flushes). A dependency that
+  /// is itself a [Computed] is validated the same way, so an outer value never
+  /// serves a cache built from an inner value the batch already invalidated.
   @override
   T get value {
     _assertNotDisposed();
@@ -89,14 +94,28 @@ class Computed<T> implements ReadonlySignal<T> {
 
   /// Check if any dependency changed since the last compute (batch freshness).
   bool _isStale() {
-    if (_depVersions.isEmpty) return false; // never computed
+    if (!_hasValue) return false; // nothing cached to be stale
+    if (_dependencies.isEmpty) return false; // nothing can invalidate it
+    if (_depVersions.length != _dependencies.length) return true;
     for (var i = 0; i < _dependencies.length; i++) {
       final dep = _dependencies[i];
+      final captured = _depVersions[i];
       if (dep is Signal) {
-        if (dep.version != _depVersions[i]) return true;
+        if (dep.version != captured) return true;
+      } else if (dep is Computed) {
+        if (dep._mayHaveChangedSince(captured)) return true;
       }
     }
     return false;
+  }
+
+  /// Whether this computed's value may differ from the one a reader saw at
+  /// [version]: a newer recompute, a pending invalidation, or a cache of its
+  /// own that is already stale. Never recomputes — the caller decides.
+  bool _mayHaveChangedSince(int version) {
+    if (_disposed) return false;
+    if (_version != version) return true;
+    return _dirty || !_hasValue || _isStale();
   }
 
   /// Subscribe to derived value changes. Returns an unsubscribable
@@ -196,14 +215,24 @@ class Computed<T> implements ReadonlySignal<T> {
       _value = _compute();
       _hasValue = true;
       _dirty = false;
+      _version++;
       // Capture dependency versions for freshness validation (batch staleness fix)
       _depVersions.clear();
       for (final dep in _dependencies) {
-        _depVersions.add(dep is Signal ? dep.version : 0);
+        _depVersions.add(_depVersionOf(dep));
       }
     } finally {
       _computing = false;
     }
+  }
+
+  /// The freshness token a dependency reports at compute time: a [Signal]
+  /// bumps on every accepted write, a [Computed] on every recompute. Anything
+  /// else has no token and is never validated.
+  int _depVersionOf(ReadonlySignal<dynamic> dep) {
+    if (dep is Signal) return dep.version;
+    if (dep is Computed) return dep._version;
+    return 0;
   }
 
   void _markDirty() {

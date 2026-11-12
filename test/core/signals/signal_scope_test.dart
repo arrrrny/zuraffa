@@ -117,5 +117,39 @@ void main() {
       expect(innerOwned.isDisposed, isTrue);
       outer.dispose();
     });
+
+    test('D7: run on a disposed scope throws and runs nothing', () {
+      final scope = SignalScope();
+      scope.dispose();
+      var ran = false;
+
+      expect(
+        () => scope.run(() => ran = true),
+        throwsStateError,
+        reason: 'a disposed scope can never release what it owns',
+      );
+      expect(ran, isFalse, reason: 'the callback must not run');
+    });
+
+    test(
+      'D8: a signal constructed after its scope was disposed is disposed at once',
+      () {
+        final scope = SignalScope();
+        late Signal<int> orphan;
+
+        scope.run(() {
+          scope.dispose(); // the boundary outlives its own disposal
+          orphan = Signal<int>(1);
+        });
+
+        expect(
+          orphan.isDisposed,
+          isTrue,
+          reason:
+              'nobody can release a signal the disposed scope never '
+              'adopted, so it is released at construction',
+        );
+      },
+    );
   });
 }
