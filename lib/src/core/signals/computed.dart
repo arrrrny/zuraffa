@@ -95,12 +95,22 @@ class Computed<T> implements ReadonlySignal<T> {
   @override
   SignalSubscription listen(void Function(T value) callback) {
     _assertNotDisposed();
+    final enteringPushMode = _listeners.isEmpty;
     final listener = _ComputedListener<T>(callback);
     _listeners.add(listener);
     _listenerEpoch++; // mutation guard for O(n²) avoidance
     // Eager delivery of current value (same cold-start contract as Signal).
     try {
       callback(value);
+      if (enteringPushMode) {
+        // Lazy → push transition: baseline the delivery tracker at what this
+        // subscriber just received. `_lastDelivered` still holds the value
+        // from an earlier push session, so a later change back to it would be
+        // compared against a stale baseline and suppressed. Only reset when
+        // there are no other subscribers — their pending notification stands.
+        _lastDelivered = _value;
+        _hasDelivered = true;
+      }
     } catch (e) {
       // Eager delivery failed — remove the registration before propagating
       _listeners.remove(listener);
@@ -124,7 +134,7 @@ class Computed<T> implements ReadonlySignal<T> {
       if (!derived.isDisposed) derived.value = transform(v);
     });
     // Cancel subscription when derived is disposed, even if parent remains alive
-    derived._onDispose(() => sub.cancel());
+    derived.onDispose(() => sub.cancel());
     _onDispose(() {
       sub.cancel();
       if (autoDispose) derived.dispose();

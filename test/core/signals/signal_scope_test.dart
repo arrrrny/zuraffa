@@ -18,7 +18,11 @@ void main() {
 
       scope.dispose();
 
-      expect(a.isDisposed, isTrue, reason: 'scope owns everything created inside run');
+      expect(
+        a.isDisposed,
+        isTrue,
+        reason: 'scope owns everything created inside run',
+      );
       expect(b.isDisposed, isTrue);
     });
 
@@ -36,7 +40,11 @@ void main() {
 
       expect(inner.isDisposed, isFalse);
       outer.dispose();
-      expect(inner.isDisposed, isTrue, reason: 'nesting: parent disposal cascades to child scopes');
+      expect(
+        inner.isDisposed,
+        isTrue,
+        reason: 'nesting: parent disposal cascades to child scopes',
+      );
       expect(ownedByInner.isDisposed, isTrue);
     });
 
@@ -50,7 +58,11 @@ void main() {
       });
 
       scope.dispose();
-      expect(outside.isDisposed, isFalse, reason: 'no global capture of outside signals');
+      expect(
+        outside.isDisposed,
+        isFalse,
+        reason: 'no global capture of outside signals',
+      );
     });
 
     test('D4: disposal releases owned signals listeners', () {

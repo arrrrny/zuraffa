@@ -104,9 +104,9 @@ class Signal<T> implements ReadonlySignal<T> {
   Signal<R> map<R>(R Function(T value) transform, {bool autoDispose = true}) {
     final derived = Signal<R>(transform(_value));
     final sub = listen((v) => derived.value = transform(v));
-    derived._onDispose(() => sub.cancel());
+    derived.onDispose(() => sub.cancel());
     if (autoDispose) {
-      _onDispose(() => derived.dispose());
+      onDispose(() => derived.dispose());
     }
     return derived;
   }
@@ -121,7 +121,7 @@ class Signal<T> implements ReadonlySignal<T> {
     void sync() => derived.value = combiner(s1._value, s2._value);
     final sub1 = s1.listen((_) => sync());
     final sub2 = s2.listen((_) => sync());
-    derived._onDispose(() {
+    derived.onDispose(() {
       sub1.cancel();
       sub2.cancel();
     });
@@ -167,7 +167,14 @@ class Signal<T> implements ReadonlySignal<T> {
 
   List<void Function()>? _disposeHooks;
 
-  void _onDispose(void Function() hook) {
+  /// Register [hook] to run when this signal is disposed.
+  ///
+  /// Exposed for derived combinators that live in another library (for
+  /// example [Computed.map]), which must release their own subscriptions when
+  /// the derived signal goes away. Hooks run in registration order; registering
+  /// after disposal is ignored — the signal is already released.
+  void onDispose(void Function() hook) {
+    if (_disposed) return;
     _disposeHooks ??= [];
     _disposeHooks!.add(hook);
   }

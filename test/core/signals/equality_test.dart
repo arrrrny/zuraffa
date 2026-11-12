@@ -21,19 +21,30 @@ void main() {
       expect(notifications, 1);
 
       signal.value = user; // identical instance
-      expect(notifications, 1, reason: 'identity fast-path: zero new notifications');
+      expect(
+        notifications,
+        1,
+        reason: 'identity fast-path: zero new notifications',
+      );
     });
 
-    test('C1b: identical instance suppresses even a pathological == (gate order: identity first)', () {
-      final instance = _BrokenEquals();
-      final signal = Signal<_BrokenEquals>(instance);
-      var notifications = 0;
-      signal.listen((_) => notifications++);
-      expect(notifications, 1);
+    test(
+      'C1b: identical instance suppresses even a pathological == (gate order: identity first)',
+      () {
+        final instance = _BrokenEquals();
+        final signal = Signal<_BrokenEquals>(instance);
+        var notifications = 0;
+        signal.listen((_) => notifications++);
+        expect(notifications, 1);
 
-      signal.value = instance; // identical, but == would say "changed"
-      expect(notifications, 1, reason: 'identical() must short-circuit before ==');
-    });
+        signal.value = instance; // identical, but == would say "changed"
+        expect(
+          notifications,
+          1,
+          reason: 'identical() must short-circuit before ==',
+        );
+      },
+    );
 
     test('C2: equal-by-== assignment never notifies', () {
       final signal = Signal<_User>(const _User('ada'));
@@ -42,7 +53,11 @@ void main() {
       expect(notifications, 1);
 
       signal.value = const _User('ada'); // different instance, equal by ==
-      expect(notifications, 1, reason: 'structural gate still suppresses equal writes');
+      expect(
+        notifications,
+        1,
+        reason: 'structural gate still suppresses equal writes',
+      );
     });
 
     test('C3: custom equals function is preserved unchanged', () {

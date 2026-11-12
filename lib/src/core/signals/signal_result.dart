@@ -161,9 +161,10 @@ class SignalResult<T> {
     final mapped = SignalResult<R>._(
       _signal.map((r) => r.map(transform), autoDispose: false),
     );
-    _disposables.add(
-      mapped.dispose,
-    ); // parent disposal cascades (as in flatMap)
+    // Parent disposal cascades to the mapped result (as in flatMap). The child
+    // is tracked as an object — not as its `dispose` tear-off — so disposing
+    // the child releases this reference immediately (no retention).
+    _adopt(mapped);
     return mapped;
   }
 
@@ -195,25 +196,54 @@ class SignalResult<T> {
     });
     // Parent disposal cascades to the derived output: without this, `out`
     // would outlive its parent as an orphan (listeners never released,
-    // loading states stuck forever).
-    _disposables.add(out.dispose);
+    // loading states stuck forever). Tracked as an object so a caller that
+    // disposes `out` releases this reference immediately.
+    _adopt(out);
     return out;
   }
 
   // ── Lifecycle ──
 
   /// Dispose this [SignalResult] and release all listeners.
+  ///
+  /// Disposes the results derived from this one ([map] / [flatMap]) as well;
+  /// disposing a derived result on its own detaches it from this one.
+  /// Idempotent.
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
     for (final fn in _disposables) {
       fn();
     }
     _disposables.clear();
+    final children = _children.toList(growable: false);
+    _children.clear();
+    for (final child in children) {
+      child._parent = null;
+      child.dispose();
+    }
+    _parent?._children.remove(this);
+    _parent = null;
     _signal.dispose();
   }
 
-  bool get isDisposed => _signal.isDisposed;
+  bool get isDisposed => _disposed || _signal.isDisposed;
 
   // ── Internal state ──
 
   final List<void Function()> _disposables = [];
+
+  /// Results derived from this one and still owned by it.
+  final Set<SignalResult<dynamic>> _children = {};
+  bool _disposed = false;
+
+  /// The result this one was derived from, while that result still owns it.
+  SignalResult<dynamic>? _parent;
+
+  /// Take ownership of [child] so it is disposed with this result, and drop
+  /// the ownership as soon as the child is disposed on its own.
+  void _adopt(SignalResult<dynamic> child) {
+    child._parent = this;
+    _children.add(child);
+  }
 }
