@@ -23,6 +23,8 @@ class Signal<T> implements ReadonlySignal<T> {
 
   T _value;
   int _version = 0; // incremented on every accepted write for Computed freshness
+  /// Version of the last accepted write. Read by `Computed` for freshness checks.
+  int get version => _version;
   final bool Function(T a, T b) _equals;
   final List<_SignalListener<T>> _listeners;
   int _listenerEpoch = 0; // incremented on listener mutations (O(n²) guard)
@@ -252,11 +254,21 @@ T batch<T>(T Function() callback) {
 
 void _flushBatch() {
   if (_pendingSignals.isEmpty) return;
-  final pending = _pendingSignals.toList(growable: false);
-  _pendingSignals.clear();
-  for (final signal in pending) {
-    if (!signal._disposed) {
-      signal._notify();
+  // Keep batch depth elevated during flush to defer listener writes
+  _batchDepth++;
+  try {
+    final pending = _pendingSignals.toList(growable: false);
+    _pendingSignals.clear();
+    for (final signal in pending) {
+      if (!signal._disposed && !_pendingSignals.contains(signal)) {
+        signal._notify();
+      }
+    }
+  } finally {
+    _batchDepth--;
+    // Recursively flush any signals written by listeners during this flush
+    if (_pendingSignals.isNotEmpty) {
+      _flushBatch();
     }
   }
 }
@@ -300,7 +312,10 @@ class SignalScope {
 
   static SignalScope? _activeScope;
   static void _registerSignal(Signal<dynamic> signal) {
-    _activeScope?._owned.add(signal);
+    final scope = _activeScope;
+    if (scope != null && !scope._disposed) {
+      scope._owned.add(signal);
+    }
   }
 
   final List<SignalScope> _children = [];

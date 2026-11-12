@@ -174,7 +174,13 @@ class SignalResult<T> {
     final parentSub = listen((r) {
       if (r is Success<T, AppFailure>) {
         innerSub?.cancel();
-        innerSub = transform(r.value).listen((nr) => out.emit(nr));
+        final newSub = transform(r.value).listen((nr) => out.emit(nr));
+        // Check if out was disposed during eager delivery
+        if (out.isDisposed) {
+          newSub.cancel();
+        } else {
+          innerSub = newSub;
+        }
       } else if (r is Failure<T, AppFailure>) {
         innerSub?.cancel();
         out.emitFailure(r.error);

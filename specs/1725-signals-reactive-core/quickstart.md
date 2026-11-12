@@ -30,6 +30,7 @@ final a = Signal(0);
 final b = Signal(0);
 var builds = 0;
 Signal.combine(a, b, (x, y) => (x, y)).listen((_) => builds++);
+builds = 0;  // reset after eager delivery
 
 batch(() {
   a.value = 1;
@@ -71,10 +72,13 @@ parent. Signals created outside any `run` boundary are never captured.
 
 ```dart
 final s = Signal(0);
+SignalSubscription? sub2;
 final sub = s.listen((v) {
-  if (v == 1) sub.cancel();   // cancels B mid-notification
+  if (v == 1) sub2?.cancel();   // cancels B mid-notification
 });
-final sub2 = s.listen((_) => fail('B must not receive this'));
+sub2 = s.listen((v) {
+  if (v == 1) fail('B must not receive this');
+});
 s.value = 1;                  // sub2 was cancelled before its delivery
 ```
 

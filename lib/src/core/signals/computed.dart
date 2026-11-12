@@ -46,7 +46,7 @@ class Computed<T> implements ReadonlySignal<T> {
   final List<ReadonlySignal<dynamic>> _dependencies;
   final T Function() _compute;
   final List<SignalSubscription> _subscriptions = [];
-  final List<void Function(T value)> _listeners = [];
+  final List<_ComputedListener<T>> _listeners = [];
   final List<void Function()> _disposeHooks = [];
 
   T? _value;
@@ -57,6 +57,9 @@ class Computed<T> implements ReadonlySignal<T> {
   int _listenerEpoch = 0; // incremented on listener mutations (O(n²) guard)
   // Dependency versions captured at last compute time for freshness validation
   final List<int> _depVersions = [];
+  // Last value delivered to listeners; used to detect changes across batch reads
+  T? _lastDelivered;
+  bool _hasDelivered = false;
 
   /// Current derived value. O(1) — returns the cache unless a dependency
   /// changed since the last compute.
@@ -79,7 +82,7 @@ class Computed<T> implements ReadonlySignal<T> {
     for (var i = 0; i < _dependencies.length; i++) {
       final dep = _dependencies[i];
       if (dep is Signal) {
-        if (dep._version != _depVersions[i]) return true;
+        if (dep.version != _depVersions[i]) return true;
       }
     }
     return false;
@@ -92,12 +95,20 @@ class Computed<T> implements ReadonlySignal<T> {
   @override
   SignalSubscription listen(void Function(T value) callback) {
     _assertNotDisposed();
-    _listeners.add(callback);
+    final listener = _ComputedListener<T>(callback);
+    _listeners.add(listener);
     _listenerEpoch++; // mutation guard for O(n²) avoidance
     // Eager delivery of current value (same cold-start contract as Signal).
-    callback(value);
+    try {
+      callback(value);
+    } catch (e) {
+      // Eager delivery failed — remove the registration before propagating
+      _listeners.remove(listener);
+      _listenerEpoch++;
+      rethrow;
+    }
     return SignalSubscription(() {
-      _listeners.remove(callback);
+      _listeners.remove(listener);
       _listenerEpoch++; // mutation guard for O(n²) avoidance
     });
   }
@@ -112,6 +123,8 @@ class Computed<T> implements ReadonlySignal<T> {
     final sub = listen((v) {
       if (!derived.isDisposed) derived.value = transform(v);
     });
+    // Cancel subscription when derived is disposed, even if parent remains alive
+    derived._onDispose(() => sub.cancel());
     _onDispose(() {
       sub.cancel();
       if (autoDispose) derived.dispose();
@@ -159,7 +172,7 @@ class Computed<T> implements ReadonlySignal<T> {
       // Capture dependency versions for freshness validation (batch staleness fix)
       _depVersions.clear();
       for (final dep in _dependencies) {
-        _depVersions.add(dep is Signal ? dep._version : 0);
+        _depVersions.add(dep is Signal ? dep.version : 0);
       }
     } finally {
       _computing = false;
@@ -175,12 +188,14 @@ class Computed<T> implements ReadonlySignal<T> {
     }
     // Push mode: subscribers are readers — recompute now, notify on change.
     _dirty = true; // a failed recompute must leave the cache invalid for retry
-    final hadValue = _hasValue;
-    final previous = _value;
+    final hadValue = _hasDelivered;
+    final previous = _lastDelivered;
     _recompute();
     final changed =
         !hadValue || !(identical(previous, _value) || previous == _value);
     if (changed) {
+      _lastDelivered = _value;
+      _hasDelivered = true;
       _notifyListeners();
     }
   }
@@ -192,11 +207,23 @@ class Computed<T> implements ReadonlySignal<T> {
       if (_disposed) return;
       // Only check contains() if the list was mutated (O(n²) → O(n) fast path)
       if (epoch != _listenerEpoch && !_listeners.contains(listener)) continue;
-      listener(_value as T);
+      listener.callback(_value as T);
     }
   }
 
   void _onDispose(void Function() hook) {
     _disposeHooks.add(hook);
   }
+}
+
+/// Internal listener wrapper. Identity-based equality so cancellation
+/// and the mid-notification membership check are precise.
+class _ComputedListener<T> {
+  _ComputedListener(this.callback);
+  final void Function(T value) callback;
+
+  @override
+  bool operator ==(Object other) => identical(this, other);
+  @override
+  int get hashCode => identityHashCode(this);
 }
