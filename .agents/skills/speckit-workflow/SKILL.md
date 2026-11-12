@@ -322,7 +322,7 @@ After `/speckit-implement` completes:
 
 4. **If diagnostics exist**: Make 1-2 focused attempts to fix them. If you can't resolve quickly, leave them and report.
 
-5. **Run `/insights`**: Extract non-obvious key findings from the session and persist them to `INSIGHTS.md`. This captures gotchas, workarounds, and architecture decisions discovered through trial and error.
+5. **Run `/insights`**: Extract non-obvious key findings from the session and persist them as project rules in `AGENTS.md`. This captures gotchas, workarounds, and architecture decisions discovered through trial and error.
 
 6. **Run `/docs`**: Generate or update project documentation in `docs/` based on the implementation. Creates architecture diagrams, workflow docs, and component references.
 
