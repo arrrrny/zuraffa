@@ -161,6 +161,10 @@ class SignalResult<T> {
     final mapped = SignalResult<R>._(
       _signal.map((r) => r.map(transform), autoDispose: false),
     );
+    // Parent disposal cascades to the mapped result (as in flatMap). The child
+    // is tracked as an object — not as its `dispose` tear-off — so disposing
+    // the child releases this reference immediately (no retention).
+    _adopt(mapped);
     return mapped;
   }
 
@@ -173,34 +177,79 @@ class SignalResult<T> {
     final parentSub = listen((r) {
       if (r is Success<T, AppFailure>) {
         innerSub?.cancel();
-        innerSub = transform(r.value).listen((nr) => out.emit(nr));
+        final newSub = transform(r.value).listen((nr) => out.emit(nr));
+        // Check if out was disposed during eager delivery
+        if (out.isDisposed) {
+          newSub.cancel();
+        } else {
+          innerSub = newSub;
+        }
       } else if (r is Failure<T, AppFailure>) {
         innerSub?.cancel();
         out.emitFailure(r.error);
       }
     });
 
-    out._disposables.add(() {
+    // Cancel both subscriptions when the output SIGNAL goes away — from
+    // SignalResult.dispose() or from a SignalScope that owns it. Registering on
+    // the signal is what makes the scope case work: a scope disposes the
+    // signal directly, never this wrapper.
+    out._signal.onDispose(() {
       parentSub.cancel();
       innerSub?.cancel();
+      // The signal is gone, so the wrapper is dead too: dispose it here as
+      // well, otherwise the parent keeps this output (and its own children)
+      // retained until the parent itself is disposed.
+      out.dispose();
     });
+    // Parent disposal cascades to the derived output: without this, `out`
+    // would outlive its parent as an orphan (listeners never released,
+    // loading states stuck forever). Tracked as an object so a caller that
+    // disposes `out` releases this reference immediately.
+    if (isDisposed) {
+      out.dispose();
+    } else {
+      _adopt(out);
+    }
     return out;
   }
 
   // ── Lifecycle ──
 
   /// Dispose this [SignalResult] and release all listeners.
+  ///
+  /// Disposes the results derived from this one ([map] / [flatMap]) as well;
+  /// disposing a derived result on its own detaches it from this one.
+  /// Idempotent.
   void dispose() {
-    for (final fn in _disposables) {
-      fn();
+    if (_disposed) return;
+    _disposed = true;
+    final children = _children.toList(growable: false);
+    _children.clear();
+    for (final child in children) {
+      child._parent = null;
+      child.dispose();
     }
-    _disposables.clear();
+    _parent?._children.remove(this);
+    _parent = null;
     _signal.dispose();
   }
 
-  bool get isDisposed => _signal.isDisposed;
+  bool get isDisposed => _disposed || _signal.isDisposed;
 
   // ── Internal state ──
 
-  final List<void Function()> _disposables = [];
+  /// Results derived from this one and still owned by it.
+  final Set<SignalResult<dynamic>> _children = {};
+  bool _disposed = false;
+
+  /// The result this one was derived from, while that result still owns it.
+  SignalResult<dynamic>? _parent;
+
+  /// Take ownership of [child] so it is disposed with this result, and drop
+  /// the ownership as soon as the child is disposed on its own.
+  void _adopt(SignalResult<dynamic> child) {
+    child._parent = this;
+    _children.add(child);
+  }
 }
