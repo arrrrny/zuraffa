@@ -109,7 +109,22 @@ class Signal<T> implements ReadonlySignal<T> {
     // returns the subscription, so the cleanup could never be installed and
     // this source would keep a listener that throws on every later write.
     if (derived.isDisposed) return derived;
-    final sub = listen((v) => derived.value = transform(v));
+    final sub = listen((v) {
+      // The transform is the user's code and it runs before the write: a
+      // transform that disposes the scope owning `derived` disposes `derived`
+      // too, so the write has to be re-checked after it, not only on entry.
+      final next = transform(v);
+      if (derived.isDisposed) return;
+      derived.value = next;
+    });
+    // The same disposal can happen during the eager delivery `listen` just
+    // ran. Cancelling the registration is what closes the leak: without it the
+    // source keeps a listener that throws on every later write, and the caller
+    // never receives the subscription it would need to cancel.
+    if (derived.isDisposed) {
+      sub.cancel();
+      return derived;
+    }
     derived.onDispose(() => sub.cancel());
     if (autoDispose) {
       onDispose(() => derived.dispose());
@@ -127,9 +142,24 @@ class Signal<T> implements ReadonlySignal<T> {
     // See [map]: a derived signal disposed during its own construction must be
     // returned before any source is subscribed.
     if (derived.isDisposed) return derived;
-    void sync() => derived.value = combiner(s1._value, s2._value);
+    void sync() {
+      // The combiner is the user's code and it runs before the write: one that
+      // disposes the scope owning `derived` leaves `derived` dead, so the
+      // write has to be re-checked after it — see [map].
+      final next = combiner(s1._value, s2._value);
+      if (derived.isDisposed) return;
+      derived.value = next;
+    }
+
     final sub1 = s1.listen((_) => sync());
     final sub2 = s2.listen((_) => sync());
+    // A combiner that disposed its own scope during either eager delivery
+    // above leaves `derived` dead and both sources listening: cancel both.
+    if (derived.isDisposed) {
+      sub1.cancel();
+      sub2.cancel();
+      return derived;
+    }
     derived.onDispose(() {
       sub1.cancel();
       sub2.cancel();

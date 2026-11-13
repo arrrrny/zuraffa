@@ -64,12 +64,20 @@ class Computed<T> implements ReadonlySignal<T> {
 
   /// Dependency-freshness validations performed since the last reset.
   ///
-  /// Test-only instrumentation: the shared-dependency regression test reads
-  /// it to prove that a validation pass is linear in the number of nodes
-  /// instead of exponential in the graph depth. Nothing in the library reads
-  /// or depends on it.
+  /// Test-only instrumentation: the shared-dependency regression tests read it
+  /// to prove that a validation pass is linear in the number of nodes instead
+  /// of exponential in the graph depth. Nothing in the library reads or depends
+  /// on it, and it is not writable from outside this library: a public mutable
+  /// static would ship in the release AOT as caller-reachable state.
+  static int _freshnessCheckCount = 0;
+
+  /// The [_freshnessCheckCount] value. Visible for testing only.
   @visibleForTesting
-  static int freshnessCheckCount = 0;
+  static int get freshnessCheckCount => _freshnessCheckCount;
+
+  /// Zeroes [_freshnessCheckCount] before a measured validation pass.
+  @visibleForTesting
+  static void resetFreshnessCheckCount() => _freshnessCheckCount = 0;
 
   T? _value;
   bool _hasValue = false;
@@ -123,7 +131,7 @@ class Computed<T> implements ReadonlySignal<T> {
         if (dep.version != captured) return true;
       } else if (dep is Computed) {
         final answers = seen ??= <_FreshnessKey, bool>{};
-        final key = (dep, captured);
+        final key = _FreshnessKey(dep, captured);
         final cached = answers[key];
         if (cached != null) {
           if (cached) return true;
@@ -141,7 +149,7 @@ class Computed<T> implements ReadonlySignal<T> {
   /// [version]: a newer recompute, a pending invalidation, or a cache of its
   /// own that is already stale. Never recomputes — the caller decides.
   bool _mayHaveChangedSince(int version, _FreshnessMemo? memo) {
-    freshnessCheckCount++;
+    _freshnessCheckCount++;
     if (_disposed) return false;
     if (_version != version) return true;
     return _dirty || !_hasValue || _isStale(memo: memo);
@@ -190,8 +198,20 @@ class Computed<T> implements ReadonlySignal<T> {
   Signal<R> map<R>(R Function(T value) transform, {bool autoDispose = true}) {
     final derived = Signal<R>(transform(value));
     final sub = listen((v) {
-      if (!derived.isDisposed) derived.value = transform(v);
+      // Same shape as [Signal.map]: the transform is the user's code and it
+      // runs before the write, so the disposal it can cause is only visible
+      // after it returns.
+      final next = transform(v);
+      if (derived.isDisposed) return;
+      derived.value = next;
     });
+    // A transform that disposed the scope owning `derived` during the eager
+    // delivery above leaves this computed subscribed to a dead output: cancel
+    // before installing the hooks, which a disposed signal ignores anyway.
+    if (derived.isDisposed) {
+      sub.cancel();
+      return derived;
+    }
     // Cancel the subscription when the mapped output is disposed, even if this
     // computed remains alive. The parent registration is removed at the same
     // time: otherwise this computed's dispose hooks keep every disposed output
@@ -309,7 +329,32 @@ class Computed<T> implements ReadonlySignal<T> {
 
 /// A dependency and the version a caller captured for it — the identity of one
 /// freshness question inside a validation pass.
-typedef _FreshnessKey = (Computed<dynamic>, int);
+///
+/// Equality is IDENTITY-based on the dependency, not `==`: [Computed] is an
+/// ordinary class, so a subclass may override `==`/`hashCode`, and two
+/// distinct dependencies that compare equal must never share a memo entry. A
+/// Dart record compares its fields with `==` and is therefore the wrong key
+/// here.
+class _FreshnessKey {
+  _FreshnessKey(this.computed, this.capturedVersion);
+
+  final Computed<dynamic> computed;
+  final int capturedVersion;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is _FreshnessKey &&
+          identical(other.computed, computed) &&
+          other.capturedVersion == capturedVersion);
+
+  @override
+  int get hashCode => Object.hash(identityHashCode(computed), capturedVersion);
+
+  @override
+  String toString() =>
+      '_FreshnessKey(${identityHashCode(computed)}, $capturedVersion)';
+}
 
 /// Answers established by the current validation pass. A pair's answer cannot
 /// change mid-pass (no validation step recomputes), so reusing it is sound.
