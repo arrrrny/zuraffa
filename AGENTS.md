@@ -419,7 +419,14 @@ What it cannot reproduce, and prints on startup instead of guessing:
   presence probe rather than silently passed.
 - **GitHub context.** A step needing `${{ secrets.* }}`, `${{ inputs.* }}`,
   `${{ vars.* }}`, `${{ steps.* }}` or `${{ github.event.* }}` is SKIPPED with the
-  reason printed, never run with a guessed value.
+  reason printed, never run with a guessed value. Secrets are the one context
+  an operator can supply FOR REAL (#708): `LOCAL_CI_SECRET_<NAME>=… ./scripts/local_ci.sh`
+  resolves `${{ secrets.<NAME> }}` to that value, and `LOCAL_CI_SECRETS="<NAME>,…"`
+  reads each name from the ambient environment (a name it cannot back is named
+  at startup and stays blanked). The report says which secrets were real and
+  which were blanked; names are printed, values are never echoed — a value a
+  step prints is masked to `***` in the echoed and captured output, as GitHub
+  masks it in a run log.
 - **`uses:` actions** are not executed. Toolchain setups (`setup-dart`,
   `setup-node`, `flutter-action`, `rust-toolchain`, …) become a version assertion
   against the local tool; checkout/cache/artifact are noted as no-ops; anything
@@ -460,19 +467,11 @@ lever — and it must be passed every time:
 
 ```sh
 flutter test --concurrency=2
+dart test -j 2
 ```
 
-That cap is the **Flutter** test runner's. It says nothing about `dart test`:
-the Dart fast tier runs SERIAL by design (`dart_test.yaml`'s `concurrency: 1`
-is a CORRECTNESS requirement, and a CLI `-j` overrides it silently — issue
-#1994), so the sanctioned way to run it is the entrypoint, which owns the cap
-and refuses a parallel request:
-
-```sh
-dart run tools/run_fast_suite.dart
-```
-
-Never pass `-j` to the Dart fast tier, and never raise the Flutter number on
-a host that also runs the forklift pool. CI carries the same flags in
-`.github/workflows`.
+A repo whose `dart_test.yaml` carries `concurrency: 2` already defaults to it
+for `dart test`; pass the flag anyway when you override it, and never raise
+the number on a host that also runs the forklift pool. CI carries the same
+flags in `.github/workflows`.
 <!-- test-concurrency:end -->

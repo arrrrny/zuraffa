@@ -30,7 +30,13 @@
 #   * `${{ secrets.* }}`, `${{ inputs.* }}`, `${{ vars.* }}`, `${{ steps.* }}`,
 #     `${{ needs.* }}`, `${{ github.event.* }}` — there is no GitHub context
 #     locally. A step that needs one is SKIPPED with the reason printed, never
-#     run with a guessed value.
+#     run with a guessed value. Secrets are the one context an operator can
+#     supply FOR REAL (#708): LOCAL_CI_SECRET_<NAME>=… ./scripts/local_ci.sh
+#     resolves ${{ secrets.<NAME> }} to that value, and
+#     LOCAL_CI_SECRETS="<NAME>,…" reads each name from the ambient environment.
+#     The report says which secrets were real and which were blanked; names
+#     are printed, values are never echoed — a value a step prints is masked
+#     to *** in the echoed and captured output, as GitHub masks it in a log.
 #   * `uses:` actions are not executed. Toolchain setups (setup-dart, setup-node,
 #     flutter-action, rust-toolchain, …) become a version ASSERTION against the
 #     local tool; known no-op actions (checkout/cache/artifacts) are noted; any
@@ -39,7 +45,8 @@
 #   * `strategy.matrix` is expanded as a cross product; `include` merges into
 #     every matching combination (or appends a new one when none match) and
 #     `exclude` drops matching combinations, as GitHub does.
-#   * `continue-on-error: true` steps are advisory locally, exactly as in CI.
+#   * `continue-on-error: true` (step- or job-level) failures are advisory
+#     locally, exactly as in CI.
 #   * A `cargo … --target <triple>` step needs a toolchain that carries that
 #     target's standard library. A rustup toolchain carrying EVERY target of the
 #     step is used for it — through the rustup proxy, so `cargo +<toolchain>`
@@ -364,6 +371,73 @@ def parse_workflow(path):
 NO_LOCAL_CONTEXT = ("secrets.", "inputs.", "vars.", "steps.", "needs.",
                     "github.event.", "github.token", "github.actor")
 
+# Secrets the operator can hand the local run for real (issue #708). CI resolves
+# `${{ secrets.* }}` on GitHub's side; locally there is no GitHub, and #701
+# correctly blanks what cannot be resolved — but blanking also means a repo
+# whose registry credential is env-var-backed can never pass `Get dependencies`
+# here: the gate blanks the variable, pub demands it, and the run is red behind
+# an infrastructure error. The operator running this gate HAS the value — the
+# whole difference between local and CI — so it can be passed through:
+#
+#   LOCAL_CI_SECRET_PUB_ZUZU_TOKEN=… ./scripts/local_ci.sh    # direct value
+#   LOCAL_CI_SECRETS="PUB_ZUZU_TOKEN" ./scripts/local_ci.sh   # ambient env
+#
+# A listed name with no ambient value is a misconfiguration: it is named at
+# startup and the secret stays blanked, never guessed. Only NAMES are ever
+# printed — a value reaches the step's environment and nothing else.
+LOCAL_SECRETS = {}
+SECRETS_MISSING = []   # LOCAL_CI_SECRETS names the ambient env cannot back
+SECRETS_REAL = []      # secrets resolved from a supplied value, in use order
+SECRETS_BLANKED = []   # secrets that resolved to "" for lack of a local value
+
+
+def _collect_local_secrets():
+    direct_prefix = "LOCAL_CI_SECRET_"
+    for key, value in sorted(os.environ.items()):
+        if key.startswith(direct_prefix):
+            name = key[len(direct_prefix):]
+            if name and value:
+                LOCAL_SECRETS[name] = value
+    listed = os.environ.get("LOCAL_CI_SECRETS", "")
+    for name in (p.strip() for p in re.split(r"[,\s]+", listed)):
+        if not name or name in LOCAL_SECRETS:
+            continue
+        value = os.environ.get(name, "")
+        if value:
+            LOCAL_SECRETS[name] = value
+        else:
+            SECRETS_MISSING.append(name)
+
+
+_collect_local_secrets()
+
+
+def local_secret(name):
+    """The supplied value for secret `name`, or None.
+
+    GitHub reads secret names case-insensitively (`${{ secrets.foo }}` resolves
+    the secret stored as FOO), so a case-insensitive match is honoured after
+    the exact one. The matched name travels with the value — the accounting
+    records the name the operator supplied, not the reference's spelling.
+    """
+    if name in LOCAL_SECRETS:
+        return name, LOCAL_SECRETS[name]
+    upper = {k.upper(): (k, v) for k, v in LOCAL_SECRETS.items()}
+    return upper.get(name.upper())
+
+
+def record_real_secrets(hits):
+    """Count (expression, supplied name) pairs whose value actually survives.
+
+    Called where a resolved secret's value is really used — an `env:` entry
+    that was not blanked, a run: body about to execute — so a secret resolved
+    into a value that is then discarded (a sibling ref in the same entry left
+    it unresolvable) is never reported as real (#708 review). First-use order.
+    """
+    for _e, supplied in hits:
+        if supplied not in SECRETS_REAL:
+            SECRETS_REAL.append(supplied)
+
 
 def build_github(slug, branch, event, workflow_name, sha):
     return {
@@ -447,6 +521,26 @@ def resolve_ref(expr, ctx, unresolved):
         for src in ctx["env_chain"]:
             if name in src:
                 return str(src[name])
+        unresolved.append(e)
+        return None
+    if e.startswith("secrets."):
+        # An operator-supplied secret resolves FOR REAL (#708) — the probe
+        # stays empty, so a step that would otherwise be skipped for GitHub
+        # context runs, and an env: entry carries the value instead of "".
+        name = e[len("secrets."):]
+        resolved = local_secret(name)
+        if resolved is not None:
+            supplied, value = resolved
+            # Being counted as real does NOT happen here (forklift#708 review):
+            # a ref can resolve into a value whose entry is then blanked via
+            # another ref, and the value is discarded. The promotion lives
+            # where the resolved value survives — record_real_secrets().
+            hits = ctx.get("secret_hits")
+            if isinstance(hits, list):
+                hits.append((e, supplied))
+            return value
+        if name not in SECRETS_BLANKED:
+            SECRETS_BLANKED.append(name)
         unresolved.append(e)
         return None
     if any(e.startswith(p) for p in NO_LOCAL_CONTEXT):
@@ -913,6 +1007,17 @@ class Runner:
         self.args = args
         self.out = Outcome()
         self.job_ok = True
+        # job-level continue-on-error (#775): in GitHub Actions it tolerates
+        # the failure of every step in the job — the job reports red, only the
+        # run stays green. fail() inherits it as the default for each step's
+        # advisory decision.
+        self.job_continue = False
+        # an unsoftened step failed in this job (#780 review): a failure CI
+        # does not record as a successful step — a job-level soft-gate's step
+        # or a hard one — fails the job, so its later implicit-success steps
+        # are skipped. A step-level continue-on-error failure is recorded as
+        # success in CI and does NOT count here.
+        self.job_unsoftened = False
         self.stopped = False
         self.current_ctx = None
         self.absent_prefixes = ci_absent_prefixes()
@@ -995,6 +1100,8 @@ class Runner:
             self.skip_job(label, "steps is not a list")
             return
         self.job_ok = True
+        self.job_continue = bool(job.get("continue-on-error"))
+        self.job_unsoftened = False
         self.pinned_toolchain = None
         for n, step in enumerate(steps, 1):
             if self.stopped:
@@ -1006,16 +1113,53 @@ class Runner:
     def ctx_for(self, wf_env, job_env, step_env, combo):
         final = {}
         chain = []
+        # An `env:` value that resolves to an unresolvable expression must NOT
+        # reach the child environment as its literal text. A `run:` body gets
+        # that treatment already (the step is skipped on `probe`), but `env:`
+        # is expanded here with the probe discarded — so
+        # `PUB_ZUZU_TOKEN: ${{ secrets.X }}` used to be exported verbatim, and
+        # `dart pub` then read the literal as the credential and rejected it
+        # ("not a valid Bearer token") on a tree that is green in CI.
+        #
+        # The variable is kept and set to the EMPTY string, not dropped
+        # (forklift#701 review): GitHub resolves an undefined secret to `""`,
+        # so in CI the variable is present-but-empty. Dropping it makes a step
+        # under `set -u` / `${VAR:?}` fail locally while passing in CI — the
+        # same inversion, one layer down. A value mixing literal text with the
+        # expression (`Bearer ${{ secrets.X }}`) becomes `Bearer ` in CI, which
+        # is what stripping the expression yields here.
+        unresolved = {}
+        secret_env = {}
         for layer in (wf_env, job_env, step_env):
             for k, v in (layer or {}).items():
                 ctx = self.base_ctx(combo)
                 ctx["env_chain"] = [final] + chain
+                hits = []
+                ctx["secret_hits"] = hits
                 probe = []
-                final[k] = expand(v, ctx, probe) if isinstance(v, str) else v
+                value = expand(v, ctx, probe) if isinstance(v, str) else v
+                if probe:
+                    unresolved[k] = probe[0]
+                    final[k] = EXPR_RE.sub("", v) if isinstance(v, str) else ""
+                else:
+                    final[k] = value
+                    unresolved.pop(k, None)
+                    if hits:
+                        # the entry holds real, locally supplied secret(s)
+                        # (#708). Claimed here and not in resolve_ref: a ref
+                        # resolved into an entry that is blanked via a sibling
+                        # ref never reaches the environment. Every expression
+                        # in the value is named, not just the first.
+                        record_real_secrets(hits)
+                        secret_env[k] = ", ".join(e for e, _ in hits)
             chain.append(dict(final))
         all_env = dict(os.environ)
         all_env.update({k: str(v) for k, v in final.items() if v is not None})
-        return self.base_ctx(combo, env_chain=[final, dict(os.environ)], environ=all_env)
+        ctx = self.base_ctx(combo, env_chain=[final, dict(os.environ)],
+                            environ=all_env)
+        ctx["unresolved_env"] = unresolved
+        ctx["secret_env"] = secret_env
+        return ctx
 
     def base_ctx(self, combo, env_chain=None, environ=None):
         # GitHub's own name for this platform, so `if: runner.os == 'macOS'`
@@ -1045,6 +1189,24 @@ class Runner:
                 why = f"if: {step['if']}" + ("" if verdict is None else " (false)")
                 self.skip(head, why)
                 return
+        elif self.job_unsoftened:
+            # CI-fidelity (forklift#780 review): after an unsoftened failed
+            # step the job has failed, and a step WITHOUT an `if:` carries an
+            # implicit `if: success()` — CI skips it; only `failure()` /
+            # `always()` steps run. That holds inside a job-level
+            # continue-on-error job too, which softens only the run verdict:
+            # the advisory branch of fail() keeps the run green but still
+            # marks the job, so this keeps the remaining steps of a
+            # soft-gated job in lockstep with CI instead of running side
+            # effects CI never performs. A step-level continue-on-error
+            # failure does NOT gate this — CI records that step as success
+            # and runs the later default steps.
+            self.skip(
+                head,
+                "implicit if: success() — the job already has a failed step, "
+                "so CI would skip this step",
+            )
+            return
 
         if step.get("uses"):
             self.current_ctx = ctx0
@@ -1058,6 +1220,8 @@ class Runner:
 
         probe = []
         ctx = self.ctx_for(wf_env, job_env, step.get("env") or {}, combo)
+        body_hits = []  # secrets the run: body resolves (#708)
+        ctx["secret_hits"] = body_hits
         body_expanded = expand(body, ctx, probe)
         wd = step.get("working-directory") or job_wd
         wd_probe = []
@@ -1067,6 +1231,25 @@ class Runner:
             self.skip(head, "needs GitHub context: "
                             + ", ".join(sorted(set(probe))[:3]))
             return
+        # The body runs with the values it resolved (#708): claimed here, after
+        # the probe check — a body skipped for unresolvable context must not
+        # report its secret as real either.
+        record_real_secrets(body_hits)
+
+        # An `env:` entry that needed GitHub context is exported EMPTY, never as
+        # its literal `${{ … }}` text (forklift#701). Say so on the step, so a
+        # variable the step reads as empty is explained rather than mysterious.
+        blanked_env = ctx.get("unresolved_env") or {}
+        if blanked_env:
+            names = ", ".join(f"{k} ({v})" for k, v in sorted(blanked_env.items()))
+            print(f"  {YELLOW}note{RESET} env set empty locally: {names}")
+        # The honest counterpart (#708): an entry that got a REAL value from a
+        # locally supplied secret says so, in the same shape as the blanking
+        # note. Names only — the value itself is never echoed.
+        real_env = ctx.get("secret_env") or {}
+        if real_env:
+            names = ", ".join(f"{k} ({v})" for k, v in sorted(real_env.items()))
+            print(f"  {CYAN}note{RESET} env set from local secrets: {names}")
 
         apt = self.apt_step(body_expanded, head)
         if apt is not None:
@@ -1164,6 +1347,24 @@ class Runner:
             env["RUSTUP_TOOLCHAIN"] = toolchain_env
         env.setdefault("CI", "true")
         env.setdefault("GITHUB_ACTIONS", "true")
+        # GitHub exports RUNNER_TEMP to every step pointing at the same
+        # directory the runner.temp expression resolves to, and workflows
+        # hand paths from one spelling to the other (dart_curl#55,
+        # forklift#752). Force, not setdefault: an ambient RUNNER_TEMP from
+        # the operator's shell is not a runner-provided value, and honoring
+        # it would fork the two spellings again.
+        #
+        # The other `runner.*` values have shell spellings too, and a workflow
+        # may read either one — the same fork, three more variables (#757).
+        # GitHub exports all of them to every step and none is overridable
+        # from a workflow's `env:`, so these are forced the same way. Read
+        # from the step's own ctx: it already carries this combo's runner
+        # values, so nothing is rebuilt.
+        runner_ctx = ctx["runner"]
+        env["RUNNER_TEMP"] = str(self.runner_temp)
+        env["RUNNER_OS"] = runner_ctx["os"]
+        env["RUNNER_ARCH"] = runner_ctx["arch"]
+        env["RUNNER_TOOL_CACHE"] = str(runner_ctx["tool_cache"])
         env["GITHUB_WORKSPACE"] = str(ROOT)
         if self.github.get("repository"):
             env["GITHUB_REPOSITORY"] = self.github["repository"]
@@ -1211,6 +1412,19 @@ class Runner:
     def fail(self, head, why, step, took=""):
         self.job_ok = False
         if step is not None and step.get("continue-on-error"):
+            # step-level softening: CI records the step's conclusion as
+            # success and the job keeps going, so this is NOT an unsoftened
+            # failure — later implicit-success steps still run there
+            # (#780 review).
+            self.out.advisory.append(head)
+            print(f"{YELLOW}⚠ {took} {head} ({why}) "
+                  f"— continue-on-error: advisory, as in CI{RESET}")
+            return
+        # An unsoftened step failure — a job-level soft-gate's step or a
+        # hard one: in CI the job itself has failed, so its later
+        # implicit-success steps are skipped. run_step gates on this.
+        self.job_unsoftened = True
+        if self.job_continue:
             self.out.advisory.append(head)
             print(f"{YELLOW}⚠ {took} {head} ({why}) "
                   f"— continue-on-error: advisory, as in CI{RESET}")
@@ -1463,15 +1677,32 @@ class Runner:
             print(f"  {YELLOW}⚠ {f}{RESET}")
         for s in self.out.skipped:
             print(f"  {YELLOW}· skipped{RESET} {s}")
+        # Which secrets were real and which were blanked (#708) — the run's
+        # honesty about where its values came from. Names only, never values.
+        if SECRETS_REAL:
+            print(f"  {GREEN}✓{RESET} secrets resolved for real: "
+                  f"{', '.join(SECRETS_REAL)}")
+        if SECRETS_BLANKED:
+            print(f"  {YELLOW}·{RESET} secrets blanked (no local value): "
+                  f"{', '.join(SECRETS_BLANKED)}")
 
 
 def stream_command(cmd, cwd, env, cap=400_000):
-    """Run a step, echo its output live, and return (exit code, captured tail)."""
+    """Run a step, echo its output live, and return (exit code, captured tail).
+
+    Supplied secret values are replaced with *** on every echoed and captured
+    line, as GitHub masks them in a run log (#708 review) — a step that prints
+    its env, or a tool that logs its credential, writes no token here.
+    """
     buf, total = [], 0
+    masks = [v for v in LOCAL_SECRETS.values() if v]
     proc = subprocess.Popen(cmd, cwd=str(cwd), env=env, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, text=True, bufsize=1)
     try:
         for line in proc.stdout:
+            for m in masks:
+                if m in line:
+                    line = line.replace(m, "***")
             sys.stdout.write(line)
             if total < cap:
                 buf.append(line)
@@ -1896,6 +2127,14 @@ def run(args):
     print(f"  event    : {args['event']} (simulated)")
     print(f"  platform : CI runs ubuntu-latest (Linux); this is {sys.platform}. "
           "Step set identical, platform not.")
+    if LOCAL_SECRETS:
+        print(f"  secrets  : {', '.join(sorted(LOCAL_SECRETS))} supplied "
+              "locally (values are not echoed)")
+    if SECRETS_MISSING:
+        print(f"  {YELLOW}note     : LOCAL_CI_SECRETS names "
+              f"{', '.join(SECRETS_MISSING)}, but the ambient environment has "
+              "no value for it — it will resolve empty"
+              f"{RESET}")
 
     runner = Runner(wf, doc, args)
     runner.github = build_github(guess_slug(), run_git("rev-parse", "--abbrev-ref", "HEAD"),
