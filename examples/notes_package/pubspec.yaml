@@ -1,7 +1,7 @@
 # Zuraffa-native package created by `zfa package create` (spec 025).
 name: notes_package
 description: "Spec 025 reference: one entity, one datasource, one usecase, one agent tool, module + registrar."
-version: 7.4.1
+version: 7.4.2
 publish_to: none
 
 environment:
