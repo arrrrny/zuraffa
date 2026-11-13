@@ -151,5 +151,123 @@ void main() {
         );
       },
     );
+
+    test('D9: a map derived disposed during construction never subscribes', () {
+      final source = Signal<int>(0);
+      final scope = SignalScope();
+      Signal<int>? mapped;
+
+      scope.run(() {
+        source.listen((_) {
+          scope.dispose(); // the scope that owns what map() builds
+          mapped = source.map((v) => v * 2);
+        });
+        source.value = 1; // inside the boundary: map() is scope-owned
+      });
+
+      expect(mapped, isNotNull);
+      expect(
+        mapped!.isDisposed,
+        isTrue,
+        reason: 'the disposed scope releases the derived signal at once',
+      );
+      // The live source must not keep a listener writing to the dead
+      // derived signal: every later source write would throw, and the
+      // caller holds no subscription it could cancel.
+      expect(() => source.value = 2, returnsNormally);
+      expect(() => source.value = 3, returnsNormally);
+    });
+
+    test(
+      'D10: a combined signal disposed during construction never subscribes',
+      () {
+        final a = Signal<int>(0);
+        final b = Signal<int>(1);
+        final scope = SignalScope();
+        Signal<int>? combined;
+
+        scope.run(() {
+          a.listen((_) {
+            scope.dispose();
+            combined = Signal.combine(a, b, (x, y) => x + y);
+          });
+          a.value = 1; // inside the boundary: combine() is scope-owned
+        });
+
+        expect(combined, isNotNull);
+        expect(combined!.isDisposed, isTrue);
+        expect(() => a.value = 2, returnsNormally);
+        expect(() => b.value = 2, returnsNormally);
+      },
+    );
+
+    test(
+      'D11: a map derived disposed during its eager subscribe is cleaned up',
+      () {
+        final source = Signal<int>(0);
+        final scope = SignalScope();
+        Signal<int>? mapped;
+        var transformCalls = 0;
+
+        scope.run(() {
+          mapped = source.map((v) {
+            transformCalls++;
+            // The construction-time read above is call 1; every later call is
+            // an eager delivery, and the transform is the user's code.
+            if (transformCalls > 1) scope.dispose();
+            return v * 2;
+          });
+        });
+
+        expect(mapped, isNotNull);
+        expect(
+          mapped!.isDisposed,
+          isTrue,
+          reason: 'the transform disposed the scope that owns the derived',
+        );
+        final callsAfterSetup = transformCalls;
+        // `listen` registers before its eager delivery and cleans up nothing
+        // on throw: without a cancel here the source keeps a listener that
+        // throws on every later write, and nobody holds the subscription.
+        expect(() => source.value = 1, returnsNormally);
+        expect(() => source.value = 2, returnsNormally);
+        expect(
+          transformCalls,
+          callsAfterSetup,
+          reason: 'the cancelled listener is never delivered again',
+        );
+      },
+    );
+
+    test(
+      'D12: a combined signal disposed during its eager subscribe is cleaned up',
+      () {
+        final a = Signal<int>(0);
+        final b = Signal<int>(1);
+        final scope = SignalScope();
+        Signal<int>? combined;
+        var combinerCalls = 0;
+
+        scope.run(() {
+          combined = Signal.combine(a, b, (x, y) {
+            combinerCalls++;
+            if (combinerCalls > 1) scope.dispose();
+            return x + y;
+          });
+        });
+
+        expect(combined, isNotNull);
+        expect(combined!.isDisposed, isTrue);
+        final callsAfterSetup = combinerCalls;
+        expect(() => a.value = 2, returnsNormally);
+        expect(() => b.value = 2, returnsNormally);
+        expect(() => a.value = 3, returnsNormally);
+        expect(
+          combinerCalls,
+          callsAfterSetup,
+          reason: 'both cancelled listeners are never delivered again',
+        );
+      },
+    );
   });
 }

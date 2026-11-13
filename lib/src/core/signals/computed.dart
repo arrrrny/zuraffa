@@ -1,3 +1,5 @@
+import 'package:meta/meta.dart';
+
 import 'signal.dart';
 
 /// A lazy, cached derived value over explicitly declared [ReadonlySignal]
@@ -60,6 +62,23 @@ class Computed<T> implements ReadonlySignal<T> {
   final List<_ComputedListener<T>> _listeners = [];
   final List<void Function()> _disposeHooks = [];
 
+  /// Dependency-freshness validations performed since the last reset.
+  ///
+  /// Test-only instrumentation: the shared-dependency regression tests read it
+  /// to prove that a validation pass is linear in the number of nodes instead
+  /// of exponential in the graph depth. Nothing in the library reads or depends
+  /// on it, and it is not writable from outside this library: a public mutable
+  /// static would ship in the release AOT as caller-reachable state.
+  static int _freshnessCheckCount = 0;
+
+  /// The [_freshnessCheckCount] value. Visible for testing only.
+  @visibleForTesting
+  static int get freshnessCheckCount => _freshnessCheckCount;
+
+  /// Zeroes [_freshnessCheckCount] before a measured validation pass.
+  @visibleForTesting
+  static void resetFreshnessCheckCount() => _freshnessCheckCount = 0;
+
   T? _value;
   bool _hasValue = false;
   bool _dirty = true;
@@ -93,17 +112,34 @@ class Computed<T> implements ReadonlySignal<T> {
   }
 
   /// Check if any dependency changed since the last compute (batch freshness).
-  bool _isStale() {
+  ///
+  /// [memo] carries the answers already established by this validation pass.
+  /// A [Computed] reached from several parents — the same node in two branches
+  /// of a layered diamond — is validated once per pass instead of once per
+  /// path: without it the pass costs O(2^depth) on a graph of O(depth) nodes.
+  bool _isStale({_FreshnessMemo? memo}) {
     if (!_hasValue) return false; // nothing cached to be stale
     if (_dependencies.isEmpty) return false; // nothing can invalidate it
     if (_depVersions.length != _dependencies.length) return true;
+    // Created at the first computed dependency of the pass, so a graph of
+    // plain signals keeps this check allocation-free.
+    _FreshnessMemo? seen = memo;
     for (var i = 0; i < _dependencies.length; i++) {
       final dep = _dependencies[i];
       final captured = _depVersions[i];
       if (dep is Signal) {
         if (dep.version != captured) return true;
       } else if (dep is Computed) {
-        if (dep._mayHaveChangedSince(captured)) return true;
+        final answers = seen ??= <_FreshnessKey, bool>{};
+        final key = _FreshnessKey(dep, captured);
+        final cached = answers[key];
+        if (cached != null) {
+          if (cached) return true;
+          continue;
+        }
+        final changed = dep._mayHaveChangedSince(captured, answers);
+        answers[key] = changed;
+        if (changed) return true;
       }
     }
     return false;
@@ -112,10 +148,11 @@ class Computed<T> implements ReadonlySignal<T> {
   /// Whether this computed's value may differ from the one a reader saw at
   /// [version]: a newer recompute, a pending invalidation, or a cache of its
   /// own that is already stale. Never recomputes — the caller decides.
-  bool _mayHaveChangedSince(int version) {
+  bool _mayHaveChangedSince(int version, _FreshnessMemo? memo) {
+    _freshnessCheckCount++;
     if (_disposed) return false;
     if (_version != version) return true;
-    return _dirty || !_hasValue || _isStale();
+    return _dirty || !_hasValue || _isStale(memo: memo);
   }
 
   /// Subscribe to derived value changes. Returns an unsubscribable
@@ -161,8 +198,20 @@ class Computed<T> implements ReadonlySignal<T> {
   Signal<R> map<R>(R Function(T value) transform, {bool autoDispose = true}) {
     final derived = Signal<R>(transform(value));
     final sub = listen((v) {
-      if (!derived.isDisposed) derived.value = transform(v);
+      // Same shape as [Signal.map]: the transform is the user's code and it
+      // runs before the write, so the disposal it can cause is only visible
+      // after it returns.
+      final next = transform(v);
+      if (derived.isDisposed) return;
+      derived.value = next;
     });
+    // A transform that disposed the scope owning `derived` during the eager
+    // delivery above leaves this computed subscribed to a dead output: cancel
+    // before installing the hooks, which a disposed signal ignores anyway.
+    if (derived.isDisposed) {
+      sub.cancel();
+      return derived;
+    }
     // Cancel the subscription when the mapped output is disposed, even if this
     // computed remains alive. The parent registration is removed at the same
     // time: otherwise this computed's dispose hooks keep every disposed output
@@ -277,6 +326,39 @@ class Computed<T> implements ReadonlySignal<T> {
     };
   }
 }
+
+/// A dependency and the version a caller captured for it — the identity of one
+/// freshness question inside a validation pass.
+///
+/// Equality is IDENTITY-based on the dependency, not `==`: [Computed] is an
+/// ordinary class, so a subclass may override `==`/`hashCode`, and two
+/// distinct dependencies that compare equal must never share a memo entry. A
+/// Dart record compares its fields with `==` and is therefore the wrong key
+/// here.
+class _FreshnessKey {
+  _FreshnessKey(this.computed, this.capturedVersion);
+
+  final Computed<dynamic> computed;
+  final int capturedVersion;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is _FreshnessKey &&
+          identical(other.computed, computed) &&
+          other.capturedVersion == capturedVersion);
+
+  @override
+  int get hashCode => Object.hash(identityHashCode(computed), capturedVersion);
+
+  @override
+  String toString() =>
+      '_FreshnessKey(${identityHashCode(computed)}, $capturedVersion)';
+}
+
+/// Answers established by the current validation pass. A pair's answer cannot
+/// change mid-pass (no validation step recomputes), so reusing it is sound.
+typedef _FreshnessMemo = Map<_FreshnessKey, bool>;
 
 /// Internal listener wrapper. Identity-based equality so cancellation
 /// and the mid-notification membership check are precise.
