@@ -64,6 +64,58 @@ the `Merge PR` row is terminal. Everything else is the pool's job: it drives
 the review, the fixes round and the merge.
 <!-- pool-pr:end -->
 
+<!-- dependency-rule:begin -->
+## Waiting is a status: `locked`. Declare dependencies, never busy-wait
+
+Some work cannot start until other work lands. The pool models that wait as a
+**status**, not as a retry loop: a task whose declared dependencies have not
+departed their last stops sits in **`locked`**. It is born locked when the hold
+already exists at mint, and the pool's 30s dependency sweep locks it otherwise,
+storing the hold reason (`dependency lock: …`) on the row.
+
+The lock is structural: the claim CAS wins **`queued`** rows only, so **no agent
+decision, no force-start marker and no settings row can put a locked row on a
+lane**. Only two things move it:
+
+- the sweep's release (`locked -> queued`), one cycle after the dependency
+  departs its last stop;
+- the operator's `POST /tasks/<id>/dependencies` — an **empty list clears the
+  set and releases at once**.
+
+So never try to "just start" a locked task, and never cancel one because it
+looks stuck: waiting is the pool's decision, and the row is doing exactly what
+it was told.
+
+**Declare the dependency at issue time.** An issue body line
+
+```
+Depends on: owner/repo#123
+```
+
+(or `./ingest.sh --depends-on "owner/repo#123, owner/other#9"`, or
+`dependencies` on `POST /tasks`) makes the minted task **born locked** — no
+window where an agent can claim work whose prerequisite is not in yet. If you
+file an issue that unblocks another, say so in the blocker's body and in the
+dependent's `Depends on:` line.
+
+## Fix it once, at the package level
+
+**We own this ecosystem.** A defect in a shared package is fixed **in the
+package**, once — not patched around in each consumer. If `zuraffa_*` needs a
+capability, the capability lands in the framework package; if a bug reproduces
+in a base package, the fix belongs there and the dependents simply consume the
+release.
+
+This is not a preference, it is the rule:
+
+- a fix that only lands in one app is an incomplete fix — port it down to the
+  package that owns the behaviour;
+- when a change spans repos, declare the dependency (`Depends on:`) so the
+  consumer's task is `locked` until the package's PR merges — the dependency
+  rule is exactly the orchestration for "solve it once, at the layer that owns
+  it".
+<!-- dependency-rule:end -->
+
 <!-- tmp-clone:begin -->
 ## Work in a `/tmp` clone — never in `~/Developer`
 
