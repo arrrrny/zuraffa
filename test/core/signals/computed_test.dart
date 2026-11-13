@@ -220,6 +220,71 @@ void main() {
         ], reason: 'one notification, carrying the post-batch value');
       },
     );
+    test(
+      'A11: an outer computed revalidates an inner whose version still matches',
+      () {
+        final source = Signal<int>(1);
+        final inner = Computed<int>([source], () => source.value * 10);
+        final outer = Computed<int>([inner], () => inner.value + 1);
+
+        expect(outer.value, 11); // primes both caches
+
+        batch(() {
+          source.value = 5;
+          // Read the OUTER value first: `inner` has not recomputed yet, so
+          // its version still matches the one `outer` captured. A9 covers
+          // the version-mismatch branch; this covers the recursive
+          // freshness validation that has to look through `inner` to the
+          // source.
+          expect(
+            outer.value,
+            51,
+            reason: 'a still-fresh inner must be validated recursively',
+          );
+        });
+
+        expect(inner.value, 50);
+        expect(outer.value, 51);
+      },
+    );
+
+    test(
+      'A12: a shared dependency is validated once per pass, not once per path',
+      () {
+        // Layered diamond: each layer reads the SAME two computed nodes of
+        // the layer below it. Freshness validation walks one route per
+        // root-to-leaf path, so a graph of O(depth) nodes costs O(2^depth)
+        // checks on every clean read.
+        const depth = 18;
+        final base = Signal<int>(0);
+        ReadonlySignal<int> layer = base;
+        for (var i = 0; i < depth; i++) {
+          final below = layer;
+          final left = Computed<int>([below], () => below.value + 1);
+          final right = Computed<int>([below], () => below.value + 2);
+          layer = Computed<int>([left, right], () => left.value + right.value);
+        }
+        final outer = layer;
+
+        final before = outer.value; // primes every cache
+
+        Computed.freshnessCheckCount = 0;
+        batch(() {
+          base.value = 1; // no dirty flag yet: the pass must discover this
+          expect(
+            outer.value,
+            isNot(before),
+            reason: 'the invalidation must reach the outer cache',
+          );
+        });
+
+        expect(
+          Computed.freshnessCheckCount,
+          lessThan(10000),
+          reason: 'a shared dependency is checked once per validation pass',
+        );
+      },
+    );
   });
 }
 

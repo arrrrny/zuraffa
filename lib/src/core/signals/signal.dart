@@ -103,6 +103,12 @@ class Signal<T> implements ReadonlySignal<T> {
   @override
   Signal<R> map<R>(R Function(T value) transform, {bool autoDispose = true}) {
     final derived = Signal<R>(transform(_value));
+    // A scope disposed inside its own `run` releases the derived signal at
+    // construction (SignalScope._registerSignal). Subscribing now would
+    // eagerly write to that disposed signal: the write throws before `listen`
+    // returns the subscription, so the cleanup could never be installed and
+    // this source would keep a listener that throws on every later write.
+    if (derived.isDisposed) return derived;
     final sub = listen((v) => derived.value = transform(v));
     derived.onDispose(() => sub.cancel());
     if (autoDispose) {
@@ -118,6 +124,9 @@ class Signal<T> implements ReadonlySignal<T> {
     R Function(T1 a, T2 b) combiner,
   ) {
     final derived = Signal<R>(combiner(s1._value, s2._value));
+    // See [map]: a derived signal disposed during its own construction must be
+    // returned before any source is subscribed.
+    if (derived.isDisposed) return derived;
     void sync() => derived.value = combiner(s1._value, s2._value);
     final sub1 = s1.listen((_) => sync());
     final sub2 = s2.listen((_) => sync());

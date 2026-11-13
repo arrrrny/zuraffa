@@ -1,3 +1,5 @@
+import 'package:meta/meta.dart';
+
 import 'signal.dart';
 
 /// A lazy, cached derived value over explicitly declared [ReadonlySignal]
@@ -60,6 +62,15 @@ class Computed<T> implements ReadonlySignal<T> {
   final List<_ComputedListener<T>> _listeners = [];
   final List<void Function()> _disposeHooks = [];
 
+  /// Dependency-freshness validations performed since the last reset.
+  ///
+  /// Test-only instrumentation: the shared-dependency regression test reads
+  /// it to prove that a validation pass is linear in the number of nodes
+  /// instead of exponential in the graph depth. Nothing in the library reads
+  /// or depends on it.
+  @visibleForTesting
+  static int freshnessCheckCount = 0;
+
   T? _value;
   bool _hasValue = false;
   bool _dirty = true;
@@ -93,17 +104,34 @@ class Computed<T> implements ReadonlySignal<T> {
   }
 
   /// Check if any dependency changed since the last compute (batch freshness).
-  bool _isStale() {
+  ///
+  /// [memo] carries the answers already established by this validation pass.
+  /// A [Computed] reached from several parents — the same node in two branches
+  /// of a layered diamond — is validated once per pass instead of once per
+  /// path: without it the pass costs O(2^depth) on a graph of O(depth) nodes.
+  bool _isStale({_FreshnessMemo? memo}) {
     if (!_hasValue) return false; // nothing cached to be stale
     if (_dependencies.isEmpty) return false; // nothing can invalidate it
     if (_depVersions.length != _dependencies.length) return true;
+    // Created at the first computed dependency of the pass, so a graph of
+    // plain signals keeps this check allocation-free.
+    _FreshnessMemo? seen = memo;
     for (var i = 0; i < _dependencies.length; i++) {
       final dep = _dependencies[i];
       final captured = _depVersions[i];
       if (dep is Signal) {
         if (dep.version != captured) return true;
       } else if (dep is Computed) {
-        if (dep._mayHaveChangedSince(captured)) return true;
+        final answers = seen ??= <_FreshnessKey, bool>{};
+        final key = (dep, captured);
+        final cached = answers[key];
+        if (cached != null) {
+          if (cached) return true;
+          continue;
+        }
+        final changed = dep._mayHaveChangedSince(captured, answers);
+        answers[key] = changed;
+        if (changed) return true;
       }
     }
     return false;
@@ -112,10 +140,11 @@ class Computed<T> implements ReadonlySignal<T> {
   /// Whether this computed's value may differ from the one a reader saw at
   /// [version]: a newer recompute, a pending invalidation, or a cache of its
   /// own that is already stale. Never recomputes — the caller decides.
-  bool _mayHaveChangedSince(int version) {
+  bool _mayHaveChangedSince(int version, _FreshnessMemo? memo) {
+    freshnessCheckCount++;
     if (_disposed) return false;
     if (_version != version) return true;
-    return _dirty || !_hasValue || _isStale();
+    return _dirty || !_hasValue || _isStale(memo: memo);
   }
 
   /// Subscribe to derived value changes. Returns an unsubscribable
@@ -277,6 +306,14 @@ class Computed<T> implements ReadonlySignal<T> {
     };
   }
 }
+
+/// A dependency and the version a caller captured for it — the identity of one
+/// freshness question inside a validation pass.
+typedef _FreshnessKey = (Computed<dynamic>, int);
+
+/// Answers established by the current validation pass. A pair's answer cannot
+/// change mid-pass (no validation step recomputes), so reusing it is sound.
+typedef _FreshnessMemo = Map<_FreshnessKey, bool>;
 
 /// Internal listener wrapper. Identity-based equality so cancellation
 /// and the mid-notification membership check are precise.

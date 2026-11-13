@@ -151,5 +151,54 @@ void main() {
         );
       },
     );
+
+    test('D9: a map derived disposed during construction never subscribes', () {
+      final source = Signal<int>(0);
+      final scope = SignalScope();
+      Signal<int>? mapped;
+
+      scope.run(() {
+        source.listen((_) {
+          scope.dispose(); // the scope that owns what map() builds
+          mapped = source.map((v) => v * 2);
+        });
+        source.value = 1; // inside the boundary: map() is scope-owned
+      });
+
+      expect(mapped, isNotNull);
+      expect(
+        mapped!.isDisposed,
+        isTrue,
+        reason: 'the disposed scope releases the derived signal at once',
+      );
+      // The live source must not keep a listener writing to the dead
+      // derived signal: every later source write would throw, and the
+      // caller holds no subscription it could cancel.
+      expect(() => source.value = 2, returnsNormally);
+      expect(() => source.value = 3, returnsNormally);
+    });
+
+    test(
+      'D10: a combined signal disposed during construction never subscribes',
+      () {
+        final a = Signal<int>(0);
+        final b = Signal<int>(1);
+        final scope = SignalScope();
+        Signal<int>? combined;
+
+        scope.run(() {
+          a.listen((_) {
+            scope.dispose();
+            combined = Signal.combine(a, b, (x, y) => x + y);
+          });
+          a.value = 1; // inside the boundary: combine() is scope-owned
+        });
+
+        expect(combined, isNotNull);
+        expect(combined!.isDisposed, isTrue);
+        expect(() => a.value = 2, returnsNormally);
+        expect(() => b.value = 2, returnsNormally);
+      },
+    );
   });
 }
