@@ -14,9 +14,13 @@ import 'package:zuraffa/zuraffa.dart';
 /// #2077 reported for `UseCase` and #2078 fixed there. This pins the
 /// `StreamUseCase` twin to the same contract.
 class _UnexpectedFailureStreamUseCase extends StreamUseCase<String, String> {
+  /// Known trace supplied with the error so the test can assert the catch-all
+  /// preserves it, not just the error object.
+  final StackTrace trace = StackTrace.current;
+
   @override
   Stream<String> execute(String params, CancelToken? cancelToken) {
-    return Stream<String>.error(StateError('token refresh exploded'));
+    return Stream<String>.error(StateError('token refresh exploded'), trace);
   }
 }
 
@@ -39,8 +43,9 @@ void main() {
   });
 
   test('catch-all SEVERE carries the error in its message body', () async {
+    final useCase = _UnexpectedFailureStreamUseCase();
     final results = <Result<String, AppFailure>>[];
-    await for (final result in _UnexpectedFailureStreamUseCase()('params')) {
+    await for (final result in useCase('params')) {
       results.add(result);
     }
 
@@ -56,5 +61,7 @@ void main() {
     expect(severe.single.message, contains('token refresh exploded'));
     // The error field is still attached for handlers that read it.
     expect(severe.single.error, isA<StateError>());
+    // The stack trace from the source Stream.error is preserved too.
+    expect(severe.single.stackTrace, same(useCase.trace));
   });
 }
