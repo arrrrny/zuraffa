@@ -377,5 +377,62 @@ void main() {
         );
       },
     );
+
+    test(
+      'D15: a combiner that throws during s2.listen\'s eager delivery cancels the s1 subscription',
+      () {
+        // Same shape as D14, but gated on combinerCalls > 2 so the throw
+        // lands in `s2.listen`'s eager delivery instead of `s1.listen`'s:
+        // `combine` has already taken the s1 subscription by then, and the
+        // caller never receives it, so combine itself must cancel it before
+        // propagating — one leaked s1 listener would re-enter the throwing
+        // combiner on every later write of s1.
+        final a = Signal<int>(0);
+        final b = Signal<int>(1);
+        final scope = SignalScope();
+        Signal<int>? owned;
+        Signal<int>? combined;
+        Object? caught;
+        var combinerCalls = 0;
+
+        scope.run(() {
+          owned = Signal<int>(1);
+          try {
+            combined = Signal.combine(a, b, (x, y) {
+              combinerCalls++;
+              // Call 1 is the construction-time combine; call 2 runs inside
+              // `s1.listen`'s eager delivery; call 3 runs inside
+              // `s2.listen`'s eager delivery — the one that leaks.
+              if (combinerCalls > 2) {
+                scope.dispose();
+                return owned!.value + x + y; // StateError
+              }
+              return x + y;
+            });
+          } catch (e) {
+            caught = e;
+          }
+        });
+
+        expect(caught, isA<StateError>());
+        expect(combined, isNull);
+        final callsAfterSetup = combinerCalls;
+        expect(
+          () => a.value = 2,
+          returnsNormally,
+          reason: 'a leaked s1 listener would re-enter the throwing combiner',
+        );
+        expect(
+          () => b.value = 2,
+          returnsNormally,
+          reason: 'a leaked s2 listener would re-enter the throwing combiner',
+        );
+        expect(
+          combinerCalls,
+          callsAfterSetup,
+          reason: 'no listener survived the failed subscribe',
+        );
+      },
+    );
   });
 }

@@ -169,7 +169,17 @@ class Signal<T> implements ReadonlySignal<T> {
     }
 
     final sub1 = s1.listen((_) => sync());
-    final sub2 = s2.listen((_) => sync());
+    SignalSubscription sub2;
+    try {
+      sub2 = s2.listen((_) => sync());
+    } catch (e) {
+      // s2.listen cleans its own registration (atomic subscribe); the
+      // subscription taken on s1 above is still live and unreachable —
+      // cancel it before propagating. Same cleanup the [Computed]
+      // constructor performs when a later dependency fails to subscribe.
+      sub1.cancel();
+      rethrow;
+    }
     // A combiner that disposed its own scope during either eager delivery
     // above leaves `derived` dead and both sources listening: cancel both.
     if (derived.isDisposed) {
