@@ -2,6 +2,31 @@
 
 **Mono version policy:** every package in the zuraffa fleet shares one version number. Bump the whole fleet with `../zuraffa/scripts/update_fleet.sh <version>`. Whenever a version is updated, the install guide in this repo's README.md MUST be updated to that release version in the same change — no old version constraints may linger in README install snippets. Dependency constraints on `zuraffa` itself must move to `^<version>` in the same bump.
 
+## Child packages: independent patch releases (allowed)
+
+A **child package may ship on its own** without a fleet-wide bump. The core
+bump and the child bump are different operations, and both are legitimate:
+
+- **Child fix, no core change** — `zuraffa_notifications` 7.4.2 → 7.4.3 alone:
+  ```bash
+  ./scripts/publish_fleet.sh 7.4.3 --only zuraffa_notifications
+  ```
+  The version defaults to the core's own `version:` when omitted, so
+  `--only zuraffa_notifications` is enough. An unknown package name is a hard
+  error, never a silent no-op.
+- **Core change** — the whole fleet moves together, and the core bump **satisfies
+  every child already published**: a child on 7.4.3 depending on
+  `zuraffa: ^7.4.3` is compatible with a fleet at 7.5.0, because a caret range
+  admits any `>=7.4.3 <8.0.0`.
+
+**Rule of thumb:** a child follows the **current minor line** (7.4.x). Do not
+jump a child to 7.5.0 on its own — leave that to the fleet bump, which is what
+makes one core version satisfy all children at once. If a child genuinely needs
+a breaking change, that IS a core bump; take the whole fleet.
+
+**Do not run `update_fleet.sh` for a child-only release.** It mono-versions
+every repo, which is exactly what a single-package fix must not do.
+
 <!-- Auto-generated/updated by publish-manager skill. Edit if the workflow changes. -->
 
 ## Package Manager
@@ -32,14 +57,17 @@
   `--sibling` path overrides for fleet deps not yet live on pub.dev.
   Needs bash >= 4 (`/usr/local/bin/bash` on macOS).
   `--check` mode reports drift only.
-- **Publish**: `./scripts/publish_fleet.sh <version> [--dry-run-only]` —
+- **Publish**: `./scripts/publish_fleet.sh <version> [--dry-run-only] [--only <pkgs>]` —
   publishes every fleet package topologically (Kahn order from a hardcoded
   inventory + edges), skipping anything already on pub.dev at the target
   version; gates each publish on fleet deps being resolvable at the target
   (pub.dev API + throwaway `dart pub get` probe); `--dry-run` validation
   errors abort, warnings tolerated; retries on rate limit. The
   `zuraffa_ffi` family publishes as a set (intra-family cycle → deferred
-  resolvability gates).
+  resolvability gates). `--only <pkg…>` narrows the run to a subset (a single
+  child shipping without a fleet bump — see "Child packages" above); an
+  unknown name is a hard error. The version defaults to the core package's
+  own `version:` when omitted.
 - **Post-publish (dev mode)**: `./scripts/restore_dev.sh` — rewrites core
   repo `dependency_overrides` back to local path deps (zorphy etc.).
 - **Legacy core-only**: `./scripts/publish.sh <version>` — publishes only the

@@ -25,9 +25,39 @@ fi
 
 GREEN='\033[0;32m'; BLUE='\033[0;34m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 DEV_ROOT="${ZURAFFA_DEV_ROOT:-$HOME/Developer}"
-VERSION="${1:-7.3.0}"
+# The version defaults to the core package's own `version:` — the fleet is
+# mono-versioned, so a per-package publish needs no separate number.
+VERSION=""
 DRY_ONLY=0
-[ "${2:-}" == "--dry-run-only" ] && DRY_ONLY=1
+ONLY_PKGS=""
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run-only) DRY_ONLY=1 ;;
+    --only=*) ONLY_PKGS="${arg#--only=}" ;;
+    -*) ;;  # other flags
+    *) [ -z "$VERSION" ] && VERSION="$arg" ;;
+  esac
+done
+# `--only <pkgs>` (space form) is resolved after the loop, since the value is
+# the next positional and must not be read as the version.
+if [ -z "$ONLY_PKGS" ]; then
+  prev=""
+  for arg in "$@"; do
+    if [ "$prev" == "--only" ]; then
+      ONLY_PKGS="$arg"
+      if [ "$VERSION" == "$arg" ]; then VERSION=""; fi
+    fi
+    prev="$arg"
+  done
+fi
+if [ -z "$VERSION" ]; then
+  VERSION=$(grep '^version:' "$DEV_ROOT/zuraffa/pubspec.yaml" | sed 's/version: //' | tr -d '[:space:]')
+  [ -n "$VERSION" ] || { echo -e "${RED}could not detect version from $DEV_ROOT/zuraffa/pubspec.yaml${NC}" >&2; exit 1; }
+  echo -e "${BLUE}version: $VERSION (from zuraffa/pubspec.yaml)${NC}"
+fi
+case "$VERSION" in
+  -*) echo -e "${RED}version parsed as '$VERSION' — pass the version before the flags${NC}" >&2; exit 1 ;;
+esac
 
 # name|repo|pubspec-path — publishable fleet packages (publish_to:none and
 # examples excluded). Order is recomputed topologically below.
@@ -280,6 +310,17 @@ done <<< "$INVENTORY"
 FAILED=0
 PUBLISHED=0
 SKIPPED=0
+# `--only` names must exist in the inventory — validate before any side effect.
+if [ -n "$ONLY_PKGS" ]; then
+  for want in $ONLY_PKGS; do
+    if [ -z "${PUBSPEC_OF[$want]:-}" ]; then
+      echo -e "${RED}--only: '$want' is not a fleet package${NC}" >&2
+      echo -e "known: $(echo "${!PUBSPEC_OF[@]}" | tr ' ' '\n' | sort | tr '\n' ' ')" >&2
+      exit 1
+    fi
+  done
+  echo -e "${BLUE}--only: $ONLY_PKGS${NC}"
+fi
 # Packages whose published form participates in a dependency CYCLE (the
 # zuraffa_ffi app <-> platform <-> adapters family): pub.dev can only
 # resolve them once every member is up, so their resolvability gates run
@@ -288,6 +329,15 @@ DEFER_GATES="${ZURAFFA_DEFER_GATES:-zuraffa_ffi zuraffa_ffi_platform zuraffa_ffi
 DEFERRED_PUBLISHED=()
 GATED_REPOS=()
 for pkg in $ORDER; do
+  # `--only` narrows the run to a subset of packages (a single child can ship
+  # without a fleet bump). An unknown name is a hard error: a typo silently
+  # publishing nothing is worse than a refusal.
+  if [ -n "$ONLY_PKGS" ]; then
+    case " $ONLY_PKGS " in
+      *" $pkg "*) ;;
+      *) continue ;;
+    esac
+  fi
   spec="${PUBSPEC_OF[$pkg]}"
   dir=$(dirname "$spec")
   echo -e "${BLUE}--- $pkg ($dir)${NC}"
