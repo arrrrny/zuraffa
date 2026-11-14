@@ -79,7 +79,11 @@ class Signal<T> implements ReadonlySignal<T> {
   /// - **Error propagation**: a listener that throws stops the notification
   ///   cascade at that listener and the exception propagates to the caller
   ///   that set the value (or to the exit of the enclosing [batch]). There is
-  ///   no isolation between listeners — keep them non-throwing.
+  ///   no isolation between listeners — keep them non-throwing. A listener
+  ///   that throws during the EAGER delivery leaves no registration behind:
+  ///   the subscribe fails atomically, the exception reaches the caller of
+  ///   [listen], and this signal keeps no listener (the caller never received
+  ///   a subscription they could have used to cancel it).
   ///
   /// Subscribing the same callback twice creates two independent
   /// registrations and two deliveries.
@@ -90,7 +94,20 @@ class Signal<T> implements ReadonlySignal<T> {
     _listeners.add(listener);
     _listenerEpoch++; // mutation guard for O(n²) avoidance
     // Eager delivery of current value (cold-start behaviour).
-    callback(_value);
+    try {
+      callback(_value);
+    } catch (e) {
+      // The delivery runs the caller's code, and it can throw (a derived
+      // combinator's transform that disposes its scope and then touches a
+      // signal the scope owned, for one). The registration was added before
+      // the delivery and the subscription below never reaches the caller, so
+      // the throw must remove it here: a leaked listener re-enters this
+      // callback on every later write of this signal. Same cleanup
+      // `Computed.listen` performs for its own eager delivery.
+      _listeners.remove(listener);
+      _listenerEpoch++; // mutation guard for O(n²) avoidance
+      rethrow;
+    }
     return SignalSubscription(() {
       _listeners.remove(listener);
       _listenerEpoch++; // mutation guard for O(n²) avoidance
