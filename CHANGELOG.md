@@ -46,6 +46,22 @@ Mono-version fleet alignment to 7.3.2: outbound send port lands in zuraffa_inten
   resource in `pre` (the telemetry span is the canonical example) must
   release it itself on the veto path or not be paired with vetoing hooks.
 
+### Changed
+- **`zfa migrate state` emits Signal-backed view state (issue #2076)**: the
+  generated `*_view_state.dart` extends `ViewState` instead of
+  `ChangeNotifier`, and every transient field lives in ONE `Signal` snapshot
+  the state constructs inside a `SignalScope` it disposes — so a multi-field
+  transition wrapped in one `batch(...)` notifies exactly once with the final
+  values, and the signals are released when the owning presenter is disposed.
+  The generated file keeps the v5 field surface (same getter and setter names
+  and types), so the migration stays per-file: presenters that read the fields
+  directly compile unchanged. The generated `*_domain_state.dart` now shows the
+  `SignalResult.fromFuture` / `bind` slice route (loading, success and failure
+  in one value) instead of the mirrored `error`/`isLoading` booleans. A
+  re-run over an already-migrated state file is a no-op: it neither re-emits
+  the generated files (a developer's adjustments survive) nor stacks a second
+  migration note.
+
 ### Fixed
 - **Hook-dispatch containment (review of #2033)**: a throwing
   `shouldTrigger` matcher is now contained per hook (warning log, reads
