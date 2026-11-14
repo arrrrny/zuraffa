@@ -513,18 +513,22 @@ class CartState {
       ).readAsString();
       expect(domainContent, contains('CartDomainState'));
       expect(domainContent, contains('extends DomainState'));
-      // Verify generated view state extends ChangeNotifier
+      // Verify generated view state is signal-backed (issue #2076): it extends
+      // the v6 ViewState base over one Signal snapshot, not a ChangeNotifier.
       final viewContent = await File(
         p.join(stateDir.path, 'cart_view_state.dart'),
       ).readAsString();
       expect(viewContent, contains('CartViewState'));
-      expect(viewContent, contains('ChangeNotifier'));
-      // #466: view state with an AppFailure error field must import zuraffa
+      expect(viewContent, contains('extends ViewState'));
+      expect(viewContent, contains('Signal<CartViewData>'));
+      expect(viewContent, isNot(contains('ChangeNotifier')));
+      // #466: the state file always needs the zuraffa import — Signal,
+      // SignalScope and ViewState all come from it.
       expect(viewContent, contains("import 'package:zuraffa/zuraffa.dart';"));
     });
 
     test(
-      'view state without AppFailure does not import zuraffa (no unused import)',
+      'view state without AppFailure is pure Dart (no Flutter import)',
       () async {
         final stateDir = Directory(
           p.join(tmpDir.path, 'lib', 'presentation', 'pages', 'profile'),
@@ -561,17 +565,19 @@ class ProfileState {
           p.join(stateDir.path, 'profile_view_state.dart'),
         ).readAsString();
         expect(viewContent, contains('ProfileViewState'));
-        expect(viewContent, contains('ChangeNotifier'));
-        // Without an AppFailure field, the zuraffa import must be omitted
+        expect(viewContent, contains('Signal<ProfileViewData>'));
+        // The signal-backed template has no Flutter surface left: the only
+        // directive it needs is zuraffa core.
+        expect(viewContent, contains("import 'package:zuraffa/zuraffa.dart';"));
         expect(
           viewContent,
-          isNot(contains("import 'package:zuraffa/zuraffa.dart';")),
+          isNot(contains("import 'package:flutter/material.dart';")),
         );
       },
     );
 
     test(
-      'view state emits zuraffa import after the material import (issue #466)',
+      'view state keeps the v5 getter/setter surface over the snapshot (#2076)',
       () async {
         final stateDir = Directory(
           p.join(tmpDir.path, 'lib', 'presentation', 'pages', 'app_config'),
@@ -583,9 +589,15 @@ class ProfileState {
 class AppConfigState {
   final AppFailure? error;
   final bool isLoading;
-  final String? configJson;
+  final int offset;
+  final AppConfig? config;
 
-  const AppConfigState({this.error, this.isLoading = false, this.configJson});
+  const AppConfigState({
+    this.error,
+    this.isLoading = false,
+    this.offset = 0,
+    this.config,
+  });
 }
 ''');
 
@@ -609,16 +621,17 @@ class AppConfigState {
         final viewContent = await File(
           p.join(stateDir.path, 'app_config_view_state.dart'),
         ).readAsString();
-        // The error slice references AppFailure; the zuraffa import must be
-        // present (compile, issue #466) and ordered after the material import
-        // so the generated directives keep package-import ordering clean.
-        expect(viewContent, contains('AppFailure? _error'));
+        // #466: the AppFailure slice still resolves (compile) through the
+        // zuraffa import, and #2076 keeps the field surface unchanged so the
+        // migration stays per-file.
+        expect(viewContent, contains('AppFailure? get error'));
+        expect(viewContent, contains('set error(AppFailure? value)'));
+        expect(viewContent, contains('bool get isLoading'));
+        expect(viewContent, contains('int get offset'));
         expect(viewContent, contains("import 'package:zuraffa/zuraffa.dart';"));
         expect(
-          viewContent.indexOf("import 'package:flutter/material.dart';"),
-          lessThan(
-            viewContent.indexOf("import 'package:zuraffa/zuraffa.dart';"),
-          ),
+          viewContent,
+          isNot(contains("import 'package:flutter/material.dart';")),
         );
       },
     );
