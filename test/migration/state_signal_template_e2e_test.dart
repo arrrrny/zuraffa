@@ -98,8 +98,8 @@ void main() {
 
   batch(() {
     // Reads inside a batch see freshly written values, never a deferred one.
-    check('read-inside-batch', view.isLoading == false);
     view.isLoading = true;
+    check('read-inside-batch', view.isLoading == true);
     view.isRefreshing = true;
   });
 

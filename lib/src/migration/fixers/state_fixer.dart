@@ -18,6 +18,11 @@ class StateMigrator extends MigrationFixer {
     required String projectDir,
     bool dryRun = false,
   }) async {
+    // The generated paths below are built by joining onto [projectDir], so
+    // anchor it first: a relative projectDir (not `.`) would otherwise be
+    // prepended a second time at the file operations and land the generated
+    // files in a mirrored directory.
+    projectDir = p.normalize(p.absolute(projectDir));
     final actions = <MigrationAction>[];
     final remaining = <MigrationFinding>[];
 
@@ -58,10 +63,13 @@ class StateMigrator extends MigrationFixer {
       // halves and the migration note is done — re-running must not stack a
       // second set of fields (or a second note) on top of what a developer
       // may already have reviewed and adjusted.
+      // domainStatePath/viewStatePath are already rooted at projectDir
+      // (through filePath/fileDir) — use them directly, never re-join
+      // projectDir onto them.
       final alreadyMigrated =
           _hasMigrationNote(content) &&
-          File(p.join(projectDir, domainStatePath)).existsSync() &&
-          File(p.join(projectDir, viewStatePath)).existsSync();
+          File(domainStatePath).existsSync() &&
+          File(viewStatePath).existsSync();
       if (alreadyMigrated) {
         remaining.add(finding);
         continue;
@@ -70,12 +78,8 @@ class StateMigrator extends MigrationFixer {
       // The generated files are the migration's own output and are preserved
       // once written: a developer who adjusted one keeps it (the "review and
       // adjust as needed" contract).
-      final domainStateExists = File(
-        p.join(projectDir, domainStatePath),
-      ).existsSync();
-      final viewStateExists = File(
-        p.join(projectDir, viewStatePath),
-      ).existsSync();
+      final domainStateExists = File(domainStatePath).existsSync();
+      final viewStateExists = File(viewStatePath).existsSync();
 
       final domainStateContent = _buildDomainState(
         entityName,
@@ -127,12 +131,12 @@ class StateMigrator extends MigrationFixer {
 
       if (!dryRun) {
         if (!domainStateExists) {
-          File(p.join(projectDir, domainStatePath))
+          File(domainStatePath)
             ..createSync(recursive: true)
             ..writeAsStringSync(domainStateContent);
         }
         if (!viewStateExists) {
-          File(p.join(projectDir, viewStatePath))
+          File(viewStatePath)
             ..createSync(recursive: true)
             ..writeAsStringSync(viewStateContent);
         }
@@ -270,9 +274,16 @@ class StateMigrator extends MigrationFixer {
       '  // SignalResult.fromFuture (loading -> success/failure):',
       '  //   late final $fieldName = SignalResult.fromFuture<$typeName>(fetch$typeName());',
       '  //',
-      '  // Both are cancel-safe — compose with flatMap instead of threading a',
-      '  // CancelToken through the presenter:',
-      '  //   late final related = $fieldName.flatMap((value) => useCaseFor(value));',
+      '  // Lifecycle: the fromFuture bridge writes its signal when the Future',
+      '  // completes, without checking disposal — disposing the result before',
+      '  // completion makes that write throw, and a standalone field like this',
+      '  // is NOT released by DomainState.dispose (it disposes only its',
+      '  // presenter). Own it through a SignalScope, or dispose it yourself.',
+      '  //',
+      '  // Compose with flatMap instead of threading a CancelToken through the',
+      '  // presenter — each route composes on its own receiver:',
+      '  //   late final related = $fieldName.flatMap((value) => useCaseFor(value));  // Future route: SignalResult',
+      '  //   late final related = $fieldName.result.flatMap((value) => useCaseFor(value));  // bind route: SignalSlice',
     ];
   }
 
@@ -346,6 +357,20 @@ class StateMigrator extends MigrationFixer {
     if (fields.isNotEmpty) {
       lines.add('');
       lines.addAll(_buildViewDataClass(entityName, viewDataName, fields));
+    } else {
+      // The constructor above already references the snapshot type, so an
+      // empty snapshot class must be emitted too — without it this branch
+      // would produce a file that does not compile. Unreachable today
+      // (`migrate` bails unless needsMigration holds, which requires both
+      // halves non-empty), kept as insurance for a future loosening of the
+      // gate.
+      lines.add('');
+      lines.add(
+        "/// Immutable snapshot of [${entityName}ViewState]'s transient fields.",
+      );
+      lines.add('class $viewDataName {');
+      lines.add('  const $viewDataName();');
+      lines.add('}');
     }
 
     return '${lines.join('\n')}\n';
@@ -392,7 +417,7 @@ class StateMigrator extends MigrationFixer {
     lines.add('');
     lines.add('  @override');
     lines.add(
-      '  int get hashCode => Object.hash(${fields.map((f) => f.name).join(', ')});',
+      '  int get hashCode => Object.hashAll([${fields.map((f) => f.name).join(', ')}]);',
     );
     lines.add('');
     lines.add('  @override');
