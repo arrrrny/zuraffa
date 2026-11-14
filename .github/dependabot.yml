@@ -1,0 +1,13 @@
+# Dependabot for the pub ecosystem, weekly.
+#
+# Meaningful advisory/updates require the committed pubspec.lock — the lockfile
+# is the reviewed, scannable resolution Dependabot diffs against. The fleet is
+# mono-versioned, so a dep bump here is a candidate for the next fleet bump
+# rather than a standalone release.
+version: 2
+updates:
+  - package-ecosystem: "pub"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  
