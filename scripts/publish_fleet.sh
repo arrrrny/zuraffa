@@ -2,7 +2,7 @@
 # publish_fleet.sh — publish the whole zuraffa fleet to pub.dev at the mono
 # version, in dependency order, with resolvability gates.
 #
-#   ./scripts/publish_fleet.sh [version] [--dry-run-only]
+#   ./scripts/publish_fleet.sh [version] [--dry-run-only] [--only <pkg…>]
 #
 # For every publishable fleet package (skip publish_to:none, skip
 # zuraffa_browser — a standalone product, not a fleet package):
@@ -25,9 +25,48 @@ fi
 
 GREEN='\033[0;32m'; BLUE='\033[0;34m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 DEV_ROOT="${ZURAFFA_DEV_ROOT:-$HOME/Developer}"
-VERSION="${1:-7.3.0}"
+# The version defaults to the core package's own `version:` — the fleet is
+# mono-versioned, so a per-package publish needs no separate number.
+VERSION=""
 DRY_ONLY=0
-[ "${2:-}" == "--dry-run-only" ] && DRY_ONLY=1
+ONLY_PKGS=""
+ONLY_SEEN=0
+# Every operand after `--only` is a package name until the next flag, so both
+# spellings carry a list: `--only a b` and `--only=a,b`.
+ONLY_NEXT=0
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run-only) DRY_ONLY=1; ONLY_NEXT=0 ;;
+    --only) ONLY_SEEN=1; ONLY_NEXT=1 ;;
+    --only=*)
+      ONLY_SEEN=1; ONLY_NEXT=1
+      list="$(printf '%s' "${arg#--only=}" | tr ',' ' ')"
+      [ -n "$list" ] && ONLY_PKGS="${ONLY_PKGS:+$ONLY_PKGS }$list"
+      ;;
+    -*) ONLY_NEXT=0 ;;  # other flags
+    *)
+      if [ "$ONLY_NEXT" == "1" ]; then
+        ONLY_PKGS="${ONLY_PKGS:+$ONLY_PKGS }$arg"
+      elif [ -z "$VERSION" ]; then
+        VERSION="$arg"
+      fi
+      ;;
+  esac
+done
+# A flag that was given but selected nothing must fail closed: an empty
+# selection reads as "no filter" everywhere below and would publish the fleet.
+if [ "$ONLY_SEEN" == "1" ] && [ -z "$ONLY_PKGS" ]; then
+  echo -e "${RED}--only needs at least one package name${NC}" >&2
+  exit 1
+fi
+if [ -z "$VERSION" ]; then
+  VERSION=$(grep '^version:' "$DEV_ROOT/zuraffa/pubspec.yaml" 2>/dev/null | sed 's/version: //' | tr -d '[:space:]' || true)
+  [ -n "$VERSION" ] || { echo -e "${RED}could not detect version from $DEV_ROOT/zuraffa/pubspec.yaml${NC}" >&2; exit 1; }
+  echo -e "${BLUE}version: $VERSION (from zuraffa/pubspec.yaml)${NC}"
+fi
+case "$VERSION" in
+  -*) echo -e "${RED}version parsed as '$VERSION' — pass the version before the flags${NC}" >&2; exit 1 ;;
+esac
 
 # name|repo|pubspec-path — publishable fleet packages (publish_to:none and
 # examples excluded). Order is recomputed topologically below.
@@ -236,19 +275,20 @@ PY
 )
 
 pub_has_version() {
-  curl -s --max-time 15 "https://pub.dev/api/packages/$1" | grep -q "\"$VERSION\""
+  local pkg="$1" ver="${2:-$VERSION}"
+  curl -s --max-time 15 "https://pub.dev/api/packages/$pkg" | grep -q "\"$ver\""
 }
 
-# The REAL gate: a throwaway consumer resolves pkg ^version from pub.dev.
+# The REAL gate: a throwaway consumer resolves pkg ^ver from pub.dev.
 pub_resolvable() {
-  local pkg="$1" tmp
+  local pkg="$1" ver="${2:-$VERSION}" tmp
   tmp=$(mktemp -d)
   cat > "$tmp/pubspec.yaml" <<EOF2
-name: probe_${pkg}_${VERSION//./_}
+name: probe_${pkg}_${ver//./_}
 environment:
   sdk: ^3.11.0
 dependencies:
-  $pkg: ^$VERSION
+  $pkg: ^$ver
 EOF2
   ( cd "$tmp" && dart pub get >/dev/null 2>&1 )
   local rc=$?
@@ -257,14 +297,14 @@ EOF2
 }
 
 wait_resolvable() {
-  local pkg="$1" i
+  local pkg="$1" ver="${2:-$VERSION}" i
   for i in $(seq 1 60); do
-    if pub_has_version "$pkg" && pub_resolvable "$pkg"; then
+    if pub_has_version "$pkg" "$ver" && pub_resolvable "$pkg" "$ver"; then
       return 0
     fi
     sleep 15
   done
-  echo -e "${RED}TIMEOUT waiting for $pkg $VERSION to be resolvable on pub.dev${NC}"
+  echo -e "${RED}TIMEOUT waiting for $pkg $ver to be resolvable on pub.dev${NC}"
   return 1
 }
 
@@ -280,6 +320,51 @@ done <<< "$INVENTORY"
 FAILED=0
 PUBLISHED=0
 SKIPPED=0
+# `--only` names must exist in the inventory — validate before any side effect.
+if [ -n "$ONLY_PKGS" ]; then
+  for want in $ONLY_PKGS; do
+    if [ -z "${PUBSPEC_OF[$want]:-}" ]; then
+      echo -e "${RED}--only: '$want' is not a fleet package${NC}" >&2
+      echo -e "known: $(echo "${!PUBSPEC_OF[@]}" | tr ' ' '\n' | sort | tr '\n' ' ')" >&2
+      exit 1
+    fi
+  done
+  echo -e "${BLUE}--only: $ONLY_PKGS${NC}"
+fi
+
+# With `--only`, the version default must come from a package actually being
+# published: `dart pub publish` ships each package's own `version:`, and a
+# child may be ahead of the core. Defaulting from the core would test the core
+# version against the child (skip as "already on pub.dev", or a post-publish
+# timeout waiting for a version that never appears).
+if [ -n "$ONLY_PKGS" ]; then
+  for want in $ONLY_PKGS; do
+    v=$(grep '^version:' "${PUBSPEC_OF[$want]}" 2>/dev/null | sed 's/version: //' | tr -d '[:space:]' || true)
+    if [ -n "$v" ] && [ "$v" != "$VERSION" ]; then
+      echo -e "${RED}--only: $want is at $v, core is at $VERSION — pass the version explicitly${NC}" >&2
+      exit 1
+    fi
+  done
+fi
+
+# Fleet-wide run: every package must declare the requested version BEFORE any
+# publish — `dart pub publish` ships each package's own `version:`, so a stale
+# checkout would publish (or silently skip) a version nobody asked for
+# (e.g. `publish_fleet.sh 7.4.3` shipping a leftover `zuraffa_session 7.4.2`).
+# Independent child releases stay behind `--only`, which skips this gate.
+if [ -z "$ONLY_PKGS" ]; then
+  for pkg in $ORDER; do
+    v=$(grep '^version:' "${PUBSPEC_OF[$pkg]}" 2>/dev/null | sed 's/version: //' | tr -d '[:space:]' || true)
+    if [ -z "$v" ]; then
+      echo -e "${RED}fleet-wide run: could not read a declared version from ${PUBSPEC_OF[$pkg]} — fetch that repo before publishing${NC}" >&2
+      exit 1
+    fi
+    if [ "$v" != "$VERSION" ]; then
+      echo -e "${RED}fleet-wide run: $pkg is at $v, requested $VERSION — bump it first, or ship it alone with --only $pkg${NC}" >&2
+      exit 1
+    fi
+  done
+fi
 # Packages whose published form participates in a dependency CYCLE (the
 # zuraffa_ffi app <-> platform <-> adapters family): pub.dev can only
 # resolve them once every member is up, so their resolvability gates run
@@ -288,12 +373,33 @@ DEFER_GATES="${ZURAFFA_DEFER_GATES:-zuraffa_ffi zuraffa_ffi_platform zuraffa_ffi
 DEFERRED_PUBLISHED=()
 GATED_REPOS=()
 for pkg in $ORDER; do
+  # `--only` narrows the run to a subset of packages (a single child can ship
+  # without a fleet bump). An unknown name is a hard error: a typo silently
+  # publishing nothing is worse than a refusal.
+  if [ -n "$ONLY_PKGS" ]; then
+    case " $ONLY_PKGS " in
+      *" $pkg "*) ;;
+      *) continue ;;
+    esac
+  fi
   spec="${PUBSPEC_OF[$pkg]}"
   dir=$(dirname "$spec")
   echo -e "${BLUE}--- $pkg ($dir)${NC}"
 
-  if pub_has_version "$pkg"; then
-    echo -e "  ${GREEN}$pkg $VERSION already on pub.dev — skip${NC}"
+  # `dart pub publish` ships the package's own `version:`, so the whole gate
+  # must test THAT version — the fleet's mono-versioned core is only a default.
+  PKG_VERSION="$VERSION"
+  pkg_version_line=$(grep '^version:' "$spec" 2>/dev/null || true)
+  if [ -n "$pkg_version_line" ]; then
+    PKG_VERSION=$(printf '%s' "$pkg_version_line" | sed 's/version: //' | tr -d '[:space:]')
+  fi
+  if [ -z "$PKG_VERSION" ]; then
+    echo -e "${RED}could not detect version from $spec${NC}" >&2
+    exit 1
+  fi
+
+  if pub_has_version "$pkg" "$PKG_VERSION"; then
+    echo -e "  ${GREEN}$pkg $PKG_VERSION already on pub.dev — skip${NC}"
     SKIPPED=$((SKIPPED+1))
     continue
   fi
@@ -337,7 +443,32 @@ PY
       if [ -n "$blocking_deps" ]; then
         echo -e "  ${YELLOW}waiting for deps:${NC}$blocking_deps"
         for d in $blocking_deps; do
-          wait_resolvable "$d" || { FAILED=1; break 2; }
+          # Gate each fleet dep on the constraint THIS package declares, not on
+          # the fleet's target version: a child ahead of the core depends on
+          # `zuraffa: ^7.4.2` while the core is still at 7.4.2, and requiring
+          # the dep at $VERSION would wait for a version that never appears.
+          dep_constraint=$(python3 - "$spec" "$d" <<'PY'
+import re, sys
+spec, dep = sys.argv[1], sys.argv[2]
+ver = ""
+try:
+    text = open(spec, encoding="utf-8").read()
+except OSError:
+    raise SystemExit(0)
+for line in text.splitlines():
+    m = re.match(r'^(\s*)' + re.escape(dep) + r'\s*:\s*(\S.*)$', line)
+    if m and m.group(2).strip().startswith(("^", ">", "<", "=", "~")):
+        ver = m.group(2).strip()
+        break
+print(ver)
+PY
+)
+          dep_ver="$PKG_VERSION"
+          if [ -n "$dep_constraint" ]; then
+            dep_ver=$(printf '%s' "$dep_constraint" | sed -n 's/^\^[[:space:]]*//p')
+            [ -n "$dep_ver" ] || dep_ver="$PKG_VERSION"
+          fi
+          wait_resolvable "$d" "$dep_ver" || { FAILED=1; break 2; }
         done
       fi
     fi
@@ -385,10 +516,10 @@ PY
   if [ "$DRY_ONLY" != "1" ]; then
     if [ -n "$DEFER_GATES" ] && case " $DEFER_GATES " in *" $pkg "*) true ;; *) false ;; esac; then
       echo -e "  ${YELLOW}gate deferred (cyclic family) for $pkg${NC}"
-      DEFERRED_PUBLISHED+=("$pkg")
+      DEFERRED_PUBLISHED+=("$pkg@$PKG_VERSION")
     else
-      echo -e "  ${YELLOW}waiting for $pkg $VERSION to be resolvable...${NC}"
-      wait_resolvable "$pkg" || { FAILED=1; break; }
+      echo -e "  ${YELLOW}waiting for $pkg $PKG_VERSION to be resolvable...${NC}"
+      wait_resolvable "$pkg" "$PKG_VERSION" || { FAILED=1; break; }
       echo -e "  ${GREEN}resolvable${NC}"
     fi
   fi
@@ -398,9 +529,10 @@ done
 # Drain deferred gates: the cyclic family is fully published by now.
 if [ "$DRY_ONLY" != "1" ] && [ ${#DEFERRED_PUBLISHED[@]} -gt 0 ]; then
   echo -e "${BLUE}=== draining deferred gates ===${NC}"
-  for pkg in "${DEFERRED_PUBLISHED[@]}"; do
-    echo -e "  ${YELLOW}waiting for $pkg $VERSION (deferred)...${NC}"
-    wait_resolvable "$pkg" || { FAILED=1; break; }
+  for entry in "${DEFERRED_PUBLISHED[@]}"; do
+    pkg="${entry%@*}"; ver="${entry##*@}"
+    echo -e "  ${YELLOW}waiting for $pkg $ver (deferred)...${NC}"
+    wait_resolvable "$pkg" "$ver" || { FAILED=1; break; }
     echo -e "  ${GREEN}resolvable: $pkg${NC}"
   done
 fi
