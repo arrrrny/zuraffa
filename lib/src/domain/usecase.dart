@@ -163,7 +163,7 @@ abstract class UseCase<T, Params> with Loggable {
 
       return Result.failure(e);
     } catch (e, stackTrace) {
-      logger.severe('$runtimeType failed unexpectedly', e, stackTrace);
+      logger.severe('$runtimeType failed unexpectedly: $e', e, stackTrace);
       final failure = AppFailure.from(e, stackTrace);
       FailureReporterRegistry.instance.reportFailure(
         failure,

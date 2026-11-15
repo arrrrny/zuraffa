@@ -269,5 +269,170 @@ void main() {
         );
       },
     );
+
+    test(
+      'D13: a disposal that throws during the eager subscribe leaves no leaked listener',
+      () {
+        // Same shape as D11, but the transform disposes the owning scope and
+        // then touches a signal the scope owned: the eager delivery THROWS.
+        // `listen` registers the listener before its eager delivery, so the
+        // throw must not leave that registration on the source — the caller
+        // never receives the subscription it would need to cancel.
+        final source = Signal<int>(0);
+        final scope = SignalScope();
+        Signal<int>? owned;
+        Signal<int>? mapped;
+        Object? caught;
+        var transformCalls = 0;
+
+        scope.run(() {
+          owned = Signal<int>(1); // disposed together with the scope
+          try {
+            mapped = source.map((v) {
+              transformCalls++;
+              // Call 1 is the construction-time read; call 2 is the eager
+              // delivery `listen` runs before returning the subscription.
+              if (transformCalls > 1) {
+                scope.dispose();
+                return owned!.value *
+                    2; // StateError: Signal has been disposed.
+              }
+              return v * 2;
+            });
+          } catch (e) {
+            caught = e;
+          }
+        });
+
+        expect(
+          caught,
+          isA<StateError>(),
+          reason: 'the throw reaches the caller',
+        );
+        expect(
+          mapped,
+          isNull,
+          reason: 'map threw before returning the derived',
+        );
+        final callsAfterSetup = transformCalls;
+        expect(
+          () => source.value = 1,
+          returnsNormally,
+          reason: 'a leaked listener would re-enter the throwing transform',
+        );
+        expect(
+          transformCalls,
+          callsAfterSetup,
+          reason: 'no listener survived the failed subscribe',
+        );
+      },
+    );
+
+    test(
+      'D14: a combined signal whose combiner throws during the eager subscribe leaves no leaked listeners',
+      () {
+        final a = Signal<int>(0);
+        final b = Signal<int>(1);
+        final scope = SignalScope();
+        Signal<int>? owned;
+        Signal<int>? combined;
+        Object? caught;
+        var combinerCalls = 0;
+
+        scope.run(() {
+          owned = Signal<int>(1);
+          try {
+            combined = Signal.combine(a, b, (x, y) {
+              combinerCalls++;
+              // Call 1 is the construction-time combine; call 2 runs inside
+              // `s1.listen`'s eager delivery.
+              if (combinerCalls > 1) {
+                scope.dispose();
+                return owned!.value + x + y; // StateError
+              }
+              return x + y;
+            });
+          } catch (e) {
+            caught = e;
+          }
+        });
+
+        expect(caught, isA<StateError>());
+        expect(combined, isNull);
+        final callsAfterSetup = combinerCalls;
+        expect(
+          () => a.value = 2,
+          returnsNormally,
+          reason: 'a leaked s1 listener would re-enter the throwing combiner',
+        );
+        expect(
+          () => b.value = 2,
+          returnsNormally,
+          reason: 'a leaked s2 listener would re-enter the throwing combiner',
+        );
+        expect(
+          combinerCalls,
+          callsAfterSetup,
+          reason: 'no listener survived the failed subscribe',
+        );
+      },
+    );
+
+    test(
+      'D15: a combiner that throws during s2.listen\'s eager delivery cancels the s1 subscription',
+      () {
+        // Same shape as D14, but gated on combinerCalls > 2 so the throw
+        // lands in `s2.listen`'s eager delivery instead of `s1.listen`'s:
+        // `combine` has already taken the s1 subscription by then, and the
+        // caller never receives it, so combine itself must cancel it before
+        // propagating — one leaked s1 listener would re-enter the throwing
+        // combiner on every later write of s1.
+        final a = Signal<int>(0);
+        final b = Signal<int>(1);
+        final scope = SignalScope();
+        Signal<int>? owned;
+        Signal<int>? combined;
+        Object? caught;
+        var combinerCalls = 0;
+
+        scope.run(() {
+          owned = Signal<int>(1);
+          try {
+            combined = Signal.combine(a, b, (x, y) {
+              combinerCalls++;
+              // Call 1 is the construction-time combine; call 2 runs inside
+              // `s1.listen`'s eager delivery; call 3 runs inside
+              // `s2.listen`'s eager delivery — the one that leaks.
+              if (combinerCalls > 2) {
+                scope.dispose();
+                return owned!.value + x + y; // StateError
+              }
+              return x + y;
+            });
+          } catch (e) {
+            caught = e;
+          }
+        });
+
+        expect(caught, isA<StateError>());
+        expect(combined, isNull);
+        final callsAfterSetup = combinerCalls;
+        expect(
+          () => a.value = 2,
+          returnsNormally,
+          reason: 'a leaked s1 listener would re-enter the throwing combiner',
+        );
+        expect(
+          () => b.value = 2,
+          returnsNormally,
+          reason: 'a leaked s2 listener would re-enter the throwing combiner',
+        );
+        expect(
+          combinerCalls,
+          callsAfterSetup,
+          reason: 'no listener survived the failed subscribe',
+        );
+      },
+    );
   });
 }
