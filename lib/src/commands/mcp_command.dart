@@ -78,7 +78,10 @@ class _ReplayCommand extends Command<void> {
   _ReplayCommand() {
     argParser.addOption(
       'timeout',
-      help: 'Deadline for the whole replay in seconds.',
+      help:
+          'Per-request deadline for the replay in seconds (the startup '
+          'probe uses the smaller of this and '
+          '$_startupProbeCeilingSeconds, per attempt).',
       defaultsTo: '120',
     );
   }
@@ -321,6 +324,15 @@ class _ReplayCommand extends Command<void> {
   }
 }
 
+/// The startup probe's per-attempt ceiling.
+///
+/// `--timeout` is a PER-REQUEST deadline, and the startup retry (#2091)
+/// doubles whatever the probe is given: a silent-but-alive child would
+/// otherwise cost `2 x timeoutSeconds` — 240s at the default of 120 —
+/// before the diagnostic printed. A cold `dart run` still gets a generous
+/// window, and the whole startup phase is bounded at twice this.
+const _startupProbeCeilingSeconds = 30;
+
 /// Spawns `dart run <binPath>` and answers `initialize`, re-spawning ONCE
 /// when the child dies at startup (issue #2091).
 ///
@@ -332,10 +344,17 @@ Future<_ReplayPeer?> _startReplayPeer(
   String binPath,
   int timeoutSeconds,
 ) async {
+  final startupSeconds = timeoutSeconds < _startupProbeCeilingSeconds
+      ? timeoutSeconds
+      : _startupProbeCeilingSeconds;
   _ReplaySpawnFailure? last;
   for (var attempt = 0; attempt < 2; attempt++) {
     try {
-      return await _ReplayPeer.start(binPath, timeoutSeconds);
+      return await _ReplayPeer.start(
+        binPath,
+        timeoutSeconds,
+        startupSeconds: startupSeconds,
+      );
     } on _ReplaySpawnFailure catch (e) {
       last = e;
     }
@@ -386,9 +405,15 @@ class _ReplayPeer {
 
   /// Spawns the child and answers `initialize`.
   ///
-  /// Throws [_ReplaySpawnFailure] when the child dies or never answers —
-  /// the caller re-spawns once before reporting (#2091).
-  static Future<_ReplayPeer> start(String binPath, int timeoutSeconds) async {
+  /// Throws [_ReplaySpawnFailure] when the child dies, rejects the
+  /// handshake, or never answers — the caller re-spawns once before
+  /// reporting (#2091). [startupSeconds] bounds the handshake only; every
+  /// later call gets the full [timeoutSeconds] per-request budget.
+  static Future<_ReplayPeer> start(
+    String binPath,
+    int timeoutSeconds, {
+    required int startupSeconds,
+  }) async {
     final Process process;
     try {
       process = await Process.start('dart', ['run', binPath]);
@@ -402,24 +427,61 @@ class _ReplayPeer {
         'protocolVersion': '2024-11-05',
         'capabilities': {},
         'clientInfo': {'name': 'zfa-mcp-replay', 'version': '1.0.0'},
-      });
+      }, deadline: Duration(seconds: startupSeconds));
       if (answer == null || answer.isEmpty) {
         throw _ReplaySpawnFailure(
           await peer.noAnswerReason(
             '`dart run $binPath` did not answer `initialize` within '
-            '$timeoutSeconds seconds',
+            '$startupSeconds seconds',
           ),
         );
       }
-      await peer._write({
-        'jsonrpc': '2.0',
-        'method': 'notifications/initialized',
-      });
+      // A server that REFUSED the handshake answered, but it is not a
+      // peer: accepting it turns every replay call into a generic
+      // `error` and hides the real cause.
+      final handshakeError = answer['error'];
+      if (handshakeError != null) {
+        throw _ReplaySpawnFailure(
+          await peer.noAnswerReason(
+            '`dart run $binPath` rejected `initialize` — '
+            '${_errorDetail(handshakeError)}',
+          ),
+        );
+      }
+      // The child can die between its answer and this write — the
+      // cold-start race #2091 is about. A raw SocketException out of
+      // here would end the CLI and skip the re-spawn, so the transport
+      // failure IS the spawn failure.
+      try {
+        await peer._write({
+          'jsonrpc': '2.0',
+          'method': 'notifications/initialized',
+        });
+      } on SocketException {
+        throw _ReplaySpawnFailure(
+          await peer.noAnswerReason(
+            '`dart run $binPath` died right after `initialize`',
+          ),
+        );
+      } on StateError {
+        throw _ReplaySpawnFailure(
+          '`dart run $binPath` closed its stdin before the replay began',
+        );
+      }
       return peer;
     } catch (_) {
       await peer.close();
       rethrow;
     }
+  }
+
+  /// A JSON-RPC `error` object's message, whatever shape it arrived in.
+  static String _errorDetail(Object? error) {
+    if (error is Map) {
+      final message = error['message'];
+      if (message != null) return '$message';
+    }
+    return '$error';
   }
 
   /// Sends one JSON-RPC request and awaits its answer.
@@ -428,10 +490,12 @@ class _ReplayPeer {
   /// stdin read end closed, a child that exited with a request in flight,
   /// or a deadline that passed. A null is never a verdict: the caller
   /// records an `error`, and only the startup probe retries (#2091).
+  /// [deadline] overrides the per-request budget for the startup probe.
   Future<Map<String, dynamic>?> request(
     String method,
-    Map<String, dynamic>? params,
-  ) async {
+    Map<String, dynamic>? params, {
+    Duration? deadline,
+  }) async {
     final id = ++_nextId;
     final completer = Completer<Map<String, dynamic>?>();
     _responses[id] = completer;
@@ -450,8 +514,13 @@ class _ReplayPeer {
       return null;
     }
     return completer.future.timeout(
-      Duration(seconds: _timeoutSeconds),
-      onTimeout: () => null,
+      deadline ?? Duration(seconds: _timeoutSeconds),
+      onTimeout: () {
+        // The completer is abandoned, so the map must not keep it: a live
+        // entry always has a live waiter.
+        _responses.remove(id);
+        return null;
+      },
     );
   }
 
@@ -470,7 +539,15 @@ class _ReplayPeer {
           try {
             final message = jsonDecode(trimmed) as Map<String, dynamic>;
             final id = message['id'];
-            if (id is int) _responses.remove(id)?.complete(message);
+            if (id is int) {
+              final waiter = _responses.remove(id);
+              // The exit handler may have settled this waiter already: a
+              // line buffered behind the child's death must never complete
+              // it a second time (`Bad state: Future already completed`).
+              if (waiter != null && !waiter.isCompleted) {
+                waiter.complete(message);
+              }
+            }
           } on FormatException {
             // Non-JSON stdout lines (banner noise) are ignored.
           }
@@ -489,19 +566,25 @@ class _ReplayPeer {
         );
     // A peer that exits with a request in flight can never answer it:
     // settle the waiters now instead of holding them for the whole
-    // replay deadline (#2091).
+    // replay deadline (#2091). Each entry leaves the map as it settles, so
+    // the invariant holds here too — a live entry always has a live
+    // waiter — and a stdout line buffered behind the exit finds nothing
+    // to complete twice.
     unawaited(
       _process.exitCode.then((code) {
         _exitCode = code;
-        for (final completer in _responses.values) {
-          if (!completer.isCompleted) completer.complete(null);
+        for (final id in _responses.keys.toList()) {
+          final waiter = _responses.remove(id);
+          if (waiter != null && !waiter.isCompleted) waiter.complete(null);
         }
       }),
     );
   }
 
-  /// Why this peer produced no answer: the child's exit code and stderr
-  /// tail when it died, or [fallback] when it is alive but silent.
+  /// Why this peer produced no answer: [fallback] always, plus the child's
+  /// exit code and stderr tail when it died. The exit clause is additive —
+  /// a caller's own reason (a refused handshake, a death right after
+  /// `initialize`) must survive the child being gone.
   Future<String> noAnswerReason(String fallback) async {
     final exit =
         _exitCode ??
@@ -518,7 +601,7 @@ class _ReplayPeer {
         ? ''
         : ' — stderr: ${_stderrTail.join(' | ')}';
     if (exit < 0) return '$fallback$tail';
-    return '`dart run $_binPath` exited $exit before it answered$tail';
+    return '$fallback — `dart run $_binPath` exited $exit$tail';
   }
 
   Future<void> close() async {

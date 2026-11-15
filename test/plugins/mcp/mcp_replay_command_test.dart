@@ -19,6 +19,9 @@
 //        still runs GREEN against the real answer (issue #2091).
 //   B11 — a child that never starts is reported as a spawn failure, not
 //        as a raw transport crash and not as a GREEN receipt (#2091).
+//   B12 — a child that answers `initialize` and then dies mid-replay is a
+//        failed replay with a diagnostic, never a raw crash and never a
+//        false-green receipt (#2091).
 
 import 'dart:convert';
 import 'dart:io';
@@ -112,6 +115,30 @@ void main() {
   stderr.writeln('fixture-mcp: simulated cold-start death');
   exit(1);
 ''';
+
+  /// `fixtureServer` with a death spliced into the `tools/call` branch:
+  /// the child answers `initialize` like a healthy peer, then dies on the
+  /// `boom` tool. B10/B11 only cover a child that dies BEFORE it answers
+  /// `initialize` — this is the window the mid-replay deaths live in
+  /// (#2091), where the answer line and the exit race each other.
+  String serverDyingOn(String tool) => fixtureServer.replaceFirst(
+    "    } else if (method == 'tools/call') {",
+    "    } else if (method == 'tools/call') {\n"
+        "      final probe = req['params'] as Map<String, dynamic>;\n"
+        "      if (probe['name'] == '$tool') {\n"
+        "        stdout.writeln(jsonEncode({\n"
+        "          'jsonrpc': '2.0',\n"
+        "          'id': id,\n"
+        "          'result': {\n"
+        "            'content': [\n"
+        "              {'type': 'text', 'text': 'echo:$tool'},\n"
+        "            ],\n"
+        "          },\n"
+        "        }));\n"
+        "        stderr.writeln('fixture-mcp: simulated mid-replay death');\n"
+        "        exit(1);\n"
+        "      }\n",
+  );
 
   /// Seeds a scaffolded project: `bin/mcp_server.dart` (the fixture
   /// stdio server) + a no-dependency pubspec so `dart run` resolves.
@@ -384,6 +411,92 @@ void main() {
             'a replay that never reached the server proves nothing — no '
             'receipt, never a false-green proof',
       );
+    },
+  );
+
+  test(
+    'B12: a child that dies mid-replay fails honestly, never with a crash',
+    () async {
+      await seedScaffoldedProject(server: serverDyingOn('boom'));
+      final scenarioPath = writeScenario({
+        'session': 'mid-replay-death',
+        'calls': [
+          {
+            'tool': 'echo',
+            'arguments': {'message': 'before'},
+          },
+          {'tool': 'boom'},
+          {
+            'tool': 'echo',
+            'arguments': {'message': 'after'},
+          },
+        ],
+      });
+
+      // Repeated because the defect this pins is a RACE: the child's exit
+      // settles the in-flight waiter while its answer line is still
+      // buffered behind the death, and the unguarded listener used to
+      // complete that waiter a second time. The assertions are the
+      // contract either way — a diagnostic, never a crash, never a
+      // false-green receipt.
+      for (var run = 0; run < 3; run++) {
+        final (code, output) = await runReplay(
+          scenarioPath,
+          extra: ['--timeout', '15'],
+        );
+
+        expect(
+          code,
+          1,
+          reason: 'run $run: the call after the death has no peer — $output',
+        );
+        expect(
+          output,
+          contains('mcp-replay: session=mid-replay-death'),
+          reason:
+              'run $run: the replay reached its verdict phase instead '
+              'of dying — $output',
+        );
+        expect(
+          output,
+          isNot(contains('SocketException')),
+          reason:
+              'run $run: a dead child is never a raw transport crash '
+              '(#2091) — $output',
+        );
+        expect(
+          output,
+          isNot(contains('Bad state')),
+          reason:
+              'run $run: a stdout line buffered behind the exit must '
+              'not complete an already-settled waiter (#2091) — $output',
+        );
+
+        final receipt =
+            jsonDecode(
+                  File(
+                    p0(
+                      root.path,
+                      '.zfa',
+                      'receipts',
+                      'mcp-replay-mid-replay-death.json',
+                    ),
+                  ).readAsStringSync(),
+                )
+                as Map<String, dynamic>;
+        expect(
+          receipt['passed'],
+          isFalse,
+          reason:
+              'run $run: a peer that died mid-replay must not read as '
+              'a GREEN proof',
+        );
+        expect(
+          (receipt['failed'] as int),
+          greaterThan(0),
+          reason: 'run $run: the call after the death is an error verdict',
+        );
+      }
     },
   );
 }
