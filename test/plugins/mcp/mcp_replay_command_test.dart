@@ -15,6 +15,10 @@
 //        TypeError.
 //   B9 — a zero-call scenario refuses instead of stamping a GREEN
 //        receipt (a zero-call replay proves nothing).
+//   B10 — a child that dies at startup is re-spawned ONCE and the replay
+//        still runs GREEN against the real answer (issue #2091).
+//   B11 — a child that never starts is reported as a spawn failure, not
+//        as a raw transport crash and not as a GREEN receipt (#2091).
 
 import 'dart:convert';
 import 'dart:io';
@@ -78,20 +82,59 @@ void main() {
   late Directory root;
   late String originalCwd;
 
+  /// The `fixtureServer` echo loop with a startup prologue spliced in —
+  /// the #2091 loaded-host stand-in: a child that dies before it answers
+  /// `initialize`, either once or every time.
+  String serverWith(String prologue) => fixtureServer.replaceFirst(
+    'Future<void> main() async {',
+    "Future<void> main() async {\n$prologue",
+  );
+
+  /// Dies on the FIRST spawn only: the re-spawn (#2091) is what the
+  /// replay must survive. The counter lives in the child's CWD — the
+  /// temp project root the test chdir'd into.
+  const dieOncePrologue = r'''
+  final counter = File('spawn-attempts.txt');
+  var attempts = 0;
+  if (await counter.exists()) {
+    attempts = int.tryParse(await counter.readAsString()) ?? 0;
+  }
+  attempts++;
+  await counter.writeAsString('$attempts');
+  if (attempts == 1) {
+    stderr.writeln('fixture-mcp: simulated cold-start death');
+    exit(1);
+  }
+''';
+
+  /// Dies on every spawn: no retry can save this peer.
+  const dieAlwaysPrologue = r'''
+  stderr.writeln('fixture-mcp: simulated cold-start death');
+  exit(1);
+''';
+
   /// Seeds a scaffolded project: `bin/mcp_server.dart` (the fixture
   /// stdio server) + a no-dependency pubspec so `dart run` resolves.
-  Future<void> seedScaffoldedProject() async {
+  Future<void> seedScaffoldedProject({String server = fixtureServer}) async {
     File(
       p0(root.path, 'pubspec.yaml'),
     ).writeAsStringSync('name: fixture_app\nenvironment:\n  sdk: ^3.0.0\n');
     final bin = File(p0(root.path, 'bin', 'mcp_server.dart'))
       ..createSync(recursive: true);
-    bin.writeAsStringSync(fixtureServer);
+    bin.writeAsStringSync(server);
   }
 
-  Future<(int, String)> runReplay(String scenarioPath) async {
+  Future<(int, String)> runReplay(
+    String scenarioPath, {
+    List<String> extra = const [],
+  }) async {
     final runner = CliRunner(exitOnCompletion: false);
-    final output = await runner.runCapturing(['mcp', 'replay', scenarioPath]);
+    final output = await runner.runCapturing([
+      'mcp',
+      'replay',
+      scenarioPath,
+      ...extra,
+    ]);
     return (CliRunner.lastDispatchedExitCode, output);
   }
 
@@ -254,6 +297,92 @@ void main() {
         ).existsSync(),
         isFalse,
         reason: 'no receipt for a refused replay — never a false-green proof',
+      );
+    },
+  );
+
+  test(
+    'B10: a child that dies at startup is re-spawned once and replays GREEN',
+    () async {
+      await seedScaffoldedProject(server: serverWith(dieOncePrologue));
+      final scenarioPath = writeScenario({
+        'session': 'cold-start',
+        'calls': [
+          {
+            'tool': 'echo',
+            'arguments': {'message': 'hello'},
+          },
+        ],
+      });
+
+      final (code, output) = await runReplay(
+        scenarioPath,
+        extra: ['--timeout', '15'],
+      );
+
+      expect(code, 0, reason: output);
+      expect(output, contains('mcp-replay: session=cold-start'));
+      expect(output, contains('ok=1 failed=0'));
+
+      final receipt =
+          jsonDecode(
+                File(
+                  p0(
+                    root.path,
+                    '.zfa',
+                    'receipts',
+                    'mcp-replay-cold-start.json',
+                  ),
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      expect(
+        (receipt['calls'] as List).first['output'],
+        'echo:hello',
+        reason:
+            'the verdict carries the REAL server answer — a peer that '
+            'never answered must never read as `ok` (#2091)',
+      );
+    },
+  );
+
+  test(
+    'B11: a peer that never starts is a spawn failure, not a verdict',
+    () async {
+      await seedScaffoldedProject(server: serverWith(dieAlwaysPrologue));
+      final scenarioPath = writeScenario({
+        'session': 'no-server',
+        'calls': [
+          {
+            'tool': 'echo',
+            'arguments': {'message': 'hello'},
+          },
+        ],
+      });
+
+      final (code, output) = await runReplay(
+        scenarioPath,
+        extra: ['--timeout', '5'],
+      );
+
+      expect(code, 1, reason: output);
+      expect(output, contains('bin/mcp_server.dart'));
+      expect(output, contains('fixture-mcp: simulated cold-start death'));
+      expect(
+        output,
+        isNot(contains('SocketException')),
+        reason:
+            'a dead child is reported as a spawn failure with its own '
+            'stderr, never as a raw transport crash (#2091)',
+      );
+      expect(
+        File(
+          p0(root.path, '.zfa', 'receipts', 'mcp-replay-no-server.json'),
+        ).existsSync(),
+        isFalse,
+        reason:
+            'a replay that never reached the server proves nothing — no '
+            'receipt, never a false-green proof',
       );
     },
   );
