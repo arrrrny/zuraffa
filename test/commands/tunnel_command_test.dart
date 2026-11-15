@@ -162,6 +162,11 @@ void main() {
     });
   });
 
+  // Tagged `spawn` (#2092): wrap mode launches a REAL child (`sleep 30`)
+  // through the command, so this group needs the 8x loaded-host budget
+  // (240s) rather than the bare root ceiling. The B12 census cannot see that
+  // spawn — it lives in the lib, not in this file — and pin B14 keeps the
+  // tag from drifting away again.
   group('zfa tunnel — guarded happy path (injected fake cloudflared)', () {
     late FakeTunnelProcess fake;
     late Completer<void> interrupt;
@@ -257,6 +262,13 @@ void main() {
       expect(result.output, isNot(contains(token)));
     });
 
+    // One startup budget for BOTH waits below: the handshake and the run
+    // share it (review #2093), because a per-wait budget lets the handshake
+    // give up while the run is still legitimately starting up — a 16s spawn
+    // then failed the `raised` assertion although the run itself completed
+    // fine, and raising only the run timeout never extended the handshake.
+    const startup = Duration(seconds: 60);
+
     test(
       'wrap mode: an interrupt stops the tunnel AND kills the app',
       () async {
@@ -265,6 +277,16 @@ void main() {
         // in wrap mode — otherwise SIGINT/SIGTERM hit the VM's default
         // disposition and orphan cloudflared AND the wrapped app.
         final port = await serve(HttpStatus.ok);
+        // The wrapped child must OUTLIVE the startup budget: the command
+        // races the app's exit against the interrupt (Future.any over
+        // appExitedFirst / stopSignal / failed), so a child that exits mid-
+        // handshake — the old fixed `sleep 30` against a 60s budget — hands
+        // the run the app-exit branch and the interrupt assertion below
+        // fails even though startup stayed within budget (review #2093).
+        // Derive the lifetime from `startup` so the two cannot drift; the
+        // child is killed on the shutdown path regardless, so the extra
+        // minute is only a guard against that race.
+        final childLifetime = startup.inSeconds + 60;
         final run = runDirect([
           'run',
           '--port',
@@ -272,13 +294,26 @@ void main() {
           '--i-know-its-unauthenticated',
           '--',
           'sleep',
-          '30',
+          '$childLifetime',
         ]);
-        // Let the wrapped app start and the tunnel raise, then interrupt.
-        await Future<void>.delayed(const Duration(milliseconds: 500));
+        // Handshake, not a guess (#2092): interrupt only once the wrapper has
+        // RECORDED the tunnel as running. A fixed sleep put the interrupt
+        // wherever host speed happened to leave startup, so a loaded host
+        // reported an opaque exit-code mismatch instead of the real cause.
+        final raised = await _waitForTunnelUp(run, tmp.path, bound: startup);
+        // The interrupt also settles the FAILURE path: a run that never
+        // opened the tunnel (a refused spawn) is shut down here instead of
+        // holding the wrapped `sleep` child until the suite's own ceiling.
         interrupt.complete();
-        final result = await run.timeout(const Duration(seconds: 20));
+        final result = await run.timeout(startup);
 
+        expect(
+          raised,
+          isTrue,
+          reason:
+              'the tunnel never came up, so there was nothing to interrupt — '
+              'the run exited ${result.exit} and printed:\n${result.output}',
+        );
         expect(result.exit, ExitProtocol.success);
         expect(
           result.output,
@@ -292,7 +327,84 @@ void main() {
         expect(result.output, isNot(contains('❌')));
       },
     );
+  }, tags: ['spawn']);
+
+  // Issue #2092: the wrap-mode startup gets ONE more attempt when the spawn
+  // itself was refused (EAGAIN / EMFILE — the loaded-host spawn ceiling),
+  // which used to end the run with `❌ the wrapped app command failed to
+  // start` and exit 1. Pinned on the helper so the policy needs no real
+  // child.
+  group('spawnAppWithRetry', () {
+    test(
+      'a refused spawn is retried exactly once, then the refusal stands',
+      () async {
+        var attempts = 0;
+        await expectLater(
+          spawnAppWithRetry(
+            (executable, arguments, {mode = ProcessStartMode.normal}) async {
+              attempts++;
+              throw ProcessException(
+                executable,
+                arguments,
+                'Resource temporarily unavailable (os error 11)',
+                11,
+              );
+            },
+            const ['sleep', '30'],
+            retryDelay: Duration.zero,
+          ),
+          throwsA(isA<ProcessException>()),
+        );
+        expect(
+          attempts,
+          2,
+          reason: 'the refused spawn was retried exactly once',
+        );
+      },
+    );
+
+    test('a failure that is not a spawn refusal is not retried', () async {
+      // Only a crowded host gets a second attempt — a programming error must
+      // surface at once instead of being masked by a retry.
+      var attempts = 0;
+      await expectLater(
+        spawnAppWithRetry(
+          (executable, arguments, {mode = ProcessStartMode.normal}) async {
+            attempts++;
+            throw StateError('boom');
+          },
+          const ['sleep', '30'],
+          retryDelay: Duration.zero,
+        ),
+        throwsA(isA<StateError>()),
+      );
+      expect(attempts, 1, reason: 'a non-spawn failure was not retried');
+    });
   });
+}
+
+/// Waits (bounded by [bound]) for the wrapper to RECORD the tunnel as running
+/// — the observable "the tunnel is up" handshake, and the honest moment to
+/// interrupt. Returns `false` when the run settles first (its own verdict is
+/// then the interesting one, and reporting it beats a bare timeout) or when
+/// [bound] elapses. Pass the SAME budget the caller gives the run wait: a
+/// shorter handshake bound than the run budget makes a slow startup report a
+/// false "nothing to interrupt" (review #2093).
+Future<bool> _waitForTunnelUp(
+  Future<({int exit, String output})> run,
+  String projectRoot, {
+  Duration bound = const Duration(seconds: 60),
+}) async {
+  final settled = Completer<void>();
+  unawaited(run.then<void>((_) => settled.complete()));
+  final deadline = DateTime.now().add(bound);
+  while (DateTime.now().isBefore(deadline)) {
+    final record = TunnelState(projectRoot: projectRoot).read();
+    if (record != null && record.running) return true;
+    if (settled.isCompleted) return false;
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+  }
+  return false;
 }
 
 class FakeTunnelProcess implements ManagedProcess {
