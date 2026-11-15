@@ -262,6 +262,13 @@ void main() {
       expect(result.output, isNot(contains(token)));
     });
 
+    // One startup budget for BOTH waits below: the handshake and the run
+    // share it (review #2093), because a per-wait budget lets the handshake
+    // give up while the run is still legitimately starting up — a 16s spawn
+    // then failed the `raised` assertion although the run itself completed
+    // fine, and raising only the run timeout never extended the handshake.
+    const startup = Duration(seconds: 60);
+
     test(
       'wrap mode: an interrupt stops the tunnel AND kills the app',
       () async {
@@ -283,9 +290,12 @@ void main() {
         // RECORDED the tunnel as running. A fixed sleep put the interrupt
         // wherever host speed happened to leave startup, so a loaded host
         // reported an opaque exit-code mismatch instead of the real cause.
-        final raised = await _waitForTunnelUp(run, tmp.path);
+        final raised = await _waitForTunnelUp(run, tmp.path, bound: startup);
+        // The interrupt also settles the FAILURE path: a run that never
+        // opened the tunnel (a refused spawn) is shut down here instead of
+        // holding the `sleep 30` child until the suite's own ceiling.
         interrupt.complete();
-        final result = await run.timeout(const Duration(seconds: 60));
+        final result = await run.timeout(startup);
 
         expect(
           raised,
@@ -363,15 +373,17 @@ void main() {
   });
 }
 
-/// Waits (bounded) for the wrapper to RECORD the tunnel as running — the
-/// observable "the tunnel is up" handshake, and the honest moment to
+/// Waits (bounded by [bound]) for the wrapper to RECORD the tunnel as running
+/// — the observable "the tunnel is up" handshake, and the honest moment to
 /// interrupt. Returns `false` when the run settles first (its own verdict is
 /// then the interesting one, and reporting it beats a bare timeout) or when
-/// the bound elapses.
+/// [bound] elapses. Pass the SAME budget the caller gives the run wait: a
+/// shorter handshake bound than the run budget makes a slow startup report a
+/// false "nothing to interrupt" (review #2093).
 Future<bool> _waitForTunnelUp(
   Future<({int exit, String output})> run,
   String projectRoot, {
-  Duration bound = const Duration(seconds: 15),
+  Duration bound = const Duration(seconds: 60),
 }) async {
   final settled = Completer<void>();
   unawaited(run.then<void>((_) => settled.complete()));
