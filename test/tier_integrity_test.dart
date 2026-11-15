@@ -753,6 +753,55 @@ Future<void> main() async {
           '${offenders.join('\n')}',
     );
   });
+
+  // Issue #2092 — the tunnel wrap-mode suite drives a REAL child THROUGH THE
+  // LIB: the test hands the command `-- sleep 30` and
+  // `_TunnelRunCommand._startWrappedApp` launches it as a real child
+  // process. The B12 census scans the TEST source for spawn markers and
+  // cannot see this class — the same census gap B10 documents for the
+  // analyzer family — so the suite sat on the bare root ceiling while every
+  // spawn-heavy sibling carried 8x, and the 7.5.0 release gate watched it
+  // fail under a loaded host with an opaque exit-code mismatch (#2092).
+  //
+  // The marker below is split across two literals for the same reason
+  // [_spawnMarkerRe] is: THIS file is itself fast-lane eligible, so the
+  // assembled marker text in its own source would make the B5 census flag
+  // this file as a spawn-heavy suite.
+  test('B14: the tunnel wrap-mode suite carries the spawn budget (#2092)', () {
+    // Anti-vacuity: the pin is about a suite that launches a real child, so
+    // it must fail (not silently pass) if the command stops launching one.
+    final commandSource = File(
+      p.join(_repoRoot, 'lib', 'src', 'commands', 'tunnel_command.dart'),
+    ).readAsStringSync();
+    expect(
+      RegExp(
+        'Process'
+        r'\.start',
+      ).hasMatch(commandSource),
+      isTrue,
+      reason:
+          'lib/src/commands/tunnel_command.dart no longer launches the '
+          'wrapped app as a real child process, so B14 watches a class that '
+          'no longer exists (#1994: a pin whose marker stops matching is a '
+          'false green)',
+    );
+    final suite = p.join(
+      _repoRoot,
+      'test',
+      'commands',
+      'tunnel_command_test.dart',
+    );
+    final declared = _declaredTags(suite, _suiteTags(suite));
+    expect(
+      declared,
+      contains('spawn'),
+      reason:
+          'the tunnel command suite launches a real child through the lib '
+          '(wrap mode: `-- sleep 30`), so the B12 test-source census cannot '
+          'see it — it must carry the `spawn` tag (8x, 240s) or it sits on '
+          'the bare root ceiling and flakes under host load (#2092)',
+    );
+  });
 }
 
 /// Every `_test.dart` file under `test/` whose suite-level `@Tags`

@@ -11,6 +11,43 @@ import '../tunnel/tunnel_state.dart';
 import '../tunnel/tunnel_supervisor.dart';
 import 'base_plugin_command.dart';
 
+/// Spawns a process — the seam the wrap-mode startup goes through, injectable
+/// so a test can script a transient spawn refusal (issue #2092).
+typedef ProcessStarter =
+    Future<Process> Function(
+      String executable,
+      List<String> arguments, {
+      ProcessStartMode mode,
+    });
+
+/// Starts [rest] (an argv: executable first), retrying ONCE when the spawn
+/// itself was refused.
+///
+/// Under a loaded host a spawn can fail TRANSIENTLY (EAGAIN / EMFILE — the
+/// spawn ceiling this fleet documents), and a single refusal used to end
+/// `zfa tunnel run -- <app>` with `❌ the wrapped app command failed to
+/// start` and exit 1 although a second attempt succeeds (issue #2092). A
+/// command that genuinely does not exist fails both attempts, so the
+/// operator still gets the same verdict. Every other error is a programming
+/// error, not a crowded host, and surfaces at once.
+Future<Process> spawnAppWithRetry(
+  ProcessStarter starter,
+  List<String> rest, {
+  Duration retryDelay = const Duration(milliseconds: 100),
+}) async {
+  Future<Process> attempt() => starter(
+    rest.first,
+    rest.skip(1).toList(),
+    mode: ProcessStartMode.inheritStdio,
+  );
+  try {
+    return await attempt();
+  } on ProcessException {
+    await Future<void>.delayed(retryDelay);
+    return attempt();
+  }
+}
+
 /// `zfa tunnel` — wrap a Zuraffa app (or any local HTTP surface) for remote
 /// access via a Cloudflare tunnel (specs/1724-zuraffa-tunnel, issue #2045).
 ///
@@ -392,15 +429,7 @@ class _TunnelRunCommand extends Command<void> {
   ) async {
     final Process appProcess;
     try {
-      // inheritStdio: the wrapped app's output belongs to the operator's
-      // terminal, and an unread Pipe stdout/stderr fills the OS pipe buffer
-      // (~64 KB) and blocks the app mid-write — the tunnel would serve a
-      // stuck app.
-      appProcess = await Process.start(
-        rest.first,
-        rest.skip(1).toList(),
-        mode: ProcessStartMode.inheritStdio,
-      );
+      appProcess = await spawnAppWithRetry(Process.start, rest);
     } on ProcessException catch (e) {
       print(
         '❌ the wrapped app command failed to start: ${e.executable}\n'
