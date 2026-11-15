@@ -539,9 +539,25 @@ gets.
 
 ```bash
 rm -f pubspec.lock
-dart pub get                     # or `flutter pub get` for an app
-# then set every caret constraint to the version the resolver picked
+dart pub get --no-example        # or `flutter pub get` for an app
 ```
+
+**Repo-specific first: a repo may pin its lock on purpose — read its
+`PUBLISH.md` and the comments in its `pubspec.yaml` before re-resolving.**
+This repo's own constraints are the worked example: `dart pub get
+--no-example` (the `example/` and `examples/*` packages depend on the Flutter
+SDK, so a Dart-only resolution fails without it), Dart >= 3.13.0 (the locked
+`analyzer` declares that SDK floor, so an older SDK re-resolves to an older
+analyzer and un-does the pin), and CI resolves with `--enforce-lockfile`, which
+is what makes a drifted lock fail loudly instead of silently re-resolving.
+
+**Do not raise every constraint to the locked version.** The lockfile is what
+this repo builds against; the DECLARED constraint is what consumers resolve.
+Pub ignores a dependency's lockfile, and a caret constraint does not pin
+consumers to one version — raising `^14.4.0` to `^14.6.0` because the root lock
+resolved 14.6.0 removes support for the Dart versions 14.4.0 was kept for. Align
+a constraint upward only when a dependency change actually requires it, and
+preserve the supported lower bound otherwise.
 
 **Then look at what is still held back.** `dart pub outdated` (or
 `flutter pub outdated`) lists every package whose declared constraint refuses
