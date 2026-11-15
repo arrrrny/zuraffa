@@ -78,7 +78,10 @@ class _ReplayCommand extends Command<void> {
   _ReplayCommand() {
     argParser.addOption(
       'timeout',
-      help: 'Deadline for the whole replay in seconds.',
+      help:
+          'Per-request deadline for the replay in seconds (the startup '
+          'probe uses the smaller of this and '
+          '$_startupProbeCeilingSeconds, per attempt).',
       defaultsTo: '120',
     );
   }
@@ -187,51 +190,13 @@ class _ReplayCommand extends Command<void> {
     final timeoutSeconds =
         int.tryParse(argResults!['timeout'] as String? ?? '120') ?? 120;
 
-    final process = await Process.start('dart', ['run', binPath]);
-
-    final responses = <int, Completer<Map<String, dynamic>>>{};
-    final verdictLines = <Map<String, dynamic>>[];
-    var nextId = 0;
-
-    final stdoutLines = process.stdout
-        .transform(utf8.decoder)
-        .transform(const LineSplitter());
-    final subscription = stdoutLines.listen((line) {
-      final trimmed = line.trim();
-      if (trimmed.isEmpty) return;
-      try {
-        final message = jsonDecode(trimmed) as Map<String, dynamic>;
-        final id = message['id'];
-        if (id is int) {
-          responses.remove(id)?.complete(message);
-        }
-      } on FormatException {
-        // Non-JSON stdout lines (banner noise) are ignored.
-      }
-    });
-
-    Future<Map<String, dynamic>?> request(
-      String method,
-      Map<String, dynamic>? params,
-    ) async {
-      final id = ++nextId;
-      final completer = Completer<Map<String, dynamic>>();
-      responses[id] = completer;
-      process.stdin.writeln(
-        jsonEncode({
-          'jsonrpc': '2.0',
-          'id': id,
-          'method': method,
-          'params': ?params,
-        }),
-      );
-      await process.stdin.flush();
-      return completer.future.timeout(
-        Duration(seconds: timeoutSeconds),
-        onTimeout: () => <String, dynamic>{},
-      );
+    final peer = await _startReplayPeer(binPath, timeoutSeconds);
+    if (peer == null) {
+      exitCode = 1;
+      return;
     }
 
+    final verdictLines = <Map<String, dynamic>>[];
     var ok = 0;
     var failed = 0;
 
@@ -259,7 +224,7 @@ class _ReplayCommand extends Command<void> {
         });
         return;
       }
-      final response = await request('tools/call', {
+      final response = await peer.request('tools/call', {
         'name': tool,
         'arguments': arguments,
       });
@@ -315,25 +280,6 @@ class _ReplayCommand extends Command<void> {
     }
 
     try {
-      final initialize = await request('initialize', {
-        'protocolVersion': '2024-11-05',
-        'capabilities': {},
-        'clientInfo': {'name': 'zfa-mcp-replay', 'version': '1.0.0'},
-      });
-      if (initialize == null) {
-        print(
-          '❌ The scaffolded server did not answer initialize within '
-          '$timeoutSeconds seconds.',
-        );
-        process.kill();
-        exitCode = 1;
-        return;
-      }
-      process.stdin.writeln(
-        jsonEncode({'jsonrpc': '2.0', 'method': 'notifications/initialized'}),
-      );
-      await process.stdin.flush();
-
       for (var i = 0; i < rawCalls.length; i++) {
         final call = rawCalls[i];
         if (call is! Map<String, dynamic>) {
@@ -348,8 +294,7 @@ class _ReplayCommand extends Command<void> {
         await replayCall(call, i);
       }
     } finally {
-      subscription.cancel();
-      process.kill();
+      await peer.close();
     }
 
     for (final line in verdictLines) {
@@ -376,6 +321,306 @@ class _ReplayCommand extends Command<void> {
     print('   receipt: ${receiptFile.path}');
 
     exitCode = failed == 0 ? 0 : 1;
+  }
+}
+
+/// The startup probe's per-attempt ceiling.
+///
+/// `--timeout` is a PER-REQUEST deadline, and the startup retry (#2091)
+/// doubles whatever the probe is given: a silent-but-alive child would
+/// otherwise cost `2 x timeoutSeconds` — 240s at the default of 120 —
+/// before the diagnostic printed. A cold `dart run` still gets a generous
+/// window, and the whole startup phase is bounded at twice this.
+const _startupProbeCeilingSeconds = 30;
+
+/// Spawns `dart run <binPath>` and answers `initialize`, re-spawning ONCE
+/// when the child dies at startup (issue #2091).
+///
+/// A fresh `dart run` child is slow to become a peer — cold JIT plus an
+/// implicit pub get — and a loaded host can kill it before it reads a
+/// line. That is a hiccup, not a verdict: one re-spawn separates the two.
+/// Returns null (after printing the reason) when the retry also failed.
+Future<_ReplayPeer?> _startReplayPeer(
+  String binPath,
+  int timeoutSeconds,
+) async {
+  final startupSeconds = timeoutSeconds < _startupProbeCeilingSeconds
+      ? timeoutSeconds
+      : _startupProbeCeilingSeconds;
+  _ReplaySpawnFailure? last;
+  for (var attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await _ReplayPeer.start(
+        binPath,
+        timeoutSeconds,
+        startupSeconds: startupSeconds,
+      );
+    } on _ReplaySpawnFailure catch (e) {
+      last = e;
+    }
+  }
+  print('❌ ${last?.message ?? 'the scaffolded MCP server did not start.'}');
+  return null;
+}
+
+/// The scaffolded MCP server never became a usable peer: it died, or it
+/// stayed silent past the replay deadline (issue #2091).
+class _ReplaySpawnFailure implements Exception {
+  const _ReplaySpawnFailure(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// One spawned `dart run bin/mcp_server.dart` peer and its stdio
+/// JSON-RPC plumbing (issue #2091).
+///
+/// Two properties the old inline plumbing lacked:
+///
+///  * the child's stderr is drained into a bounded tail, so a peer that
+///    dies can NAME why — and a chatty child cannot fill the stderr pipe
+///    and deadlock against its own stdout;
+///  * a transport failure (the child's stdin read end closing under a
+///    write) and a request that simply never gets an answer both read as
+///    "no answer", never as a raw `SocketException` and never as a
+///    successful call.
+class _ReplayPeer {
+  _ReplayPeer._(this._process, this._binPath, this._timeoutSeconds);
+
+  final Process _process;
+  final String _binPath;
+  final int _timeoutSeconds;
+
+  static const _stderrTailLines = 5;
+
+  final Map<int, Completer<Map<String, dynamic>?>> _responses = {};
+  final List<String> _stderrTail = [];
+  final Completer<void> _stderrDone = Completer<void>();
+  StreamSubscription<String>? _stdoutSub;
+  StreamSubscription<String>? _stderrSub;
+  int _nextId = 0;
+  int? _exitCode;
+
+  /// Spawns the child and answers `initialize`.
+  ///
+  /// Throws [_ReplaySpawnFailure] when the child dies, rejects the
+  /// handshake, or never answers — the caller re-spawns once before
+  /// reporting (#2091). [startupSeconds] bounds the handshake only; every
+  /// later call gets the full [timeoutSeconds] per-request budget.
+  static Future<_ReplayPeer> start(
+    String binPath,
+    int timeoutSeconds, {
+    required int startupSeconds,
+  }) async {
+    final Process process;
+    try {
+      process = await Process.start('dart', ['run', binPath]);
+    } on ProcessException catch (e) {
+      throw _ReplaySpawnFailure('could not spawn `dart run $binPath` — $e');
+    }
+    final peer = _ReplayPeer._(process, binPath, timeoutSeconds);
+    peer._listen();
+    try {
+      final answer = await peer.request('initialize', {
+        'protocolVersion': '2024-11-05',
+        'capabilities': {},
+        'clientInfo': {'name': 'zfa-mcp-replay', 'version': '1.0.0'},
+      }, deadline: Duration(seconds: startupSeconds));
+      if (answer == null || answer.isEmpty) {
+        throw _ReplaySpawnFailure(
+          await peer.noAnswerReason(
+            '`dart run $binPath` did not answer `initialize` within '
+            '$startupSeconds seconds',
+          ),
+        );
+      }
+      // A server that REFUSED the handshake answered, but it is not a
+      // peer: accepting it turns every replay call into a generic
+      // `error` and hides the real cause.
+      final handshakeError = answer['error'];
+      if (handshakeError != null) {
+        throw _ReplaySpawnFailure(
+          await peer.noAnswerReason(
+            '`dart run $binPath` rejected `initialize` — '
+            '${_errorDetail(handshakeError)}',
+          ),
+        );
+      }
+      // The child can die between its answer and this write — the
+      // cold-start race #2091 is about. A raw SocketException out of
+      // here would end the CLI and skip the re-spawn, so the transport
+      // failure IS the spawn failure.
+      try {
+        await peer._write({
+          'jsonrpc': '2.0',
+          'method': 'notifications/initialized',
+        });
+      } on SocketException {
+        throw _ReplaySpawnFailure(
+          await peer.noAnswerReason(
+            '`dart run $binPath` died right after `initialize`',
+          ),
+        );
+      } on StateError {
+        throw _ReplaySpawnFailure(
+          '`dart run $binPath` closed its stdin before the replay began',
+        );
+      }
+      return peer;
+    } catch (_) {
+      await peer.close();
+      rethrow;
+    }
+  }
+
+  /// A JSON-RPC `error` object's message, whatever shape it arrived in.
+  static String _errorDetail(Object? error) {
+    if (error is Map) {
+      final message = error['message'];
+      if (message != null) return '$message';
+    }
+    return '$error';
+  }
+
+  /// Sends one JSON-RPC request and awaits its answer.
+  ///
+  /// Returns null when the peer cannot answer — a write to a child whose
+  /// stdin read end closed, a child that exited with a request in flight,
+  /// or a deadline that passed. A null is never a verdict: the caller
+  /// records an `error`, and only the startup probe retries (#2091).
+  /// [deadline] overrides the per-request budget for the startup probe.
+  Future<Map<String, dynamic>?> request(
+    String method,
+    Map<String, dynamic>? params, {
+    Duration? deadline,
+  }) async {
+    final id = ++_nextId;
+    final completer = Completer<Map<String, dynamic>?>();
+    _responses[id] = completer;
+    try {
+      await _write({
+        'jsonrpc': '2.0',
+        'id': id,
+        'method': method,
+        'params': ?params,
+      });
+    } on SocketException {
+      _responses.remove(id);
+      return null;
+    } on StateError {
+      _responses.remove(id);
+      return null;
+    }
+    return completer.future.timeout(
+      deadline ?? Duration(seconds: _timeoutSeconds),
+      onTimeout: () {
+        // The completer is abandoned, so the map must not keep it: a live
+        // entry always has a live waiter.
+        _responses.remove(id);
+        return null;
+      },
+    );
+  }
+
+  Future<void> _write(Map<String, dynamic> message) async {
+    _process.stdin.writeln(jsonEncode(message));
+    await _process.stdin.flush();
+  }
+
+  void _listen() {
+    _stdoutSub = _process.stdout
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((line) {
+          final trimmed = line.trim();
+          if (trimmed.isEmpty) return;
+          try {
+            final message = jsonDecode(trimmed) as Map<String, dynamic>;
+            final id = message['id'];
+            if (id is int) {
+              final waiter = _responses.remove(id);
+              // The exit handler may have settled this waiter already: a
+              // line buffered behind the child's death must never complete
+              // it a second time (`Bad state: Future already completed`).
+              if (waiter != null && !waiter.isCompleted) {
+                waiter.complete(message);
+              }
+            }
+          } on FormatException {
+            // Non-JSON stdout lines (banner noise) are ignored.
+          }
+        });
+    _stderrSub = _process.stderr
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen(
+          (line) {
+            _stderrTail.add(line);
+            if (_stderrTail.length > _stderrTailLines) _stderrTail.removeAt(0);
+          },
+          onDone: () {
+            if (!_stderrDone.isCompleted) _stderrDone.complete();
+          },
+        );
+    // A peer that exits with a request in flight can never answer it:
+    // settle the waiters now instead of holding them for the whole
+    // replay deadline (#2091). Each entry leaves the map as it settles, so
+    // the invariant holds here too — a live entry always has a live
+    // waiter — and a stdout line buffered behind the exit finds nothing
+    // to complete twice.
+    unawaited(
+      _process.exitCode.then((code) {
+        _exitCode = code;
+        for (final id in _responses.keys.toList()) {
+          final waiter = _responses.remove(id);
+          if (waiter != null && !waiter.isCompleted) waiter.complete(null);
+        }
+      }),
+    );
+  }
+
+  /// Why this peer produced no answer: [fallback] always, plus the child's
+  /// exit code and stderr tail when it died. The exit clause is additive —
+  /// a caller's own reason (a refused handshake, a death right after
+  /// `initialize`) must survive the child being gone.
+  Future<String> noAnswerReason(String fallback) async {
+    final exit =
+        _exitCode ??
+        await _process.exitCode.timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => -1,
+        );
+    // The child's last stderr line races its exit; let the pipe deliver.
+    await _stderrDone.future.timeout(
+      const Duration(milliseconds: 500),
+      onTimeout: () {},
+    );
+    final tail = _stderrTail.isEmpty
+        ? ''
+        : ' — stderr: ${_stderrTail.join(' | ')}';
+    if (exit < 0) return '$fallback$tail';
+    return '$fallback — `dart run $_binPath` exited $exit$tail';
+  }
+
+  Future<void> close() async {
+    await _stdoutSub?.cancel();
+    await _stderrSub?.cancel();
+    // Release the stdin pipe: a long-lived process that replays many
+    // sessions must not accumulate one write end per spawn.
+    try {
+      await _process.stdin.close();
+    } on SocketException {
+      // The child is already gone; the pipe closed under us.
+    } on StateError {
+      // Already closed.
+    }
+    try {
+      _process.kill();
+    } on ProcessException {
+      // Already gone — there is nothing left to kill.
+    }
   }
 }
 
