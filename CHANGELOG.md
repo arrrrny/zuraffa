@@ -1,3 +1,7 @@
+## 7.5.0 - 2026-11-15
+
+Release 7.5.0: Signal-backed view-state migration template with SignalScope ownership (#2076); signal listener/subscription cleanup on eager-delivery throw (#2081, #2083); UseCase/StreamUseCase catch-all SEVERE logs now carry the cause (#2077, #2079); dependencies upgraded and pinned to latest resolvable.
+
 ## 7.4.2 - 2026-11-13
 
 - Mono-version fleet alignment to 7.4.2; internal dependencies refreshed; xml override 7.1.0.
