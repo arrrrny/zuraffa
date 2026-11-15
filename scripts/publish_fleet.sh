@@ -346,6 +346,25 @@ if [ -n "$ONLY_PKGS" ]; then
     fi
   done
 fi
+
+# Fleet-wide run: every package must declare the requested version BEFORE any
+# publish — `dart pub publish` ships each package's own `version:`, so a stale
+# checkout would publish (or silently skip) a version nobody asked for
+# (e.g. `publish_fleet.sh 7.4.3` shipping a leftover `zuraffa_session 7.4.2`).
+# Independent child releases stay behind `--only`, which skips this gate.
+if [ -z "$ONLY_PKGS" ]; then
+  for pkg in $ORDER; do
+    v=$(grep '^version:' "${PUBSPEC_OF[$pkg]}" 2>/dev/null | sed 's/version: //' | tr -d '[:space:]' || true)
+    if [ -z "$v" ]; then
+      echo -e "${RED}fleet-wide run: could not read a declared version from ${PUBSPEC_OF[$pkg]} — fetch that repo before publishing${NC}" >&2
+      exit 1
+    fi
+    if [ "$v" != "$VERSION" ]; then
+      echo -e "${RED}fleet-wide run: $pkg is at $v, requested $VERSION — bump it first, or ship it alone with --only $pkg${NC}" >&2
+      exit 1
+    fi
+  done
+fi
 # Packages whose published form participates in a dependency CYCLE (the
 # zuraffa_ffi app <-> platform <-> adapters family): pub.dev can only
 # resolve them once every member is up, so their resolvability gates run

@@ -543,7 +543,10 @@ dart pub get --no-example        # or `flutter pub get` for an app
 ```
 
 **Repo-specific first: a repo may pin its lock on purpose — read its
-`PUBLISH.md` and the comments in its `pubspec.yaml` before re-resolving.**
+`PUBLISH.md` and the comments in its `pubspec.yaml` before re-resolving. If
+the lock is pinned, skip the `rm -f pubspec.lock` step above and run the
+repository-documented resolve command (`dart pub get --no-example` in this
+repo) without deleting the lock.**
 This repo's own constraints are the worked example: `dart pub get
 --no-example` (the `example/` and `examples/*` packages depend on the Flutter
 SDK, so a Dart-only resolution fails without it), Dart >= 3.13.0 (the locked
