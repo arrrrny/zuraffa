@@ -277,6 +277,16 @@ void main() {
         // in wrap mode — otherwise SIGINT/SIGTERM hit the VM's default
         // disposition and orphan cloudflared AND the wrapped app.
         final port = await serve(HttpStatus.ok);
+        // The wrapped child must OUTLIVE the startup budget: the command
+        // races the app's exit against the interrupt (Future.any over
+        // appExitedFirst / stopSignal / failed), so a child that exits mid-
+        // handshake — the old fixed `sleep 30` against a 60s budget — hands
+        // the run the app-exit branch and the interrupt assertion below
+        // fails even though startup stayed within budget (review #2093).
+        // Derive the lifetime from `startup` so the two cannot drift; the
+        // child is killed on the shutdown path regardless, so the extra
+        // minute is only a guard against that race.
+        final childLifetime = startup.inSeconds + 60;
         final run = runDirect([
           'run',
           '--port',
@@ -284,7 +294,7 @@ void main() {
           '--i-know-its-unauthenticated',
           '--',
           'sleep',
-          '30',
+          '$childLifetime',
         ]);
         // Handshake, not a guess (#2092): interrupt only once the wrapper has
         // RECORDED the tunnel as running. A fixed sleep put the interrupt
@@ -293,7 +303,7 @@ void main() {
         final raised = await _waitForTunnelUp(run, tmp.path, bound: startup);
         // The interrupt also settles the FAILURE path: a run that never
         // opened the tunnel (a refused spawn) is shut down here instead of
-        // holding the `sleep 30` child until the suite's own ceiling.
+        // holding the wrapped `sleep` child until the suite's own ceiling.
         interrupt.complete();
         final result = await run.timeout(startup);
 
