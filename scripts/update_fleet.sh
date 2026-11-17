@@ -188,30 +188,66 @@ ensure_publish_policy() {
 # every consumer ("generated against zuraffa 7.3.0 which is newer than the
 # running 7.2.0"). `scripts/publish.sh` already stamps it; this is the path
 # PUBLISH.md documents for a fleet bump, so it must stamp it too.
+#
+# Both quote styles are read and written. The first version of these helpers
+# keyed on the single-quoted form alone, so a double-quoted constant was
+# neither stamped nor reported and #2095 could return with no signal at all
+# (review of #2096) — the new Dart test still passed there, because it
+# compares the constant's VALUE, not its shape.
+version_const_decl() { # any line declaring the constant, whatever its shape
+  grep -qE "^const (version|String version) *=" "$1"
+}
+
+version_const_value() { # the declared value, either quote style
+  sed -n "s/^const version = [\"']\([^\"']*\)[\"'].*/\1/p" "$1" | head -1 || true
+}
+
 update_version_const() {
   local repo_root="$1"
   local file="$repo_root/lib/src/version.dart"
   local tmp="$file.tmp"
   [ -f "$file" ] || return 0
-  grep -qE "^const version = '" "$file" || return 0
+  version_const_decl "$file" || return 0
+  # A declaration this script cannot read is not silently left alone: check
+  # mode reports it as drift (below), and apply mode says so out loud.
+  if [ -z "$(version_const_value "$file")" ]; then
+    echo -e "  ${YELLOW}left $file alone: it declares the version in a shape this script cannot read${NC}"
+    return 0
+  fi
   # tmp file + mv rather than `sed -i`: the BSD and GNU forms of `-i` are
   # incompatible, and this is the same shape `ensure_changelog` above uses.
-  sed -E "s/^const version = '.*'/const version = '$VERSION'/" "$file" > "$tmp" \
-    && mv "$tmp" "$file"
+  # A failed write must not abort the whole fleet bump mid-run (earlier repos
+  # are already committed by then) and must not leave the temp file behind.
+  if ! sed -E "s/^const version = ('[^']*'|\"[^\"]*\")/const version = '$VERSION'/" \
+      "$file" > "$tmp"; then
+    rm -f "$tmp"
+    echo -e "  ${RED}could not write $tmp${NC}" >&2
+    return 1
+  fi
+  if ! mv "$tmp" "$file"; then
+    rm -f "$tmp"
+    echo -e "  ${RED}could not replace $file${NC}" >&2
+    return 1
+  fi
+  return 0
 }
 
 check_version_const() {
   local repo_root="$1"
   local file="$repo_root/lib/src/version.dart"
-  local ok=0 ver
+  local ver
   [ -f "$file" ] || return 0
-  ver=$(sed -n "s/^const version = '\([^']*\)'.*/\1/p" "$file" | head -1)
-  [ -n "$ver" ] || return 0
+  version_const_decl "$file" || return 0
+  ver=$(version_const_value "$file")
+  if [ -z "$ver" ]; then
+    echo -e "  ${RED}version drift: $file declares the version in a shape this script cannot read${NC}"
+    return 1
+  fi
   [ "$ver" == "$VERSION" ] || {
     echo -e "  ${RED}version drift: lib/src/version.dart $ver != $VERSION${NC}"
-    ok=1
+    return 1
   }
-  return $ok
+  return 0
 }
 
 # --- check mode ---------------------------------------------------------------
@@ -452,6 +488,12 @@ for repo in "${FLEET_REPOS[@]}"; do
     continue
   fi
 
+  # Did every package manifest of THIS repo actually move? A failed pubspec
+  # update leaves `version:` at the old release; stamping the constant and
+  # committing anyway would ship a core that declares a version its pubspec
+  # does not (review of #2096). One repo failing must not stop the others.
+  repo_failed=0
+
   while IFS= read -r rel; do
     file="$repo_root/$rel"
     name=$(pkg_name "$file")
@@ -467,7 +509,7 @@ for repo in "${FLEET_REPOS[@]}"; do
       --version "$VERSION" \
       ${OVERRIDE_ARGS[@]+"${OVERRIDE_ARGS[@]}"} \
       --constraint "${FLEET_PKG_NAMES[@]}" \
-      || { echo -e "${RED}pubspec tool failed for $file${NC}"; FAILURES=$((FAILURES+1)); continue; }
+      || { echo -e "${RED}pubspec tool failed for $file${NC}"; FAILURES=$((FAILURES+1)); repo_failed=1; continue; }
     echo -e "  ${GREEN}$name: $old -> $VERSION${NC}"
     # README install guides at the same depth as the pubspec
     pkg_dir=$(dirname "$file")
@@ -485,9 +527,18 @@ for repo in "${FLEET_REPOS[@]}"; do
         --version "$VERSION" --xml "$XML_OVERRIDE" \
         ${SIBLINGS[@]+"${SIBLINGS[@]}"} \
         --constraint "${FLEET_PKG_NAMES[@]}" \
-        || { echo -e "${RED}pubspec tool failed for $ex${NC}"; FAILURES=$((FAILURES+1)); }
+        || { echo -e "${RED}pubspec tool failed for $ex${NC}"; FAILURES=$((FAILURES+1)); repo_failed=1; }
     done
   done < <(find_pkg_pubspecs "$repo_root")
+
+  if [ "$repo_failed" == "1" ]; then
+    # Leave this repo exactly as the failure left it: no version stamp, no
+    # changelog, no commit. The alternative is a release whose core constant
+    # says the new version while the manifest still declares the old one —
+    # the drift #2095 was about, pointed the other way.
+    echo -e "${RED}  manifest update failed — skipping version stamp and commit for $repo${NC}"
+    continue
+  fi
 
   # repo-level README install guides
   for readme in "$repo_root"/README.md "$repo_root"/packages/*/README.md; do
@@ -499,8 +550,10 @@ for repo in "${FLEET_REPOS[@]}"; do
   ensure_publish_policy "$repo_root/PUBLISH.md"
   # `lib/src/version.dart` is the running version every consumer's
   # compatibility check reads (issue #2095) — stamp it with the pubspec so a
-  # fleet bump cannot ship the previous release's constant.
-  update_version_const "$repo_root"
+  # fleet bump cannot ship the previous release's constant. A failed write
+  # counts as a failure and does not abort the run (the repo stays stamped-
+  # less and the operator sees it in the tally).
+  update_version_const "$repo_root" || FAILURES=$((FAILURES+1))
 
   if [ "$DO_COMMIT" == "1" ] && [ -d "$repo_root/.git" ]; then
     ( cd "$repo_root"

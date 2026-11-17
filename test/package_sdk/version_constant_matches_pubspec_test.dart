@@ -93,7 +93,7 @@ void main() {
       // The constraint a package generated from THIS pubspec declares, and
       // the version the runtime actually reports (`registerPackage` passes
       // the constant, engine.dart:181).
-      final generatedAgainst = '$major.$minor.$segments[2]';
+      final generatedAgainst = '$major.$minor.${segments[2]}';
       final result = PackageCompatibility.check(
         packageConstraint: '^$generatedAgainst',
         appVersion: version,
