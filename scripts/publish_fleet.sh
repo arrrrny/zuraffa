@@ -364,6 +364,24 @@ if [ -z "$ONLY_PKGS" ]; then
       exit 1
     fi
   done
+
+  # The core package ships a SECOND version source: `lib/src/version.dart`
+  # (`const version = '...'`), exported as `package:zuraffa` `version` and
+  # used by `ZuraffaEngine.registerPackage` as the RUNNING version every
+  # consumer's generated-against constraint is compared to (issue #2095).
+  # This is the script that shipped 7.3.0/7.4.2/7.5.0 with the constant
+  # frozen at 7.2.0, so the release path refuses a drifted core by itself
+  # instead of relying on the suite having run. `update_fleet.sh` stamps the
+  # constant in the same bump; this is the backstop for a hand-published
+  # release.
+  core_const="$(dirname "${PUBSPEC_OF[zuraffa]}")/lib/src/version.dart"
+  if [ -f "$core_const" ]; then
+    cv=$(sed -n "s/^const version = [\"']\([^\"']*\)[\"'].*/\1/p" "$core_const" | head -1 || true)
+    if [ "$cv" != "$VERSION" ]; then
+      echo -e "${RED}fleet-wide run: $core_const declares ${cv:-<no readable const version>}, requested $VERSION — run scripts/update_fleet.sh $VERSION first${NC}" >&2
+      exit 1
+    fi
+  fi
 fi
 # Packages whose published form participates in a dependency CYCLE (the
 # zuraffa_ffi app <-> platform <-> adapters family): pub.dev can only
