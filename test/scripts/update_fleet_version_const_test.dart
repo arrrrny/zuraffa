@@ -23,6 +23,15 @@
 // the helper definitions from the real script and drives them with whatever
 // bash is on PATH over a `mkdtemp` fixture — no fleet checkout, no network.
 
+// This suite extracts the version-constant helpers from the real
+// `scripts/update_fleet.sh` and drives them with whatever bash is on PATH
+// over a `mkdtemp` fixture — a real external-process spawn, so it takes the
+// `e2e` weight tag (kept off the dart_core fast lane, #1510) and the `spawn`
+// budget tag (8x/240s ceiling, #1994). Without them the tier-integrity
+// census (B5/B12) flags the file and the fast lane kills it mid-setup.
+@Tags(['e2e', 'spawn'])
+library;
+
 import 'dart:io';
 
 import 'package:test/test.dart';
