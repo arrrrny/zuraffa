@@ -198,6 +198,76 @@ version_const_decl() { # any line declaring the constant, whatever its shape
   grep -qE "^const (version|String version) *=" "$1"
 }
 
+# strip_outside_overrides FILE — drop every `path:` override in
+# `dependency_overrides:` whose target resolves OUTSIDE the member repo
+# (issue #2097). `collect_siblings()` writes sibling checkouts in as
+# `path:` overrides so a not-yet-published fleet constraint resolves in dev
+# mode, but those paths exist only on a machine that HAS the sibling
+# checkout — committed, they red the member's first `flutter pub get`
+# (`could not find package zuraffa at "../zuraffa"`) and block every later
+# PR. The strip runs after the tool, before the per-repo commit. An in-repo
+# path (a dev surface like `path: ./local/foo`) is kept, and the fleet
+# `xml:` policy line stays.
+strip_outside_overrides() {
+  local file="$1"
+  grep -q '^dependency_overrides:' "$file" || return 0
+  python3 - "$file" <<'PY'
+import os, re, sys
+path = sys.argv[1]
+text = open(path).read()
+lines = text.split('\n')
+m = re.search(r'^dependency_overrides:\s*$', text, re.M)
+if not m:
+    raise SystemExit(0)
+start = text[:m.start()].count('\n')
+end = len(lines)
+for i in range(start + 1, len(lines)):
+    if lines[i] and not lines[i].startswith((' ', '\t', '#')):
+        end = i
+        break
+base = os.path.dirname(os.path.abspath(path))
+drop = []  # [key_line_index, body_end_index)
+i = start + 1
+while i < end:
+    km = re.match(r'^  ([\w][\w-]*)?:\s*$', lines[i])
+    if not km:
+        i += 1
+        continue
+    j = i + 1
+    while j < end:
+        lj = lines[j]
+        if lj.strip() == '':
+            j += 1
+            continue
+        # a block body is MORE indented than its key — a line at the key's
+        # own indent is the next override (or the section end)
+        if len(lj) - len(lj.lstrip()) <= 2:
+            break
+        j += 1
+    body = lines[i + 1:j]
+    pm = None
+    for b in body:
+        pm = re.match(r'^\s+path:\s*(\S+)', b)
+        if pm:
+            break
+    if pm:
+        target = os.path.normpath(os.path.join(base, pm.group(1)))
+        if not target.startswith(base + os.sep):
+            drop.append([i, j])
+    i = j
+for i, j in reversed(drop):
+    del lines[i:j]
+kept = [l for l in lines[start + 1:end] if l.strip()]
+if not kept:
+    # section is now empty — drop the header only when nothing else remains
+    del lines[start]
+text = '\n'.join(lines)
+if text and not text.endswith('\n'):
+    text += '\n'
+open(path, 'w').write(text)
+PY
+}
+
 version_const_value() { # the declared value, either quote style
   sed -n "s/^const version = [\"']\([^\"']*\)[\"'].*/\1/p" "$1" | head -1 || true
 }
@@ -545,6 +615,12 @@ for repo in "${FLEET_REPOS[@]}"; do
     [ -f "$readme" ] || continue
     update_readme "$readme"
   done
+
+  # Sibling `path:` overrides resolve only where the sibling checkout exists
+  # — strip them before anything is committed, or the member's first
+  # `flutter pub get` reds and blocks every later PR (issue #2097). The xml
+  # policy override and in-repo path deps stay.
+  strip_outside_overrides "$repo_root"
 
   ensure_changelog "$repo_root/CHANGELOG.md" "$CHANGELOG_MSG"
   ensure_publish_policy "$repo_root/PUBLISH.md"
