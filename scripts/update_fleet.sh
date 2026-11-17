@@ -178,6 +178,42 @@ ensure_publish_policy() {
   printf '\n---\n\n%s\n' "$PUBLISH_POLICY_LINE" >> "$file"
 }
 
+# The core package publishes a second version source: `lib/src/version.dart`
+# (`const version = '...'`), exported as `package:zuraffa` `version` and used
+# by `ZuraffaEngine.registerPackage` as the RUNNING version every consumer's
+# generated-against constraint is compared to (issue #2095). A bump that
+# moves pubspec.yaml and not this constant makes every consumer on the new
+# release read the OLD version — 7.3.0/7.3.6/7.4.2/7.5.0 all shipped
+# `const version = '7.2.0'`, so `PackageCompatibility` warned falsely in
+# every consumer ("generated against zuraffa 7.3.0 which is newer than the
+# running 7.2.0"). `scripts/publish.sh` already stamps it; this is the path
+# PUBLISH.md documents for a fleet bump, so it must stamp it too.
+update_version_const() {
+  local repo_root="$1"
+  local file="$repo_root/lib/src/version.dart"
+  local tmp="$file.tmp"
+  [ -f "$file" ] || return 0
+  grep -qE "^const version = '" "$file" || return 0
+  # tmp file + mv rather than `sed -i`: the BSD and GNU forms of `-i` are
+  # incompatible, and this is the same shape `ensure_changelog` above uses.
+  sed -E "s/^const version = '.*'/const version = '$VERSION'/" "$file" > "$tmp" \
+    && mv "$tmp" "$file"
+}
+
+check_version_const() {
+  local repo_root="$1"
+  local file="$repo_root/lib/src/version.dart"
+  local ok=0 ver
+  [ -f "$file" ] || return 0
+  ver=$(sed -n "s/^const version = '\([^']*\)'.*/\1/p" "$file" | head -1)
+  [ -n "$ver" ] || return 0
+  [ "$ver" == "$VERSION" ] || {
+    echo -e "  ${RED}version drift: lib/src/version.dart $ver != $VERSION${NC}"
+    ok=1
+  }
+  return $ok
+}
+
 # --- check mode ---------------------------------------------------------------
 
 check_pubspec() {
@@ -412,6 +448,7 @@ for repo in "${FLEET_REPOS[@]}"; do
       check_pubspec "$file" "$repo_root" || FAILURES=$((FAILURES+1))
     done < <(find_pkg_pubspecs "$repo_root")
     check_readme "$repo_root" || FAILURES=$((FAILURES+1))
+    check_version_const "$repo_root" || FAILURES=$((FAILURES+1))
     continue
   fi
 
@@ -460,6 +497,10 @@ for repo in "${FLEET_REPOS[@]}"; do
 
   ensure_changelog "$repo_root/CHANGELOG.md" "$CHANGELOG_MSG"
   ensure_publish_policy "$repo_root/PUBLISH.md"
+  # `lib/src/version.dart` is the running version every consumer's
+  # compatibility check reads (issue #2095) — stamp it with the pubspec so a
+  # fleet bump cannot ship the previous release's constant.
+  update_version_const "$repo_root"
 
   if [ "$DO_COMMIT" == "1" ] && [ -d "$repo_root/.git" ]; then
     ( cd "$repo_root"
