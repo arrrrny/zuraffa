@@ -16,7 +16,9 @@
 #   3. ensures `dependency_overrides: xml: 7.1.0` (fleet-wide xml policy),
 #   4. rewrites stale version constraints in README.md install guides
 #      (`zuraffa: ^old` and `<package>: ^old` install lines),
-#   5. prepends a CHANGELOG.md entry for the target version.
+#   5. prepends a CHANGELOG.md entry for the target version,
+#   6. strips `dependency_overrides:` path entries that resolve OUTSIDE the
+#      member repo (sibling checkouts are a dev-only surface — #2097).
 #
 # Per repo it also ensures PUBLISH.md documents the mono-version + README
 # install-guide policy, and (unless --no-commit) commits the result on the
@@ -127,6 +129,32 @@ find_pkg_pubspecs() {
   printf '%s\n' "${specs[@]:-}" | grep -v '^$' | sort -u
 }
 
+# find_example_pubspecs REPO_ROOT — the `example/` and `examples/*/` manifests
+# of every fleet package. dart >= 3.6 resolves an example as its OWN root, so
+# `fleet_pubspec_tool.py` writes the same fleet overrides into them; they are
+# deliberately absent from `find_pkg_pubspecs` (private dev surfaces, not
+# published members) but they are still committed, so anything written into
+# them has to be stripped too (issue #2097).
+find_example_pubspecs() {
+  local repo_root="$1" rel pkg_dir ex
+  while IFS= read -r rel; do
+    pkg_dir=$(dirname "$repo_root/$rel")
+    for ex in "$pkg_dir"/example/pubspec.yaml "$pkg_dir"/examples/*/pubspec.yaml; do
+      [ -f "$ex" ] || continue
+      printf '%s\n' "${ex#"$repo_root"/}"
+    done
+  done < <(find_pkg_pubspecs "$repo_root")
+}
+
+# find_fleet_pubspecs REPO_ROOT — every manifest the apply loop WRITES: the
+# fleet packages plus their example manifests. One walk, used by both the
+# strip and its before-commit verification, so the check cannot disagree with
+# the writes.
+find_fleet_pubspecs() {
+  find_pkg_pubspecs "$1"
+  find_example_pubspecs "$1"
+}
+
 pkg_name() { grep '^name:' "$1" | sed 's/name: *//' | tr -d '[:space:]'; }
 pkg_version() { grep '^version:' "$1" | sed 's/version: //' | tr -d '[:space:]'; }
 
@@ -198,6 +226,183 @@ version_const_decl() { # any line declaring the constant, whatever its shape
   grep -qE "^const (version|String version) *=" "$1"
 }
 
+# outside_overrides FILE REPO_ROOT strip|check — the one implementation of the
+# `dependency_overrides:` path pass (issue #2097), in two modes.
+#
+# `collect_siblings()` writes sibling checkouts in as `path:` overrides so a
+# not-yet-published fleet constraint resolves in dev mode, but those paths
+# exist only on a machine that HAS the sibling checkout — committed, they red
+# the member's first `flutter pub get` (`could not find package zuraffa at
+# "../zuraffa"`) and block every later PR.
+#
+#   strip — drop every `path:` override whose target resolves OUTSIDE
+#           REPO_ROOT. The fleet `xml:` policy line, other entries and in-repo
+#           path deps (a dev surface like `path: ./local/foo`) stay.
+#           Idempotent, and written through a temp file + rename so a crash
+#           mid-write cannot truncate the manifest.
+#   check — exit 1 and name every survivor (the `--check` drift gate).
+#
+# REPO_ROOT is the MEMBER REPO ROOT, not the manifest's own directory: a
+# relative path resolves against the manifest's directory, but the
+# containment boundary is the repo — otherwise a legitimate in-repo sibling
+# (`packages/adapter` -> `path: ../core`, an example's `path: ..`) is judged
+# outside and stripped.
+outside_overrides() {
+  local file="$1" repo_root="$2" mode="${3:-strip}"
+  [ -f "$file" ] || return 0
+  # This guard and the python HEADER regex below are the SAME pattern — they
+  # drifted once, and `dependency_overrides:  # note` then passed the grep
+  # while python no-oped on it in silence. `[[:space:]]` (not `[[:blank:]]`)
+  # keeps a CRLF manifest matching here too: python normalizes CRLF before it
+  # matches, so the guard must not be the one that rejects the line.
+  grep -qE '^dependency_overrides:[[:space:]]*(#.*)?$' "$file" || return 0
+  python3 - "$file" "$repo_root" "$mode" <<'PY'
+import os, re, sys, tempfile
+
+path, mode = sys.argv[1], sys.argv[3]
+root = os.path.abspath(sys.argv[2])
+
+text = open(path, 'rb').read().decode('utf-8')
+# Remember the line endings: a bare read/write round-trip rewrote a CRLF
+# manifest as LF.
+crlf = '\r\n' in text and text.count('\r\n') == text.count('\n')
+text = text.replace('\r\n', '\n')
+lines = text.split('\n')
+if lines and lines[-1] == '':
+    lines.pop()
+
+HEADER = re.compile(r'^dependency_overrides:\s*(?:#.*)?$')
+start = next((i for i, l in enumerate(lines) if HEADER.match(l)), None)
+if start is None:
+    raise SystemExit(0)
+end = len(lines)
+for i in range(start + 1, len(lines)):
+    if lines[i] and not lines[i].startswith((' ', '\t', '#')):
+        end = i
+        break
+
+def indent(line):
+    return len(line) - len(line.lstrip(' '))
+
+def scalar(value):
+    """A YAML scalar's value — surrounding quotes decoded, comment dropped."""
+    value = value.strip()
+    if not value:
+        return None
+    if value[0] in '"\'':
+        quote, out, i = value[0], [], 1
+        while i < len(value):
+            c = value[i]
+            if c == '\\' and quote == '"' and i + 1 < len(value):
+                out.append(value[i + 1]); i += 2; continue
+            if c == quote:
+                if quote == "'" and value[i + 1:i + 2] == "'":
+                    out.append("'"); i += 2; continue
+                break
+            out.append(c); i += 1
+        return ''.join(out)
+    return value.split(' #')[0].strip()
+
+KEY = re.compile(r'^([ \t]+)([\w][\w-]*):(.*)$')
+PATH = re.compile(r'^[ \t]+path:[ \t]*(.+?)[ \t]*$')
+
+# The section's child indent — the indent of its first real content. Only
+# lines at THIS indent are override keys, so a nested `git:` block's own
+# `path:` is never read as the override's target.
+content = [l for l in lines[start + 1:end]
+           if l.strip() and not l.lstrip().startswith('#')]
+child = min((indent(l) for l in content), default=None)
+
+drop = []      # [first, last) line ranges to delete
+outside = []   # (key, value) whose target escapes the repo
+i = start + 1
+while child is not None and i < end:
+    km = KEY.match(lines[i])
+    if not km or indent(lines[i]) != child:
+        i += 1
+        continue
+    j = i + 1
+    while j < end and (not lines[j].strip() or indent(lines[j]) > child):
+        j += 1
+    body = lines[i + 1:j]
+    direct = [l for l in body if l.strip() and not l.lstrip().startswith('#')]
+    nested = min((indent(l) for l in direct), default=None)
+    target = None
+    if nested is not None:
+        for l in body:
+            pm = PATH.match(l)
+            if pm and indent(l) == nested:
+                target = scalar(pm.group(1))
+                break
+    if target:
+        base = os.path.dirname(os.path.abspath(path))
+        resolved = os.path.normpath(os.path.join(base, target))
+        if resolved != root and not resolved.startswith(root + os.sep):
+            outside.append((km.group(2), target))
+            drop.append((i, j))
+    i = j
+
+def rel(p):
+    try:
+        return os.path.relpath(p, root)
+    except ValueError:
+        return p
+
+if mode == 'check':
+    for key, value in outside:
+        print('%s: dependency_overrides %s -> path: %s (resolves outside %s)'
+              % (rel(path), key, value, root))
+    raise SystemExit(1 if outside else 0)
+
+if not outside:
+    raise SystemExit(0)
+
+kept = [n for n, l in enumerate(lines[start + 1:end], start + 1)
+        if l.strip() and not l.lstrip().startswith('#')
+        and not any(a <= n < b for a, b in drop)]
+out = lines[:]
+if kept:
+    for a, b in reversed(drop):
+        del out[a:b]
+else:
+    # Nothing but the dropped entries was left — the header and the blank
+    # lines around it go with them.
+    del out[start:end]
+text = '\n'.join(out)
+if text:
+    text += '\n'
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or '.',
+                           prefix='.pubspec-', suffix='.tmp')
+try:
+    with os.fdopen(fd, 'w', newline='') as f:
+        f.write(text.replace('\n', '\r\n' if crlf else '\n'))
+    os.replace(tmp, path)
+except BaseException:
+    os.unlink(tmp)
+    raise
+for key, value in outside:
+    print('  stripped path override %s -> %s' % (key, value))
+PY
+}
+
+strip_outside_overrides() { # FILE [REPO_ROOT] — REPO_ROOT is the containment
+  # boundary; it defaults to the manifest's own directory, so a caller that
+  # has only a file still gets the old behaviour. The apply loop always
+  # passes the member repo root, which is what issue #2097 needs.
+  outside_overrides "$1" "${2:-$(dirname "$1")}" strip
+}
+
+check_outside_overrides() { # FILE REPO_ROOT — a member still carrying an
+  # out-of-repo path override is drift: it resolves only where the sibling
+  # checkout exists, so `--check` must report it (it used to be blind).
+  local out
+  if out=$(outside_overrides "$1" "$2" check); then
+    return 0
+  fi
+  [ -n "$out" ] && printf '%s\n' "$out"
+  return 1
+}
+
 version_const_value() { # the declared value, either quote style
   sed -n "s/^const version = [\"']\([^\"']*\)[\"'].*/\1/p" "$1" | head -1 || true
 }
@@ -260,6 +465,13 @@ check_pubspec() {
   if grep -qE "^[[:space:]]*zuraffa:[[:space:]]*\^?[0-9]+\.[0-9]+\.[0-9]+" "$file"; then
     grep -qE "^[[:space:]]*zuraffa:[[:space:]]*\^$VERSION([[:space:]]|$)" "$file" || { echo -e "  ${RED}zuraffa constraint drift in $name${NC}"; ok=1; }
   fi
+  # An out-of-repo path override resolves only where the sibling checkout
+  # exists — committed, the member's first `flutter pub get` reds (#2097).
+  # This is checked BEFORE the workspace-member return: a member must not
+  # carry its own overrides at all, but if one does, a sibling path in it is
+  # still drift. Check mode used to be blind here — it `continue`d before
+  # the strip and `check_pubspec` only asserted the `xml:` line.
+  check_outside_overrides "$file" "$repo_root" || ok=1
   # xml override presence — workspace MEMBERS are exempt: a pub workspace
   # shares one resolution governed by the root, and pub rejects a member
   # that overrides the same package its root overrides.
@@ -483,6 +695,12 @@ for repo in "${FLEET_REPOS[@]}"; do
       file="$repo_root/$rel"
       check_pubspec "$file" "$repo_root" || FAILURES=$((FAILURES+1))
     done < <(find_pkg_pubspecs "$repo_root")
+    # example/ and examples/*/ manifests are written by the same tool run
+    # (dart >= 3.6 resolves them as their own root) but `find_pkg_pubspecs`
+    # excludes them, so the member loop above never reports their drift.
+    while IFS= read -r rel; do
+      check_outside_overrides "$repo_root/$rel" "$repo_root" || FAILURES=$((FAILURES+1))
+    done < <(find_example_pubspecs "$repo_root")
     check_readme "$repo_root" || FAILURES=$((FAILURES+1))
     check_version_const "$repo_root" || FAILURES=$((FAILURES+1))
     continue
@@ -531,11 +749,30 @@ for repo in "${FLEET_REPOS[@]}"; do
     done
   done < <(find_pkg_pubspecs "$repo_root")
 
+  # Sibling `path:` overrides resolve only where the sibling checkout exists
+  # — strip them from every manifest this pass wrote (fleet packages AND
+  # their example/examples apps) before anything is committed, or the
+  # member's first `flutter pub get` reds and blocks every later PR
+  # (issue #2097). The xml policy override and in-repo path deps stay.
+  while IFS= read -r rel; do
+    strip_outside_overrides "$repo_root/$rel" "$repo_root" || {
+      echo -e "${RED}  could not strip out-of-repo overrides from $rel${NC}" >&2
+      FAILURES=$((FAILURES+1)); repo_failed=1; continue
+    }
+    # Verify, do not trust: a survivor IS the bug the strip exists to
+    # prevent, so it fails the repo instead of riding into the commit. The
+    # old single call could not do this — it handed a DIRECTORY to a
+    # file-only helper, whose grep/python failure it never checked.
+    check_outside_overrides "$repo_root/$rel" "$repo_root" || repo_failed=1
+  done < <(find_fleet_pubspecs "$repo_root")
+
   if [ "$repo_failed" == "1" ]; then
     # Leave this repo exactly as the failure left it: no version stamp, no
     # changelog, no commit. The alternative is a release whose core constant
     # says the new version while the manifest still declares the old one —
-    # the drift #2095 was about, pointed the other way.
+    # the drift #2095 was about, pointed the other way. An override that
+    # survived the strip is the same class of failure: the manifest would
+    # carry the sibling path into the commit (issue #2097).
     echo -e "${RED}  manifest update failed — skipping version stamp and commit for $repo${NC}"
     continue
   fi
