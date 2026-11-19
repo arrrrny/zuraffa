@@ -38,6 +38,7 @@ void main() {
     late _RecordingReporter reporter;
 
     setUp(() async {
+      UncaughtErrorFunnel.resetForTest();
       logListener = _RecordingLogListener()..start();
       reporter = _RecordingReporter();
       await FailureReporterRegistry.instance.reset();
@@ -45,6 +46,7 @@ void main() {
     });
 
     tearDown(() async {
+      UncaughtErrorFunnel.resetForTest();
       await logListener.stop();
       await FailureReporterRegistry.instance.reset();
     });
@@ -174,35 +176,62 @@ void main() {
       () async {
         UncaughtErrorFunnel.installUncaughtErrorHandlers();
 
+        final before = logListener.records.length;
+
+        // Cross-isolate delivery has no fixed latency, so wait on the record
+        // instead of sleeping: a hard-coded 200 ms window kills the child
+        // before its error arrives on a loaded host, and the test then fails
+        // a routing that works. Register the wait BEFORE spawning.
+        final routed = Completer<void>();
+        final subscription = Logger.root.onRecord.listen((record) {
+          if (!routed.isCompleted &&
+              record.level == Level.SEVERE &&
+              record.error.toString().contains('isolate boom')) {
+            routed.complete();
+          }
+        });
+
         // Spawn an isolate that throws; route its uncaught error to the funnel.
         final isolate = await Isolate.spawn<Object>(
-          (message) => throw StateError('isolate boom'),
+          _throwInIsolate,
           'unused',
           onError: UncaughtErrorFunnel.isolateErrorPort,
           errorsAreFatal: false,
         );
 
-        // The funnel listens on the isolate error port and forwards to
-        // captureUncaught; observe via a one-shot log listener snapshot.
-        final before = logListener.records.length;
-        await Future<void>.delayed(const Duration(milliseconds: 200));
-
-        isolate.kill(priority: Isolate.immediate);
+        try {
+          await routed.future.timeout(const Duration(seconds: 10));
+        } finally {
+          await subscription.cancel();
+          isolate.kill(priority: Isolate.immediate);
+        }
 
         // The funnel logged the isolate error at SEVERE. A non-sendable error
         // (StateError) crosses the isolate boundary as its toString(), so the
-        // record carries the message text rather than the error object.
+        // record carries the message text rather than the error object — and
+        // the stack trace crosses as a String, which the funnel decodes back
+        // into the ISOLATE's throw site instead of this listener's stack.
         final newRecords = logListener.records.skip(before);
+        final record = newRecords.firstWhere(
+          (r) =>
+              r.level == Level.SEVERE &&
+              r.error.toString().contains('isolate boom'),
+          orElse: () =>
+              throw StateError('no isolate record reached the funnel'),
+        );
+        expect(record.stackTrace, isNotNull);
         expect(
-          newRecords.any(
-            (r) =>
-                r.level == Level.SEVERE &&
-                r.error.toString().contains('isolate boom'),
-          ),
-          isTrue,
-          reason: 'isolate uncaught error should reach the funnel',
+          record.stackTrace.toString(),
+          contains('_throwInIsolate'),
+          reason: "the isolate's own throw site must survive the boundary",
         );
       },
     );
   });
+}
+
+/// The spawned isolate's entry point: throws, and names this function in the
+/// stack trace the isolate `onError` port delivers.
+void _throwInIsolate(Object? message) {
+  throw StateError('isolate boom');
 }

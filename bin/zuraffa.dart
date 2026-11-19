@@ -12,5 +12,14 @@ void main(List<String> arguments) {
   // logged at SEVERE on Logger.root (and optionally reported as a failure
   // span) instead of vanishing into the console. This is the core CLI's
   // demonstration of the family-wide `runGuarded` surface.
-  Zuraffa.runGuarded(() => cli.run(arguments));
+  //
+  // `onError` replaces the funnel's log-only default with the CLI's own exit
+  // contract: the error still goes through the funnel, but it also reaches
+  // stderr and sets the process exit code, so a failure before command
+  // dispatch can never exit 0 silently. Only errors escaping `cli.run` get
+  // here — the runner exits on every error it handles itself.
+  Zuraffa.runGuarded(
+    () => cli.run(arguments),
+    onError: cli.reportUncaughtCliError,
+  );
 }

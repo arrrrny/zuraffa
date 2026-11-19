@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:isolate';
 
 import 'package:logging/logging.dart';
+import 'package:meta/meta.dart';
 
 import 'failure.dart';
 import 'failure_reporter_registry.dart';
@@ -24,8 +25,6 @@ import 'failure_reporter_registry.dart';
 /// platform-specific handlers into it.
 class UncaughtErrorFunnel {
   UncaughtErrorFunnel._();
-
-  static final Logger _logger = Logger('Zuraffa');
 
   /// Whether the Dart-level handlers were installed by
   /// [installUncaughtErrorHandlers]. The install is idempotent.
@@ -56,7 +55,12 @@ class UncaughtErrorFunnel {
     String? context,
     bool reportAsFailure = true,
   }) {
-    _logger.severe(context ?? 'Uncaught error', error, stackTrace);
+    // `Logger.root`, never a named child: a child logger's own level is
+    // applied BEFORE the record reaches the root handlers, so
+    // `Logger('Zuraffa').level = Level.OFF` would swallow the uncaught-error
+    // record even while root logging is fully enabled. An uncaught error is
+    // the one record no logger configuration may suppress.
+    Logger.root.severe(context ?? 'Uncaught error', error, stackTrace);
 
     if (reportAsFailure && _reportUncaughtAsFailure) {
       FailureReporterRegistry.instance.reportFailure(
@@ -66,13 +70,19 @@ class UncaughtErrorFunnel {
     }
   }
 
-  /// A [ReceivePort] kept alive for the isolate error port.
+  /// The isolate error port, opened on first use.
   ///
   /// `Isolate.spawn(..., onError: port)` requires the *spawning* isolate to
   /// listen on this port; a spawned isolate's uncaught errors arrive here.
-  static final ReceivePort _isolateErrorPort = ReceivePort();
+  /// It is nullable rather than `final` because [closeUncaughtErrorHandlers]
+  /// closes it — an open [ReceivePort] keeps its isolate alive — and the next
+  /// install opens a fresh one.
+  static ReceivePort? _isolateErrorPort;
 
-  static StreamSubscription<Object?>? _isolateErrorSubscription;
+  static StreamSubscription<dynamic>? _isolateErrorSubscription;
+
+  static ReceivePort get _isolateErrorPortOrOpen =>
+      _isolateErrorPort ??= ReceivePort();
 
   /// Install the Dart-level uncaught-error handlers. Idempotent: a second
   /// call updates the failure-reporting preference and returns without
@@ -91,28 +101,77 @@ class UncaughtErrorFunnel {
     if (_installed) return;
     _installed = true;
 
-    _isolateErrorSubscription ??= _isolateErrorPort.listen((message) {
+    _isolateErrorSubscription ??= _isolateErrorPortOrOpen.listen((
+      Object? message,
+    ) {
       // An isolate `onError` port delivers a two-element list
       // `[error, stackTrace]`. A value that cannot cross an isolate boundary
       // (any non-sendable object, e.g. a StateError) arrives as its
       // `toString()`, so the error is taken as an Object and the stack trace
-      // is used only when it is one.
+      // is decoded from whatever crossed the boundary.
       if (message is List && message.length == 2) {
-        final rawStackTrace = message[1];
         captureUncaught(
           message[0],
-          rawStackTrace is StackTrace ? rawStackTrace : StackTrace.current,
+          _decodeIsolateStackTrace(message[1]),
           context: 'Uncaught error in isolate',
         );
       }
     });
   }
 
+  /// Removes the Dart-level uncaught-error handlers installed by
+  /// [installUncaughtErrorHandlers].
+  ///
+  /// Closes the isolate error port and cancels its listener, then clears
+  /// [isInstalled] so a later [installUncaughtErrorHandlers] opens a fresh
+  /// port. This is the shutdown a short-lived program needs: an open
+  /// [ReceivePort] counts as live work, so without it a program that installs
+  /// the handlers never exits once its own work is done.
+  ///
+  /// Closing the port is final for any isolate that already holds
+  /// [isolateErrorPort] — its errors no longer reach the funnel, so this is a
+  /// shutdown, not a pause.
+  static void closeUncaughtErrorHandlers() {
+    _isolateErrorSubscription?.cancel();
+    _isolateErrorSubscription = null;
+    _isolateErrorPort?.close();
+    _isolateErrorPort = null;
+    _installed = false;
+  }
+
   /// The error port a spawned isolate should use as its `onError`.
   ///
   /// Pass it to `Isolate.spawn(..., onError: UncaughtErrorFunnel.isolateErrorPort)`
   /// so the spawned isolate's uncaught errors reach [captureUncaught].
-  static SendPort get isolateErrorPort => _isolateErrorPort.sendPort;
+  static SendPort get isolateErrorPort => _isolateErrorPortOrOpen.sendPort;
+
+  /// Restores the funnel's process-global state for a test.
+  ///
+  /// The funnel is a process-wide singleton by design, which is exactly what
+  /// makes it order-dependent in a suite: without this seam the test that
+  /// installs the handlers decides what every later test sees, and the suite
+  /// only passes in declaration order. Tests call it from `setUp` and
+  /// `tearDown`; production code has no reason to.
+  @visibleForTesting
+  static void resetForTest() {
+    closeUncaughtErrorHandlers();
+    _reportUncaughtAsFailure = true;
+  }
+
+  /// Decodes the stack trace an isolate `onError` port delivered.
+  ///
+  /// Every current SDK sends it as a [String] (Dart 3.11 delivers
+  /// `[error, stack]` with *both* elements strings), so a plain
+  /// `rawStackTrace is StackTrace` test silently throws the isolate's real
+  /// throw site away and logs this listener's own stack instead. A value that
+  /// is already a [StackTrace] passes through, and an absent one falls back
+  /// to [StackTrace.current].
+  static StackTrace _decodeIsolateStackTrace(Object? rawStackTrace) =>
+      switch (rawStackTrace) {
+        final StackTrace stackTrace => stackTrace,
+        final String text => StackTrace.fromString(text),
+        _ => StackTrace.current,
+      };
 
   /// The guarded boot every Zuraffa-family app should use.
   ///

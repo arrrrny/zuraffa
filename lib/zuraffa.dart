@@ -225,7 +225,8 @@ export 'src/core/failure_hooks.dart'
     show FailureHook, FailureHookManager, FailureContext;
 
 /// Uncaught-error funnel — the family-wide capture contract
-/// ([captureUncaught], [installUncaughtErrorHandlers], [runGuarded]).
+/// ([captureUncaught], [installUncaughtErrorHandlers],
+/// [closeUncaughtErrorHandlers], [runGuarded]).
 export 'src/core/uncaught_error_funnel.dart';
 
 /// Lightweight S3-compatible MinIO client with AWS Signature V4.
@@ -931,6 +932,15 @@ class Zuraffa {
     UncaughtErrorFunnel.installUncaughtErrorHandlers(
       reportAsFailure: reportAsFailure,
     );
+  }
+
+  /// Remove the Dart-level uncaught-error handlers again.
+  ///
+  /// Closes the isolate error port and cancels its listener, so a
+  /// short-lived process that installed the handlers can exit once its own
+  /// work is done. A later [installUncaughtErrorHandlers] opens a fresh port.
+  static void closeUncaughtErrorHandlers() {
+    UncaughtErrorFunnel.closeUncaughtErrorHandlers();
   }
 
   /// The guarded boot every Zuraffa-family app should use.
