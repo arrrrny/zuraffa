@@ -19,12 +19,27 @@ import 'package:test/test.dart';
 
 /// The heavyweight packages the issue names (the `...` is scoped to these
 /// three stacks for this feature — see spec.md Assumptions).
-const heavyPackages = {'graphql', 'gql', 'minio', 'opentelemetry'};
+///
+/// Issue #2104: the fleet OTel base migrated from `opentelemetry_wk` to
+/// `dartastic_opentelemetry` (zuraffa_observability#4), so the pin guards
+/// BOTH the legacy `opentelemetry` name and the dartastic pair — a
+/// regression that reintroduces an OTel SDK under the new name must fail
+/// the suite just as the old name does.
+const heavyPackages = {
+  'graphql',
+  'gql',
+  'minio',
+  'opentelemetry',
+  'dartastic_opentelemetry',
+  'dartastic_opentelemetry_api',
+};
 
 /// Barrel export paths (and the otel re-export) that must not appear in
 /// `lib/zuraffa.dart` after the split — the moved heavy surfaces.
 const heavyBarrelMarkers = [
   "export 'package:opentelemetry/",
+  "export 'package:dartastic_opentelemetry/",
+  "export 'package:dartastic_opentelemetry_api/",
   'core/minio_client.dart',
   'core/telemetry_hook.dart',
   'core/otel_tracer.dart',
