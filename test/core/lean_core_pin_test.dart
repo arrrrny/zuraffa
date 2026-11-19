@@ -16,15 +16,34 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 /// The heavyweight packages the issue names (the `...` is scoped to these
 /// three stacks for this feature — see spec.md Assumptions).
-const heavyPackages = {'graphql', 'gql', 'minio', 'opentelemetry'};
+///
+/// Issue #2104: the fleet OTel base migrated from `opentelemetry_wk` to
+/// `dartastic_opentelemetry` (zuraffa_observability#4), so the pin guards
+/// BOTH the legacy `opentelemetry` name and the dartastic pair — a
+/// regression that reintroduces an OTel SDK under the new name must fail
+/// the suite just as the old name does.
+const heavyPackages = {
+  'graphql',
+  'gql',
+  'minio',
+  'opentelemetry',
+  'dartastic_opentelemetry',
+  'dartastic_opentelemetry_api',
+};
 
 /// Barrel export paths (and the otel re-export) that must not appear in
 /// `lib/zuraffa.dart` after the split — the moved heavy surfaces.
 const heavyBarrelMarkers = [
   "export 'package:opentelemetry/",
+  'export "package:opentelemetry/',
+  "export 'package:dartastic_opentelemetry/",
+  'export "package:dartastic_opentelemetry/',
+  "export 'package:dartastic_opentelemetry_api/",
+  'export "package:dartastic_opentelemetry_api/',
   'core/minio_client.dart',
   'core/telemetry_hook.dart',
   'core/otel_tracer.dart',
@@ -60,18 +79,18 @@ void main() {
   group('U1: the core manifest declares no heavy packages (FR-001..003)', () {
     for (final pkg in heavyPackages) {
       test('dependencies: does not contain $pkg', () {
-        // The `dependencies:` block ends at the next top-level key
-        // (`dev_dependencies:`, `executables:`, ...).
-        final depsBlock =
-            RegExp(
-              r'^dependencies:.*?(?=^\w)',
-              multiLine: true,
-              dotAll: true,
-            ).firstMatch(pubspec)?.group(0) ??
-            '';
+        // Parse the dependency map and inspect its keys, so both quoted
+        // (`'foo': ^1.0.0`) and unquoted (`foo: ^1.0.0`) declarations are
+        // detected — a bare-string `^  $pkg:` regex only matched the
+        // unquoted form and let a quoted key slip past U1.
+        final doc = loadYaml(pubspec);
+        final deps = doc is YamlMap ? doc['dependencies'] : null;
+        final keys = deps is YamlMap
+            ? deps.keys.map((k) => k.toString()).toSet()
+            : <String>{};
         expect(
-          depsBlock,
-          isNot(contains(RegExp('^  $pkg:', multiLine: true))),
+          keys.contains(pkg),
+          isFalse,
           reason:
               'issue #1661: $pkg is a heavyweight optional integration — '
               'it belongs to its companion package under packages/, not '
@@ -91,7 +110,8 @@ void main() {
         if (entity is! File || !entity.path.endsWith('.dart')) continue;
         final content = entity.readAsStringSync();
         for (final pkg in heavyPackages) {
-          if (content.contains("import 'package:$pkg/")) {
+          if (content.contains("import 'package:$pkg/") ||
+              content.contains('import "package:$pkg/')) {
             offenders.add(
               '${p.relative(entity.path, from: root)} '
               '(package:$pkg)',
