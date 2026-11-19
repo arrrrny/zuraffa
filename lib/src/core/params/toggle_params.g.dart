@@ -26,7 +26,7 @@ Map<String, dynamic> _$ToggleParamsToJson<I, F>(
   Object? Function(F value) toJsonF,
 ) => <String, dynamic>{
   'params': ?instance.params,
-  'id': toJsonI(instance.id),
-  'field': toJsonF(instance.field),
+  'id': ?toJsonI(instance.id),
+  'field': ?toJsonF(instance.field),
   'value': ?instance.value,
 };

@@ -22,5 +22,5 @@ Map<String, dynamic> _$CreateParamsToJson<T>(
   Object? Function(T value) toJsonT,
 ) => <String, dynamic>{
   'params': ?instance.params,
-  'data': toJsonT(instance.data),
+  'data': ?toJsonT(instance.data),
 };

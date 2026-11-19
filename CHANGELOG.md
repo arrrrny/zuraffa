@@ -1,3 +1,7 @@
+## 7.6.0 - 2026-11-19
+
+Fleet release 7.6.0: zuraffa_observability moves its OTel base to dartastic_opentelemetry with a sealed test-capture seam + facade re-exports (issue #4); zuraffa_vendure + zuraffa_graphql adopt graphql_plus ^5.3.0; fleet-wide zorphy/zorphy_annotation raised to ^2.5.1 with all entities regenerated from scratch.
+
 ## 7.5.1 - 2026-11-19
 
 Release 7.5.1: publishes the uncaught-error capture contract — `Zuraffa.runGuarded`,
