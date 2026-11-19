@@ -165,10 +165,10 @@ packages:
     dependency: transitive
     description:
       name: coverage
-      sha256: ff89e37c19355194e279d26dafe8e4bece46c9ea63a30be4dc68214f5bc290d3
+      sha256: "0a864527020e20835094b04b6ca1f9e50c7defedb74892aed72e67323e5072b7"
       url: "https://pub.dev"
     source: hosted
-    version: "1.16.0"
+    version: "1.16.1"
   crypto:
     dependency: "direct main"
     description:
@@ -661,17 +661,17 @@ packages:
     dependency: "direct main"
     description:
       name: zorphy
-      sha256: "29a3e10383b40286cedd8a4a82342f032c19d0993fa0e3518911d823e04b86fe"
+      sha256: "1de3173da743934b51992dc9388ed4d05e0f373211faadbc0c728ac58b7bb0dc"
       url: "https://pub.dev"
     source: hosted
-    version: "2.4.6"
+    version: "2.5.0"
   zorphy_annotation:
     dependency: "direct main"
     description:
       name: zorphy_annotation
-      sha256: "402d08a0f9a02de6a832bc6ac714b9f85c5b4e10a889e6d159644cd8faa11b35"
+      sha256: "8b1a1d3d4125d877563ddcbdca3f326184a0b4396452dbd58b8a9bff72c2691b"
       url: "https://pub.dev"
     source: hosted
-    version: "2.4.6"
+    version: "2.5.0"
 sdks:
   dart: ">=3.13.0 <4.0.0"
