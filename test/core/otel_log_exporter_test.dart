@@ -192,5 +192,181 @@ void main() {
       // A single send attempt was made before the failure was swallowed.
       expect(recordingClient.sent, hasLength(1));
     });
+
+    test('requeues the batch and emits one bounded recovery record on next '
+        'successful flush', () async {
+      final bodies = <http.Request>[];
+      final client = _ScriptedClient(bodies);
+
+      exporter = OtelLogExporter(
+        collectorBaseEndpoint: Uri.parse('http://localhost:4318/v1/traces'),
+        serviceName: 'test_service',
+        remoteLogLevel: ZuraffaLogLevel.all,
+        httpClient: client,
+      );
+
+      exporter.start();
+      Logger.root.warning('lost during outage');
+
+      // First flush fails; the batch must be requeued, not dropped.
+      await exporter.flush();
+      expect(exporter.pendingCount, 1);
+
+      // Collector recovers: the requeued batch ships, then the recovery record.
+      client.fail = false;
+      await exporter.flush();
+
+      // The recovery record itself ships on the next flush.
+      await exporter.flush();
+      expect(exporter.pendingCount, 0);
+      final shipped = bodies.map((r) => jsonDecode(r.body) as Map).toList();
+      final records = shipped
+          .expand(
+            (p) =>
+                ((p['resourceLogs'][0]['scopeLogs'][0])['logRecords'] as List),
+          )
+          .toList();
+      final recovery = records.where(
+        (r) =>
+            r['attributes'].length == 1 &&
+            r['attributes'][0]['key'] == 'logger.name' &&
+            r['attributes'][0]['value']['stringValue'] ==
+                'OtelLogExporterHealth',
+      );
+      expect(recovery, hasLength(1));
+      final message = recovery.single['body']['stringValue'] as String;
+      expect(message, contains('recovered after 1 failed flush'));
+      expect(message, contains('0 records dropped'));
+    });
+
+    test('drops oldest records and counts them when pending exceeds '
+        'maxPendingRecords', () async {
+      recordingClient.failWith = Exception('Network error');
+
+      exporter = OtelLogExporter(
+        collectorBaseEndpoint: Uri.parse('http://localhost:4318/v1/traces'),
+        serviceName: 'test_service',
+        remoteLogLevel: ZuraffaLogLevel.all,
+        maxPendingRecords: 3,
+        httpClient: recordingClient,
+      );
+
+      exporter.start();
+      Logger.root.warning('one');
+      Logger.root.warning('two');
+      Logger.root.warning('three');
+      Logger.root.warning('four');
+      Logger.root.warning('five');
+
+      // Only the newest three survive; the oldest two are dropped and counted.
+      expect(exporter.pendingCount, 3);
+      expect(exporter.droppedCount, 2);
+    });
+
+    test('recovery summary reports the actual dropped total across the '
+        'whole outage window', () async {
+      final bodies = <http.Request>[];
+      final client = _ScriptedClient(bodies);
+
+      exporter = OtelLogExporter(
+        collectorBaseEndpoint: Uri.parse('http://localhost:4318/v1/traces'),
+        serviceName: 'test_service',
+        remoteLogLevel: ZuraffaLogLevel.warning,
+        maxPendingRecords: 2,
+        httpClient: client,
+      );
+
+      exporter.start();
+
+      // An outage that overflows the queue several times, so the dropped
+      // total exceeds the retained window.
+      for (var i = 0; i < 5; i++) {
+        Logger.root.warning('record $i');
+      }
+      await exporter.flush();
+      expect(exporter.pendingCount, 2);
+      final droppedSoFar = exporter.droppedCount;
+      expect(droppedSoFar, greaterThanOrEqualTo(3));
+
+      client.fail = false;
+      await exporter.flush();
+      await exporter.flush();
+
+      final shipped = bodies.map((r) => jsonDecode(r.body) as Map).toList();
+      final records = shipped
+          .expand(
+            (p) =>
+                ((p['resourceLogs'][0]['scopeLogs'][0])['logRecords'] as List),
+          )
+          .toList();
+      final message =
+          records.firstWhere(
+                (r) =>
+                    r['attributes'].length == 1 &&
+                    r['attributes'][0]['key'] == 'logger.name' &&
+                    r['attributes'][0]['value']['stringValue'] ==
+                        'OtelLogExporterHealth',
+              )['body']['stringValue']
+              as String;
+
+      expect(message, contains('recovered after 1 failed flush'));
+      expect(message, contains('$droppedSoFar records dropped'));
+    });
+
+    test('flush timer backs off during consecutive failures and recovers '
+        'after success', () async {
+      final bodies = <http.Request>[];
+      final client = _ScriptedClient(bodies);
+
+      exporter = OtelLogExporter(
+        collectorBaseEndpoint: Uri.parse('http://localhost:4318/v1/traces'),
+        serviceName: 'test_service',
+        remoteLogLevel: ZuraffaLogLevel.warning,
+        flushInterval: const Duration(milliseconds: 30),
+        maxBackoffInterval: const Duration(milliseconds: 120),
+        httpClient: client,
+      );
+
+      exporter.start();
+      Logger.root.warning('queued during outage');
+
+      // Two consecutive failed flushes drive the timer toward the cap.
+      await exporter.flush();
+      await exporter.flush();
+      final backoffWhileFailing = exporter.currentFlushInterval;
+      expect(
+        backoffWhileFailing,
+        greaterThan(const Duration(milliseconds: 30)),
+      );
+      expect(
+        backoffWhileFailing,
+        lessThanOrEqualTo(const Duration(milliseconds: 120)),
+      );
+
+      // Success returns the timer to its base interval.
+      client.fail = false;
+      await exporter.flush();
+      expect(exporter.currentFlushInterval, const Duration(milliseconds: 30));
+    });
   });
+}
+
+class _ScriptedClient extends http.BaseClient {
+  _ScriptedClient(this._requests);
+
+  /// Records every request handed to [send]; [fail] makes [send] throw.
+  final List<http.Request> _requests;
+  bool fail = true;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    _requests.add(request as http.Request);
+    if (fail) {
+      throw Exception('Network error');
+    }
+    return http.StreamedResponse(Stream.value(<int>[]), 200);
+  }
+
+  @override
+  void close() {}
 }
