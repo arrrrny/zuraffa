@@ -1,5 +1,7 @@
 library;
 
+import 'dart:async';
+
 import 'src/core/failure_hooks.dart';
 import 'src/core/failure_reporter.dart';
 import 'src/core/failure_reporter_registry.dart';
@@ -7,6 +9,7 @@ import 'src/core/hook.dart';
 import 'src/core/hook_registry.dart';
 import 'src/core/otel_log_exporter.dart';
 import 'src/core/retry_policy.dart';
+import 'src/core/uncaught_error_funnel.dart';
 import 'src/core/zuraffa_bridge_facade.dart';
 import 'src/core/module/contracts.dart';
 
@@ -220,6 +223,10 @@ export 'src/core/hook_registry.dart' show HookRegistry;
 /// Failure hooks — backward-compatible layer delegating to ArtifactPublisher.
 export 'src/core/failure_hooks.dart'
     show FailureHook, FailureHookManager, FailureContext;
+
+/// Uncaught-error funnel — the family-wide capture contract
+/// ([captureUncaught], [installUncaughtErrorHandlers], [runGuarded]).
+export 'src/core/uncaught_error_funnel.dart';
 
 /// Lightweight S3-compatible MinIO client with AWS Signature V4.
 
@@ -878,6 +885,70 @@ class Zuraffa {
   /// Disable logging.
   static void disableLogging() {
     Logger.root.level = toLevel(ZuraffaLogLevel.off);
+  }
+
+  // ============================================================
+  // Uncaught-error funnel (family-wide capture contract)
+  // ============================================================
+
+  /// The central uncaught-error funnel.
+  ///
+  /// Logs [error] at `SEVERE` on `Logger.root` with [context] (default
+  /// `'Uncaught error'`) and [stackTrace], then — when [reportAsFailure] is
+  /// true and a failure reporter is registered — enqueues a failure span via
+  /// [FailureReporterRegistry].
+  ///
+  /// Every family surface (Flutter's `FlutterError.onError`,
+  /// `PlatformDispatcher.instance.onError`, isolate error ports, guarded
+  /// zones) routes into this one method. `OtelLogExporter` already subscribes
+  /// to `Logger.root.onRecord` at WARNING+ and ships `exception.type` /
+  /// `exception.message` / `exception.stacktrace` attributes, so core needs
+  /// no exporter knowledge of its own.
+  static void captureUncaught(
+    Object error,
+    StackTrace stackTrace, {
+    String? context,
+    bool reportAsFailure = true,
+  }) {
+    UncaughtErrorFunnel.captureUncaught(
+      error,
+      stackTrace,
+      context: context,
+      reportAsFailure: reportAsFailure,
+    );
+  }
+
+  /// Install the Dart-level uncaught-error handlers. Idempotent.
+  ///
+  /// Starts listening on the isolate error port, so uncaught errors from any
+  /// isolate spawned with
+  /// `onError: UncaughtErrorFunnel.isolateErrorPort` reach [captureUncaught].
+  /// The current isolate's zone side is [runGuarded], the guarded boot.
+  ///
+  /// [reportAsFailure] (default `true`) controls whether an uncaught error
+  /// also produces a failure-span report via [FailureReporterRegistry].
+  static void installUncaughtErrorHandlers({bool reportAsFailure = true}) {
+    UncaughtErrorFunnel.installUncaughtErrorHandlers(
+      reportAsFailure: reportAsFailure,
+    );
+  }
+
+  /// The guarded boot every Zuraffa-family app should use.
+  ///
+  /// Runs [body] inside a `runZonedGuarded` zone whose `onError` defaults to
+  /// [captureUncaught]. This is the pure-Dart half of the boot; the
+  /// `zuraffa_flutter` companion wires `FlutterError.onError` and
+  /// `PlatformDispatcher.instance.onError` into the same funnel.
+  static void runGuarded(
+    FutureOr<void> Function() body, {
+    void Function(Object error, StackTrace stackTrace)? onError,
+    ZoneSpecification? zoneSpecification,
+  }) {
+    UncaughtErrorFunnel.runGuarded(
+      body,
+      onError: onError,
+      zoneSpecification: zoneSpecification,
+    );
   }
 
   // ============================================================
