@@ -52,8 +52,20 @@ class OtelLogExporter {
   /// exceeded, accumulated across outage windows.
   int _dropCount = 0;
 
+  /// Drop count snapshotted when the current outage window opened (its first
+  /// failed flush). The recovery summary reports [_dropCount] minus this, so
+  /// a later window is not charged for an earlier one's drops.
+  int? _dropAtWindowStart;
+
   /// The interval the flush timer currently runs at.
   Duration _currentInterval;
+
+  /// Serializes flush passes so concurrent callers (the timer, a
+  /// size-triggered enqueue, dispose) chain behind the active pass instead
+  /// of overlapping. Two overlapping passes can restore requeued batches in
+  /// the wrong order, and dispose() must wait for live work before it closes
+  /// the client.
+  Future<void> _flushTail = Future<void>.value();
 
   late final Uri _logsEndpoint;
   late final http.Client _httpClient;
@@ -139,7 +151,10 @@ class OtelLogExporter {
 
     _queue.add(record);
     _dropCount += _enforceCap();
-    if (_queue.length >= maxBatchSize) {
+    // While an outage is in progress the backoff timer owns exports; the
+    // batch shortcut would otherwise fire one doomed POST per batch and
+    // defeat the backoff (AC #2, CR-234).
+    if (_consecutiveFailures == 0 && _queue.length >= maxBatchSize) {
       flush();
     }
   }
@@ -154,6 +169,11 @@ class OtelLogExporter {
   }
 
   void _scheduleFlush() {
+    // Canceling a previous timer does not stop this method from creating a
+    // replacement, so the disposed check must come first: a failure handler
+    // running after dispose() must not re-arm an immortal timer that keeps
+    // POSTing on a closed client (finding 1, CR-158).
+    if (_isDisposed) return;
     _flushTimer?.cancel();
     _flushTimer = Timer(_currentInterval, () {
       flush().catchError((_) {
@@ -172,18 +192,34 @@ class OtelLogExporter {
   /// [maxPendingRecords], oldest dropped and counted), the flush timer backs
   /// off toward [maxBackoffInterval], and after the first successful flush
   /// following an outage a single synthetic recovery record is enqueued
-  /// under `OtelLogExporterHealth` (and shipped by the same flush that
-  /// observed the success).
-  Future<void> flush() async {
-    // A flush interrupted by an outage keeps trying until the queue drains:
-    // after a failure the batch was requeued, so the next pass retries it.
-    var attempts = 0;
-    while (_queue.isNotEmpty) {
-      if (++attempts > 1) {
-        // One retry per manual/timer flush is enough — if the collector is
-        // still down, the backoff timer will bring us back.
-        break;
-      }
+  /// under `OtelLogExporterHealth` and shipped in this same flush, before a
+  /// concurrent [dispose] can close the client with it still queued.
+  ///
+  /// Passes are serialized: a concurrent caller (the timer, a size-triggered
+  /// enqueue, dispose) chains behind the active pass instead of starting a
+  /// second one, so requeued batches are never restored out of order and
+  /// [dispose] waits for live work to finish.
+  Future<void> flush() {
+    final pass = _flushTail.then((_) => _flushPasses());
+    _flushTail = pass.catchError((_) {
+      // _flushPasses swallows its own errors; this only keeps the tail from
+      // rejecting so a later caller is never skipped.
+    });
+    return pass;
+  }
+
+  /// One logical flush: a single pass, plus — when that pass just recovered
+  /// from an outage — one bounded follow-up pass so the recovery record it
+  /// enqueued at the front is shipped before a concurrent [dispose] closes
+  /// the client (CR-182). A FAILED pass is never retried here: the backoff
+  /// timer owns that (AC #2).
+  Future<void> _flushPasses() async {
+    if (_queue.isEmpty) return;
+    await _flushOnce();
+    // A successful recovery enqueues exactly one health record at the FRONT;
+    // a normal success leaves the queue empty, so this pass is precisely the
+    // recovery record (or records that arrived while the pass was awaiting).
+    if (_queue.isNotEmpty && _consecutiveFailures == 0) {
       await _flushOnce();
     }
   }
@@ -230,6 +266,15 @@ class OtelLogExporter {
   }
 
   void _onFlushFailure(List<LogRecord> batch) {
+    // Nothing to requeue for a dead exporter: the final flush inside
+    // dispose() fails against the collector this PR targets, and requeueing
+    // here would re-arm an immortal post-dispose timer (finding 1).
+    if (_isDisposed) return;
+
+    // First failure of this outage window — the recovery summary reports
+    // drops since here, so a later window is not charged for this one's.
+    _dropAtWindowStart ??= _dropCount;
+
     // Requeue the batch at the FRONT, preserving original record order.
     _queue.insertAll(0, batch);
     _dropCount += _enforceCap();
@@ -249,8 +294,13 @@ class OtelLogExporter {
     final hadFailures = _consecutiveFailures > 0;
     final failed = _consecutiveFailures;
     final firstFailureAt = _firstFailureAt;
+    // Drops since this window opened, not the lifetime total (finding 3):
+    // the message is a statement about the outage it just closed, so an
+    // earlier window's drops must not be charged to it.
+    final windowDrops = _dropCount - (_dropAtWindowStart ?? _dropCount);
     _consecutiveFailures = 0;
     _firstFailureAt = null;
+    _dropAtWindowStart = null;
 
     if (_currentInterval != flushInterval) {
       _currentInterval = flushInterval;
@@ -266,11 +316,10 @@ class OtelLogExporter {
       final window =
           '${firstFailureAt?.toIso8601String() ?? 'unknown'}→'
           '${now.toIso8601String()}';
-      final drops = _dropCount;
       final record = LogRecord(
         Level.WARNING,
         'Log export recovered after $failed failed flush(es), '
-            '$drops records dropped, window $window',
+        '$windowDrops records dropped, window $window',
         healthLoggerName,
       );
       _queue.insert(0, record);

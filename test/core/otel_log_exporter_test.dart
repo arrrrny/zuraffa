@@ -173,7 +173,7 @@ void main() {
       );
     });
 
-    test('does not crash or retry on http failure', () async {
+    test('requeues the batch and survives an http failure', () async {
       recordingClient.failWith = Exception('Network error');
 
       exporter = OtelLogExporter(
@@ -191,6 +191,42 @@ void main() {
 
       // A single send attempt was made before the failure was swallowed.
       expect(recordingClient.sent, hasLength(1));
+      // The failed batch is requeued, not dropped — that is the point of
+      // this PR, and the old "does not retry" name never asserted it.
+      expect(exporter.pendingCount, 1);
+    });
+
+    test('dispose() stops the exporter — no sends after disposal', () async {
+      final bodies = <http.Request>[];
+      final client = _ScriptedClient(bodies);
+
+      exporter = OtelLogExporter(
+        collectorBaseEndpoint: Uri.parse('http://localhost:4318/v1/traces'),
+        serviceName: 'test_service',
+        remoteLogLevel: ZuraffaLogLevel.warning,
+        flushInterval: const Duration(milliseconds: 20),
+        maxBackoffInterval: const Duration(milliseconds: 40),
+        httpClient: client,
+      );
+
+      exporter.start();
+      Logger.root.warning('queued during outage');
+
+      // Two failed flushes arm the backoff so a missing dispose guard would
+      // have a live timer to leak.
+      await exporter.flush();
+      await exporter.flush();
+      expect(exporter.consecutiveFailures, greaterThan(0));
+
+      // dispose()'s final flush also fails; it must not re-arm a timer that
+      // keeps POSTing on the closed client.
+      await exporter.dispose();
+      final sendsAtDispose = bodies.length;
+      expect(sendsAtDispose, greaterThan(0));
+
+      await Future.delayed(const Duration(milliseconds: 120));
+      // No timer survived disposal: the exporter is silent after dispose().
+      expect(bodies.length, sendsAtDispose);
     });
 
     test('requeues the batch and emits one bounded recovery record on next '
@@ -212,12 +248,12 @@ void main() {
       await exporter.flush();
       expect(exporter.pendingCount, 1);
 
-      // Collector recovers: the requeued batch ships, then the recovery record.
+      // Collector recovers: the requeued batch ships, then the recovery
+      // record ships in the SAME flush — before a dispose() could close the
+      // client with the promised recovery signal still queued.
       client.fail = false;
       await exporter.flush();
 
-      // The recovery record itself ships on the next flush.
-      await exporter.flush();
       expect(exporter.pendingCount, 0);
       final shipped = bodies.map((r) => jsonDecode(r.body) as Map).toList();
       final records = shipped
@@ -263,8 +299,8 @@ void main() {
       expect(exporter.droppedCount, 2);
     });
 
-    test('recovery summary reports the actual dropped total across the '
-        'whole outage window', () async {
+    test('recovery summary reports only the current outage window drops, '
+        'not the lifetime total', () async {
       final bodies = <http.Request>[];
       final client = _ScriptedClient(bodies);
 
@@ -278,18 +314,24 @@ void main() {
 
       exporter.start();
 
-      // An outage that overflows the queue several times, so the dropped
-      // total exceeds the retained window.
+      // Pre-window drops: the queue overflows while filling, before any
+      // flush has failed, so these belong to no outage window.
       for (var i = 0; i < 5; i++) {
-        Logger.root.warning('record $i');
+        Logger.root.warning('pre $i');
       }
-      await exporter.flush();
+      expect(exporter.droppedCount, 3);
       expect(exporter.pendingCount, 2);
-      final droppedSoFar = exporter.droppedCount;
-      expect(droppedSoFar, greaterThanOrEqualTo(3));
+
+      // Open the window with a failing flush, then drop two more during the
+      // outage - those two are this window's drops.
+      await exporter.flush();
+      Logger.root.warning('during a');
+      Logger.root.warning('during b');
+      // Lifetime is now 5 (3 pre-window + 2 during), but the window opened
+      // at 3, so only the 2 during-window drops are this window's.
+      expect(exporter.droppedCount, 5);
 
       client.fail = false;
-      await exporter.flush();
       await exporter.flush();
 
       final shipped = bodies.map((r) => jsonDecode(r.body) as Map).toList();
@@ -310,7 +352,9 @@ void main() {
               as String;
 
       expect(message, contains('recovered after 1 failed flush'));
-      expect(message, contains('$droppedSoFar records dropped'));
+      // Window-scoped: 2, not the lifetime 5.
+      expect(message, contains('2 records dropped'));
+      expect(message, isNot(contains('5 records dropped')));
     });
 
     test('flush timer backs off during consecutive failures and recovers '
