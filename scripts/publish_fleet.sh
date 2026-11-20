@@ -518,9 +518,13 @@ PY
       if dart pub publish --force > "/tmp/pubpush_$pkg.log" 2>&1; then
         rc=0; break
       fi
+      if grep -q "already exists" "/tmp/pubpush_$pkg.log"; then
+        echo -e "  ${GREEN}published (already exists on server)${NC}"
+        rc=0; break
+      fi
       echo -e "  ${YELLOW}publish attempt $attempt failed for $pkg — retrying after backoff${NC}"
       tail -3 "/tmp/pubpush_$pkg.log" | sed 's/^/    /'
-      sleep $((attempt * 60))
+      sleep $((attempt * 30))
       attempt=$((attempt + 1))
     done
     if [ $rc -ne 0 ]; then
