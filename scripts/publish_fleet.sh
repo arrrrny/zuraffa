@@ -298,11 +298,11 @@ EOF2
 
 wait_resolvable() {
   local pkg="$1" ver="${2:-$VERSION}" i
-  for i in $(seq 1 60); do
+  for i in $(seq 1 180); do
     if pub_has_version "$pkg" "$ver" && pub_resolvable "$pkg" "$ver"; then
       return 0
     fi
-    sleep 15
+    sleep 5
   done
   echo -e "${RED}TIMEOUT waiting for $pkg $ver to be resolvable on pub.dev${NC}"
   return 1
