@@ -1,3 +1,7 @@
+## 7.6.1 - 2026-11-20
+
+7.6.1: pub.dev score improvements across the fleet — added a pana-recognized example/README.md to 12 packages (zuraffa_observability, session, storage, graphql, minio, tui, ffi, vendure, flutter, inappwebview, ocr, purchase); cleared all analyzer infos in zuraffa and zuraffa_flutter (deprecated flutter/material.dart -> material_ui, withOpacity -> withValues) for 50/50 static analysis.
+
 ## 7.6.0 - 2026-11-19
 
 Fleet release 7.6.0: zuraffa_observability moves its OTel base to dartastic_opentelemetry with a sealed test-capture seam + facade re-exports (issue #4); zuraffa_vendure + zuraffa_graphql adopt graphql_plus ^5.3.0; fleet-wide zorphy/zorphy_annotation raised to ^2.5.1 with all entities regenerated from scratch.
