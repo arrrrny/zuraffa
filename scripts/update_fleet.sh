@@ -181,22 +181,64 @@ update_readme_pkg() {
 ensure_changelog() {
   local file="$1" msg="$2"
   [ -f "$file" ] || { printf '# Changelog\n\n' > "$file"; }
-  if grep -q "^## \[$VERSION\]\|^## $VERSION" "$file"; then
-    return 0
+  if ! grep -q "^## \[$VERSION\]\|^## $VERSION" "$file"; then
+    local tmp="$file.tmp"
+    {
+      # Zikzak-style heading `## <version> - <date>` — no brackets. Fleet
+      # changelog-format tests (e.g. zuraffa_ui barrel_surface_test) pin the
+      # bare version heading; the core repo's bracketed style is its own.
+      if [ -n "$msg" ]; then
+        printf '## %s - %s\n\n%s\n\n' "$VERSION" "$CURRENT_DATE" "$msg"
+      else
+        printf '## %s - %s\n\n- Mono-version fleet alignment to %s; internal dependencies refreshed; xml override %s.\n\n' "$VERSION" "$CURRENT_DATE" "$VERSION" "$XML_OVERRIDE"
+      fi
+      cat "$file"
+    } > "$tmp"
+    mv "$tmp" "$file"
   fi
-  local tmp="$file.tmp"
-  {
-    # Zikzak-style heading `## <version> - <date>` — no brackets. Fleet
-    # changelog-format tests (e.g. zuraffa_ui barrel_surface_test) pin the
-    # bare version heading; the core repo's bracketed style is its own.
-    if [ -n "$msg" ]; then
-      printf '## %s - %s\n\n%s\n\n' "$VERSION" "$CURRENT_DATE" "$msg"
-    else
-      printf '## %s - %s\n\n- Mono-version fleet alignment to %s; internal dependencies refreshed; xml override %s.\n\n' "$VERSION" "$CURRENT_DATE" "$VERSION" "$XML_OVERRIDE"
-    fi
-    cat "$file"
-  } > "$tmp"
-  mv "$tmp" "$file"
+  # Pana penalizes insecure http:// links in CHANGELOG.md
+  if grep -q 'http://' "$file"; then
+    sed -i '' 's|http://|https://|g' "$file"
+  fi
+}
+
+ensure_example() {
+  local pkg_dir="$1" pkg_name="$2"
+  local ex_dir="$pkg_dir/example"
+  local candidates=(
+    "$ex_dir/README.md"
+    "$ex_dir/example.md"
+    "$ex_dir/lib/main.dart"
+    "$ex_dir/bin/main.dart"
+    "$ex_dir/main.dart"
+    "$ex_dir/lib/${pkg_name}.dart"
+    "$ex_dir/bin/${pkg_name}.dart"
+    "$ex_dir/${pkg_name}.dart"
+    "$ex_dir/lib/${pkg_name}_example.dart"
+    "$ex_dir/bin/${pkg_name}_example.dart"
+    "$ex_dir/${pkg_name}_example.dart"
+    "$ex_dir/lib/example.dart"
+    "$ex_dir/bin/example.dart"
+    "$ex_dir/example.dart"
+  )
+  local c
+  for c in "${candidates[@]}"; do
+    [ -f "$c" ] && return 0
+  done
+  mkdir -p "$ex_dir"
+  cat > "$ex_dir/README.md" <<EOF
+# $pkg_name
+
+Example and usage documentation for \`$pkg_name\`.
+
+\`\`\`dart
+import 'package:$pkg_name/$pkg_name.dart';
+
+void main() {
+  // $pkg_name entrypoint
+}
+\`\`\`
+EOF
 }
 
 ensure_publish_policy() {
@@ -729,13 +771,18 @@ for repo in "${FLEET_REPOS[@]}"; do
       --constraint "${FLEET_PKG_NAMES[@]}" \
       || { echo -e "${RED}pubspec tool failed for $file${NC}"; FAILURES=$((FAILURES+1)); repo_failed=1; continue; }
     echo -e "  ${GREEN}$name: $old -> $VERSION${NC}"
-    # README install guides at the same depth as the pubspec
+    # README install guides and pana README hygiene at the same depth as the pubspec
     pkg_dir=$(dirname "$file")
     for readme in "$pkg_dir/README.md"; do
       [ -f "$readme" ] || continue
       update_readme "$readme"
       update_readme_pkg "$readme" "$name"
+      if grep -q 'http://' "$readme"; then
+        sed -i '' 's|http://|https://|g' "$readme"
+      fi
     done
+    ensure_changelog "$pkg_dir/CHANGELOG.md" "$CHANGELOG_MSG"
+    ensure_example "$pkg_dir" "$name"
     # example apps resolve together with their parent (dart >= 3.6 resolves
     # example/ in the parent's pub get) — same fleet treatment
     for ex in "$pkg_dir"/example/pubspec.yaml "$pkg_dir"/examples/*/pubspec.yaml; do
