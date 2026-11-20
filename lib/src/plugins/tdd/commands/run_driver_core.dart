@@ -3452,12 +3452,10 @@ class RunDriverCore {
       // (`CycleEvidence._recordsByBehavior`) applies the same tolerance
       // (review #1737, CodeRabbit), so a corrupt `artifacts.json` never
       // aborts the run from this fallback.
-      if (byBehavior == null) {
-        byBehavior = {
+      byBehavior ??= {
           for (final record in await registry.loadAllTolerant())
             record.behaviorId: record,
         };
-      }
       final current = byBehavior[behaviorId]?.testPath;
       if (current != null &&
           current.isNotEmpty &&

@@ -86,7 +86,7 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
       }
       final svcSnake = config.serviceSnake;
       if (svcSnake != null) {
-        usecaseImports.add('../../services/${svcSnake}.dart');
+        usecaseImports.add('../../services/$svcSnake.dart');
       }
 
       final serviceBaseName = serviceName.endsWith('Service')

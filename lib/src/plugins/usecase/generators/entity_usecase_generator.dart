@@ -647,7 +647,7 @@ class EntityUseCaseGenerator {
       final serviceSnake =
           config.serviceSnake ?? StringUtils.camelToSnake(sourceName);
       final servicePath =
-          '../../services/${config.effectiveDomain}/${serviceSnake}.dart';
+          '../../services/${config.effectiveDomain}/$serviceSnake.dart';
       imports.add(servicePath);
     } else {
       final repoPath =

@@ -1071,7 +1071,9 @@ class SpecParser {
       // first `)`.
       int? openIdx;
       var end = t.length;
-      while (end > 0 && t[end - 1].trim().isEmpty) end--;
+      while (end > 0 && t[end - 1].trim().isEmpty) {
+        end--;
+      }
       if (end > 0 && t[end - 1] == ')') {
         var depth = 0;
         for (var k = end - 1; k >= 0; k--) {

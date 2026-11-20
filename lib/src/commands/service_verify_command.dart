@@ -269,7 +269,7 @@ class ServiceVerifyCommand extends Command<void> {
     // 2. The conventional flat path (`zfa service create`).
     final snake = config.serviceSnake ?? StringUtils.camelToSnake(entity);
     final flat = File(
-      p.join(plugin.outputDir, 'domain', 'services', '${snake}.dart'),
+      p.join(plugin.outputDir, 'domain', 'services', '$snake.dart'),
     );
     if (flat.existsSync()) return flat;
 
@@ -279,7 +279,7 @@ class ServiceVerifyCommand extends Command<void> {
     );
     if (servicesDir.existsSync()) {
       for (final entry in servicesDir.listSync().whereType<Directory>()) {
-        final candidate = File(p.join(entry.path, '${snake}.dart'));
+        final candidate = File(p.join(entry.path, '$snake.dart'));
         if (candidate.existsSync()) return candidate;
       }
     }

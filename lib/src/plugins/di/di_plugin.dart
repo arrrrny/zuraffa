@@ -890,11 +890,11 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             'domain',
             'services',
             config.effectiveDomain,
-            '${serviceSnake}.dart',
+            '$serviceSnake.dart',
           ),
         )
-        ? '../../domain/services/${config.effectiveDomain}/${serviceSnake}.dart'
-        : '../../domain/services/${serviceSnake}.dart';
+        ? '../../domain/services/${config.effectiveDomain}/$serviceSnake.dart'
+        : '../../domain/services/$serviceSnake.dart';
 
     final imports = [_coreImport, serviceImport];
 
@@ -1249,11 +1249,11 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                 'domain',
                 'services',
                 domainSnake,
-                '${serviceSnake}.dart',
+                '$serviceSnake.dart',
               ),
             )
-            ? '../../domain/services/$domainSnake/${serviceSnake}.dart'
-            : '../../domain/services/${serviceSnake}.dart';
+            ? '../../domain/services/$domainSnake/$serviceSnake.dart'
+            : '../../domain/services/$serviceSnake.dart';
         imports.add(serviceImport);
       } else {
         imports.add('../../domain/repositories/${repoSnake}_repository.dart');
@@ -1346,11 +1346,11 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                 'domain',
                 'services',
                 domainSnake,
-                '${serviceSnake}.dart',
+                '$serviceSnake.dart',
               ),
             )
-            ? '../../domain/services/$domainSnake/${serviceSnake}.dart'
-            : '../../domain/services/${serviceSnake}.dart';
+            ? '../../domain/services/$domainSnake/$serviceSnake.dart'
+            : '../../domain/services/$serviceSnake.dart';
 
         imports.add(serviceImport);
         constructorParams.add(

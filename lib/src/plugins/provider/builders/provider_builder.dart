@@ -112,8 +112,8 @@ class ProviderBuilder {
     final returnType = _returnType(config.useCaseType, returnsType);
 
     final serviceImport = config.isEntityBased
-        ? '../../../domain/services/${config.effectiveDomain}/${serviceSnake}.dart'
-        : '../../../domain/services/${serviceSnake}.dart';
+        ? '../../../domain/services/${config.effectiveDomain}/$serviceSnake.dart'
+        : '../../../domain/services/$serviceSnake.dart';
 
     final entityTypes = <String>{};
     if (config.isEntityBased) {
@@ -141,9 +141,9 @@ class ProviderBuilder {
             'domain',
             'services',
             config.effectiveDomain,
-            '${serviceSnake}.dart',
+            '$serviceSnake.dart',
           )
-        : path.join(outputDir, 'domain', 'services', '${serviceSnake}.dart');
+        : path.join(outputDir, 'domain', 'services', '$serviceSnake.dart');
 
     final existingMethods = await MethodExtractor.extractMethodsFromInterface(
       servicePath,

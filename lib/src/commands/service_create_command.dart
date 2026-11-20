@@ -639,7 +639,7 @@ class ServiceCreateCommand extends Command<void> {
       plugin.outputDir,
       'domain',
       'services',
-      '${snake}.dart',
+      '$snake.dart',
     );
   }
 

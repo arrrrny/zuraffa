@@ -307,7 +307,7 @@ dev_dependencies:
     final out = List<String>.of(lines);
     var sectionIdx = -1;
     for (var i = 0; i < out.length; i++) {
-      final m = RegExp('^' + section + r':\s*(.*)$').firstMatch(out[i]);
+      final m = RegExp('^$section:\\s*(.*)\$').firstMatch(out[i]);
       if (m != null) {
         sectionIdx = i;
         break;
@@ -376,7 +376,7 @@ dev_dependencies:
     final out = List<String>.of(lines);
     var sectionIdx = -1;
     for (var i = 0; i < out.length; i++) {
-      final m = RegExp('^' + section + r':\s*(.*)$').firstMatch(out[i]);
+      final m = RegExp('^$section:\\s*(.*)\$').firstMatch(out[i]);
       if (m != null) {
         sectionIdx = i;
         break;

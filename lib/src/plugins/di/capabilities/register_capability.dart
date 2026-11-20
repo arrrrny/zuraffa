@@ -206,7 +206,7 @@ class RegisterCapability implements ZuraffaCapability {
       for (final dir in servicesDir.listSync().whereType<Directory>()) {
         for (final candidate in [
           '${baseSnake}_service.dart',
-          '${baseSnake}.dart',
+          '$baseSnake.dart',
           '${baseSnake}_provider.dart',
         ]) {
           if (File(path.join(dir.path, candidate)).existsSync()) {

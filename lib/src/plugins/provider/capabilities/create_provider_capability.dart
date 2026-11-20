@@ -312,7 +312,7 @@ class CreateProviderCapability implements ZuraffaCapability {
           outputDir,
           'domain',
           'services',
-          '${serviceSnake}.dart',
+          '$serviceSnake.dart',
         );
         if (!File(serviceFile).existsSync()) {
           throw StateError(

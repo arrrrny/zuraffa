@@ -182,7 +182,7 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       );
       return [];
     }
-    final fileName = '${serviceSnake}.dart';
+    final fileName = '$serviceSnake.dart';
     final filePath = config.isEntityBased
         ? path.join(
             outputDir,
