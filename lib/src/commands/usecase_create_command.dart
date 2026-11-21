@@ -269,7 +269,7 @@ class UseCaseCreateCommand extends Command<void> {
       if (jsonMode) {
         VerdictEnvelope.emit(
           VerdictEnvelope(
-            command: 'zfa usecase create $entityName',
+            command: '$usagePrefix $entityName',
             verdict: VerdictKind.fail,
             exitClass: ExitProtocol.failure,
             subject: VerdictSubject(kind: 'usecase', id: entityName),
@@ -291,7 +291,7 @@ class UseCaseCreateCommand extends Command<void> {
       if (jsonMode) {
         VerdictEnvelope.emit(
           VerdictEnvelope(
-            command: 'zfa usecase create $entityName',
+            command: '$usagePrefix $entityName',
             verdict: VerdictKind.fail,
             exitClass: ExitProtocol.failure,
             subject: VerdictSubject(kind: 'usecase', id: entityName),
@@ -313,7 +313,7 @@ class UseCaseCreateCommand extends Command<void> {
       if (jsonMode) {
         VerdictEnvelope.emit(
           VerdictEnvelope(
-            command: 'zfa usecase create $entityName',
+            command: '$usagePrefix $entityName',
             verdict: VerdictKind.fail,
             exitClass: ExitProtocol.failure,
             subject: VerdictSubject(kind: 'usecase', id: entityName),
@@ -407,7 +407,7 @@ class UseCaseCreateCommand extends Command<void> {
 
     if (jsonMode) {
       var envelope = VerdictEnvelope(
-        command: 'zfa usecase create $entityName',
+        command: '$usagePrefix $entityName',
         verdict: certifyFailed ? VerdictKind.fail : VerdictKind.pass,
         exitClass: certifyFailed ? ExitProtocol.failure : ExitProtocol.success,
         subject: VerdictSubject(kind: 'usecase', id: entityName),

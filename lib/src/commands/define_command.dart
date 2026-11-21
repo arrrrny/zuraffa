@@ -52,7 +52,7 @@ class DefineCommand extends Command<void> {
   /// The loader's default generation root — the same constant the create
   /// commands use, so a fallback plugin writes where the plugin surface
   /// writes.
-  static const String fixedOutputDir = 'lib/src';
+  static const String fixedOutputDir = UseCaseCreateCommand.fixedOutputDir;
 
   final PluginRegistry _registry;
 

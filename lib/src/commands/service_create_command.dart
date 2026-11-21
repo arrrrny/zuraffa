@@ -213,7 +213,7 @@ class ServiceCreateCommand extends Command<void> {
       if (jsonMode) {
         print(
           VerdictEnvelope(
-            command: 'zfa service create',
+            command: usagePrefix,
             verdict: VerdictKind.skip,
             exitClass: ExitProtocol.success,
             subject: VerdictSubject(
@@ -254,7 +254,7 @@ class ServiceCreateCommand extends Command<void> {
       if (jsonMode) {
         print(
           VerdictEnvelope(
-            command: 'zfa service create',
+            command: usagePrefix,
             verdict: VerdictKind.error,
             exitClass: ExitProtocol.failure,
             subject: VerdictSubject(
@@ -308,7 +308,7 @@ class ServiceCreateCommand extends Command<void> {
       if (jsonMode) {
         print(
           VerdictEnvelope(
-            command: 'zfa service create',
+            command: usagePrefix,
             verdict: VerdictKind.pass,
             exitClass: ExitProtocol.success,
             subject: VerdictSubject(
@@ -375,7 +375,7 @@ class ServiceCreateCommand extends Command<void> {
       }
       print(
         VerdictEnvelope(
-          command: 'zfa service create',
+          command: usagePrefix,
           verdict: outcome,
           exitClass: exitClass,
           subject: VerdictSubject(kind: 'service', id: serviceClass),
@@ -777,7 +777,7 @@ class ServiceCreateCommand extends Command<void> {
     if (jsonMode) {
       print(
         VerdictEnvelope(
-          command: 'zfa service create',
+          command: usagePrefix,
           verdict: VerdictKind.fail,
           exitClass: ExitProtocol.failure,
           details: {'error': cleanMessage},
@@ -795,7 +795,7 @@ class ServiceCreateCommand extends Command<void> {
     if (jsonMode) {
       print(
         VerdictEnvelope(
-          command: 'zfa service create',
+          command: usagePrefix,
           verdict: VerdictKind.fail,
           exitClass: ExitProtocol.usage,
           details: {'error': message},

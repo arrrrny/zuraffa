@@ -68,5 +68,21 @@ void main() {
       expect(out, contains('--params'));
       expect(out, contains('--returns'));
     });
+
+    test('`define usecase` with no name echoes the define grammar', () async {
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(['define', 'usecase']);
+
+      expect(out, contains('Usage: zfa define usecase <EntityName> [options]'));
+      expect(out, isNot(contains('Usage: zfa usecase create')));
+    });
+
+    test('`define service` with no name echoes the define grammar', () async {
+      final runner = CliRunner(exitOnCompletion: false);
+      final out = await runner.runCapturing(['define', 'service']);
+
+      expect(out, contains('zfa define service <ServiceName>'));
+      expect(out, isNot(contains('zfa service create')));
+    });
   });
 }
