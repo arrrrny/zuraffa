@@ -341,4 +341,131 @@ void main() {
       },
     );
   });
+
+  // Issue #2119 — the generated composition root must preserve the
+  // runtime registration order. Simulation bindings OVERRIDE the real
+  // bindings (they rebind an interface to its generated mock), so
+  // `registerSimulationBindings` must be called AFTER every real binding
+  // category (datasources, repositories, services, providers) — never in
+  // the middle. A `zfa make ... --force` run used to alphabetically/
+  // structurally rewrite the index and drop the simulation call in the
+  // middle, reversing the established override order and breaking GetIt
+  // dependency resolution at runtime (static analysis could not catch it).
+  group('issue 2119: composition-root registration order is preserved', () {
+    Future<String> generateCompositionRoot({required bool force}) async {
+      await DiPlugin(
+        outputDir: outputDir,
+        options: GeneratorOptions(dryRun: false, force: force),
+      ).generate(
+        GeneratorConfig(
+          name: 'Customer',
+          methods: const ['get'],
+          generateData: true,
+          generateDataSource: true,
+          generateRepository: true,
+          useMockInDi: true,
+          generateDi: true,
+          outputDir: outputDir,
+        ),
+      );
+      return mainIndexFile().readAsStringSync();
+    }
+
+    int indexOfCall(String content, String call) =>
+        content.indexOf('$call(getIt);');
+
+    int simulationCallCount(String content) =>
+        'registerSimulationBindings(getIt);'.allMatches(content).length;
+
+    for (final force in [false, true]) {
+      final label = force ? 'force rewrite' : 'incremental append';
+      test(
+        'registerSimulationBindings comes after the real bindings ($label)',
+        () async {
+          final content = await generateCompositionRoot(force: force);
+
+          final dataSources = indexOfCall(content, 'registerAllDataSources');
+          final repositories = indexOfCall(content, 'registerAllRepositories');
+          final simulation = indexOfCall(content, 'registerSimulationBindings');
+
+          expect(dataSources, isNonNegative, reason: 'datasource call missing');
+          expect(
+            repositories,
+            isNonNegative,
+            reason: 'repository call missing',
+          );
+          expect(simulation, isNonNegative, reason: 'simulation call missing');
+
+          // Simulation overrides the real bindings — it must be LAST.
+          expect(
+            simulation,
+            greaterThan(repositories),
+            reason:
+                'registerSimulationBindings must come AFTER '
+                'registerAllRepositories (issue #2119: the simulation '
+                'mocks override the real registrations, so a mid-chain '
+                'position breaks GetIt resolution). Order was: '
+                'dataSources=$dataSources repositories=$repositories '
+                'simulation=$simulation',
+          );
+          expect(
+            simulation,
+            greaterThan(dataSources),
+            reason:
+                'registerSimulationBindings must come AFTER '
+                'registerAllDataSources',
+          );
+        },
+      );
+    }
+
+    test('incremental append migrates a pre-fix index with a mid-chain '
+        'simulation call (issue #2119)', () async {
+      // Seed a di/index.dart in the exact shape the pre-fix generator
+      // emitted — registerSimulationBindings in the MIDDLE, before
+      // registerAllRepositories — then re-run WITHOUT --force so
+      // _regenerateMainIndex takes the incremental _updateIndexFile
+      // path (the documented default; --force is opt-in).
+      final mainIndex = mainIndexFile();
+      mainIndex.parent.createSync(recursive: true);
+      mainIndex.writeAsStringSync(
+        "import 'package:zuraffa/zuraffa.dart';\n"
+        'import "datasources/index.dart";\n'
+        'import "repositories/index.dart";\n'
+        'import "simulation/index.dart";\n'
+        '\n'
+        'void setupDependencies(GetIt getIt) {\n'
+        '  registerAllDataSources(getIt);\n'
+        '  registerSimulationBindings(getIt);\n'
+        '  registerAllRepositories(getIt);\n'
+        '}\n',
+      );
+
+      final content = await generateCompositionRoot(force: false);
+
+      final dataSources = indexOfCall(content, 'registerAllDataSources');
+      final repositories = indexOfCall(content, 'registerAllRepositories');
+      final simulation = indexOfCall(content, 'registerSimulationBindings');
+
+      expect(dataSources, isNonNegative, reason: 'datasource call missing');
+      expect(repositories, isNonNegative, reason: 'repository call missing');
+      expect(simulation, isNonNegative, reason: 'simulation call missing');
+      expect(
+        simulation,
+        greaterThan(repositories),
+        reason:
+            'the incremental (force:false) path must reorder a '
+            'pre-fix mid-chain registerSimulationBindings to the end '
+            '(issue #2119). Order was: '
+            'dataSources=$dataSources repositories=$repositories '
+            'simulation=$simulation',
+      );
+      // A reorder, not a duplicate: the simulation call appears once.
+      expect(
+        simulationCallCount(content),
+        1,
+        reason: 'registerSimulationBindings must not be duplicated',
+      );
+    });
+  });
 }
