@@ -78,9 +78,19 @@ class EntityCommand {
 
     final subCommand = args[0];
 
-    // Handle the help path before the pubspec guard so `zfa entity --help`
-    // prints usage anywhere (help must never require a project context).
-    if (subCommand == '--help' || subCommand == '-h' || subCommand == 'help') {
+    // Issue #2115: `--help` in the subcommand tail (`zfa entity create
+    // --help`) used to reach `_handleCreate`, which validated the required
+    // name first — so a help request answered "Entity name is required" and
+    // exited 2. Help is a request for usage, never a partial invocation of
+    // the subcommand: it belongs on the same path as `zfa entity --help`
+    // (#764), i.e. before the pubspec guard, so it prints from any
+    // directory and from every subcommand.
+    final isHelp =
+        subCommand == '--help' ||
+        subCommand == '-h' ||
+        subCommand == 'help' ||
+        args.skip(1).any((arg) => arg == '--help' || arg == '-h');
+    if (isHelp) {
       _printHelp();
       if (exitOnCompletion) exit(0);
       return;
