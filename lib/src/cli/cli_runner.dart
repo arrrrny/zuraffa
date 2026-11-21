@@ -13,6 +13,7 @@ import '../commands/simulate_command.dart';
 import '../commands/ui_command.dart';
 import '../commands/validate_command.dart';
 import '../commands/create_command.dart' as create;
+import '../commands/define_command.dart';
 import '../commands/config_command.dart' as config;
 import '../commands/corpus_command.dart';
 import '../commands/dream_command.dart';
@@ -233,6 +234,10 @@ class CliRunner {
     _runner.addCommand(SchemaCommand());
     _runner.addCommand(ValidateCommand());
     _runner.addCommand(_CreateCommand());
+    // Issue #2114: the `zfa define usecase|service|provider` grammar —
+    // the same create verbs mounted under the group the generation
+    // contract advertises.
+    _runner.addCommand(DefineCommand(registry));
     _runner.addCommand(_ConfigCommand());
     _runner.addCommand(_InitializeCommand());
     _runner.addCommand(_EntityCommand());

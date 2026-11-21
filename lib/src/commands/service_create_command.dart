@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
 import '../cli/exit_protocol.dart';
@@ -124,6 +125,12 @@ class ServiceCreateCommand extends Command<void> {
   @override
   String get name => 'create';
 
+  /// The invocation every usage hint prints. A group that mounts this
+  /// command under its own name (issue #2114: `zfa define service`)
+  /// overrides it so the grammar it echoes back is the one the user typed.
+  @protected
+  String get usagePrefix => 'zfa service create';
+
   @override
   String get description =>
       'Create a Service interface — canonical --json verdict (issue #1105), '
@@ -144,7 +151,7 @@ class ServiceCreateCommand extends Command<void> {
     if (entityName == null || entityName.trim().isEmpty) {
       _usageRefusal(
         'Missing required argument: name',
-        'zfa service create <ServiceName> [--params T --returns R --type t]',
+        '$usagePrefix <ServiceName> [--params T --returns R --type t]',
         jsonMode,
       );
       return;
@@ -154,8 +161,7 @@ class ServiceCreateCommand extends Command<void> {
         'Invalid service name: `$entityName` — a service name must be a '
             'Dart identifier (letters, digits, underscore; no spaces or '
             'symbols)',
-        'zfa service create <ValidName> (e.g. zfa service create '
-            'SendEmail)',
+        '$usagePrefix <ValidName> (e.g. $usagePrefix SendEmail)',
         jsonMode,
       );
       return;
@@ -207,7 +213,7 @@ class ServiceCreateCommand extends Command<void> {
       if (jsonMode) {
         print(
           VerdictEnvelope(
-            command: 'zfa service create',
+            command: usagePrefix,
             verdict: VerdictKind.skip,
             exitClass: ExitProtocol.success,
             subject: VerdictSubject(
@@ -248,7 +254,7 @@ class ServiceCreateCommand extends Command<void> {
       if (jsonMode) {
         print(
           VerdictEnvelope(
-            command: 'zfa service create',
+            command: usagePrefix,
             verdict: VerdictKind.error,
             exitClass: ExitProtocol.failure,
             subject: VerdictSubject(
@@ -302,7 +308,7 @@ class ServiceCreateCommand extends Command<void> {
       if (jsonMode) {
         print(
           VerdictEnvelope(
-            command: 'zfa service create',
+            command: usagePrefix,
             verdict: VerdictKind.pass,
             exitClass: ExitProtocol.success,
             subject: VerdictSubject(
@@ -369,7 +375,7 @@ class ServiceCreateCommand extends Command<void> {
       }
       print(
         VerdictEnvelope(
-          command: 'zfa service create',
+          command: usagePrefix,
           verdict: outcome,
           exitClass: exitClass,
           subject: VerdictSubject(kind: 'service', id: serviceClass),
@@ -771,7 +777,7 @@ class ServiceCreateCommand extends Command<void> {
     if (jsonMode) {
       print(
         VerdictEnvelope(
-          command: 'zfa service create',
+          command: usagePrefix,
           verdict: VerdictKind.fail,
           exitClass: ExitProtocol.failure,
           details: {'error': cleanMessage},
@@ -789,7 +795,7 @@ class ServiceCreateCommand extends Command<void> {
     if (jsonMode) {
       print(
         VerdictEnvelope(
-          command: 'zfa service create',
+          command: usagePrefix,
           verdict: VerdictKind.fail,
           exitClass: ExitProtocol.usage,
           details: {'error': message},
