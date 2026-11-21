@@ -170,12 +170,62 @@ abstract class ${entity}Service {
       );
     });
 
-    test('explicit opt-out (--no-data) is still honored', () async {
+    // Issue #2138: `provider create` IS the "generate the provider
+    // implementation" command — there is nothing else for the `data` toggle
+    // to gate, so `--no-data` used to make the whole command a silent
+    // no-op (zero files + "No files were generated" + exit 1). The `data`
+    // flag no longer suppresses the provider file: the capability always
+    // emits it for a resolvable service. This replaces the #768
+    // "explicit opt-out (--no-data) is still honored" expectation, which
+    // encoded the very bug this issue reports.
+    test('--no-data still generates the provider (issue #2138)', () async {
       writeServiceInterface('Cart');
 
-      final result = await capability.execute({'name': 'Cart', 'data': false});
+      final result = await capability.execute({
+        'name': 'Cart',
+        'params': 'NoParams',
+        'returns': 'void',
+        'type': 'completable',
+        'data': false,
+      });
 
-      expect(result.files, isEmpty);
+      expect(
+        result.files.where(
+          (p) => p.endsWith('data/providers/cart/cart_provider.dart'),
+        ),
+        hasLength(1),
+        reason: '--no-data must not suppress the provider implementation',
+      );
+      final generated = result.data?['generatedFiles'] as List<dynamic>;
+      final provider = generated.first as dynamic;
+      expect(provider.content, contains('class CartProvider'));
+      expect(provider.content, contains('implements CartService'));
+    });
+
+    test('no-data without a service interface fails with an actionable '
+        'message instead of a silent no-op (issue #2138)', () async {
+      final result = await capability.execute({
+        'name': 'Cart',
+        'params': 'NoParams',
+        'returns': 'void',
+        'type': 'completable',
+        'data': false,
+      });
+
+      expect(
+        result.success,
+        isFalse,
+        reason: 'a provider needs a service interface to implement',
+      );
+      expect(
+        result.message,
+        allOf(
+          contains('provider create failed'),
+          contains('CartService'),
+          contains('zfa service create --name Cart'),
+        ),
+        reason: 'the failure must name the missing interface and the fix',
+      );
     });
   });
 }
