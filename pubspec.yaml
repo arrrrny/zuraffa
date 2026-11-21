@@ -33,6 +33,12 @@ dependencies:
   crypto: ^3.0.7
 
   http: ^1.6.0
+  # Issue #2112: code_builder ^4.12.0 resolves to the latest 4.13.0 and
+  # transitively pulls built_value 8.13.0 / built_collection 5.1.2. The
+  # `built_collection 6.0.0` upgrade is Latest-only and NOT reachable from
+  # here: built_value 8.13.0 (the latest) still pins `built_collection: ^5.0.0`,
+  # which excludes 6.0.0. It needs an upstream code_builder/built_value bump
+  # first; zuraffa has no constraint that can widen it. No change here.
   code_builder: ^4.12.0
   dart_style: ^3.1.13
   # Issue #1189: lower bound widened from ^14.3.0 so Flutter-consumer graphs
@@ -61,7 +67,11 @@ dependencies:
   # would break those consumers for a pin that does not reach them.
   analyzer: ^14.4.0
 
-  # Sync plugin: hive_ce 2.20.0+ required for Box API used in SyncMetadataStore
+  # Sync plugin: hive_ce 2.20.0+ required for Box API used in SyncMetadataStore.
+  # Issue #2112: the caret range already admits hive_ce 2.24.0 (the latest);
+  # the lock was refreshed 2.23.3 -> 2.24.0 so this repo builds the current
+  # release. No constraint widening is needed or wanted — raising the floor
+  # would only drop support for the older hive_ce the range was kept for.
   hive_ce: ^2.20.0
   get_it: ^9.2.1
   meta: ^1.19.0
