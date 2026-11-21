@@ -1386,7 +1386,23 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           domainSnake,
           fs,
         );
-        if (importPath == null) continue;
+        // Issue #2118 review (zuraffa): a required positional dependency type
+        // that resolves to no domain-layer import (not `*Service` /
+        // `*Provider` / `*Repository`) is still REQUIRED by the constructor —
+        // silently dropping it emits a call with fewer arguments than the
+        // constructor declares, reproducing the exact analyzer failure this PR
+        // fixes (`N positional argument(s) expected, but M found`). Surface it
+        // loudly on stderr instead of letting it resurface as a confusing
+        // build error downstream.
+        if (importPath == null) {
+          print(
+            '⚠️  $className: cannot resolve DI import for required '
+            'constructor dependency "$typeName" — the generated registration '
+            'will omit this argument. Register it manually or add a '
+            'domain-layer import the DI generator can infer.',
+          );
+          continue;
+        }
         imports.add(importPath);
         constructorParams.add(refer('getIt').call([], {}, [refer(typeName)]));
       }
@@ -1450,9 +1466,15 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final body = classNode.body;
     if (body is! ast.BlockClassBody) return const [];
 
+    // Issue #2118 review (coderabbit): pick the UNNAMED constructor — the one
+    // the registration path at line ~1395 actually invokes
+    // (`refer(className).call(...)` targets `Class.new`, never a named
+    // constructor). A named constructor such as `Class.withService(...)` may be
+    // declared first; selecting it would infer its params and emit a call the
+    // unnamed constructor cannot accept.
     ast.ConstructorDeclaration? constructor;
     for (final member in body.members) {
-      if (member is ast.ConstructorDeclaration) {
+      if (member is ast.ConstructorDeclaration && member.name == null) {
         constructor = member;
         break;
       }

@@ -149,4 +149,141 @@ void main() {
       );
     },
   );
+
+  test(
+    'di register wires a *Repository constructor dependency through getIt',
+    () async {
+      // A custom usecase generated from a repo dependency declares
+      // `Class(this._xRepository)` and requires a `*Repository` — the other
+      // branch `_dependencyImportPath` resolves (review finding: the test
+      // pinned only the `*Service` happy path).
+      final usecaseFiles =
+          await UseCasePlugin(
+            outputDir: outputDir,
+            options: const GeneratorOptions(dryRun: false, force: true),
+          ).generate(
+            GeneratorConfig(
+              name: 'ListOrders',
+              useCaseType: 'stream',
+              domain: 'orders',
+              repo: 'OrderRepository',
+              paramsType: 'ListParams',
+              returnsType: 'OrderRow',
+              outputDir: outputDir,
+            ),
+          );
+
+      final usecaseFile = usecaseFiles
+          .where((f) => f.type == 'usecase')
+          .map((f) => f.path)
+          .first;
+      final usecaseContent = File(usecaseFile).readAsStringSync();
+      expect(
+        usecaseContent,
+        contains('ListOrdersUseCase(this._orderRepository);'),
+        reason:
+            'the generated usecase must inject the repository — this is the '
+            'signature the DI file must match',
+      );
+
+      final register = RegisterCapability(
+        DiPlugin(
+          outputDir: outputDir,
+          options: const GeneratorOptions(dryRun: false, force: true),
+        ),
+        projectRoot: tempDir.path,
+      );
+
+      final result = await register.execute({
+        'target': 'ListOrdersUseCase',
+        'domain': 'orders',
+      });
+
+      expect(result.success, isTrue);
+
+      final diFile = File(
+        p.join(outputDir, 'di', 'usecases', 'list_orders_usecase_di.dart'),
+      );
+      expect(diFile.existsSync(), isTrue);
+
+      final content = diFile.readAsStringSync();
+      expect(
+        content.contains('ListOrdersUseCase(getIt<OrderRepository>())'),
+        isTrue,
+        reason:
+            'the DI file must resolve the required OrderRepository dependency '
+            'through getIt',
+      );
+      expect(
+        content.contains("import '../../domain/repositories/"),
+        isTrue,
+        reason: 'the repository import must point at the domain repositories',
+      );
+    },
+  );
+
+  test(
+    'di register selects the unnamed constructor, not a leading named one',
+    () async {
+      // coderabbit finding: when a named constructor (`withService`) is
+      // declared BEFORE the unnamed one, the inference loop must still select
+      // the UNNAMED constructor the registration call actually invokes
+      // (`refer(className).call(...)` → `Class.new`). Here the unnamed
+      // constructor takes NO arguments and the leading named one requires a
+      // service: selecting the named constructor (the pre-fix bug) would emit
+      // `ReportsUseCase(getIt<ReportsService>())` against a zero-arg unnamed
+      // constructor — a 1-arg-vs-0-positional analyzer failure. The correct
+      // selection wires no argument at all.
+      final usecaseDir = Directory(
+        p.join(outputDir, 'domain', 'usecases', 'reports'),
+      );
+      await usecaseDir.create(recursive: true);
+      await File(p.join(usecaseDir.path, 'reports_usecase.dart')).writeAsString(
+        'class ReportsUseCase {\n'
+        // Named constructor FIRST — the ordering the bug tripped on.
+        '  ReportsUseCase.withService(ReportsService service)\n'
+        '      : _reportsService = service;\n'
+        // Unnamed constructor takes NO arguments — the one registration uses.
+        '  ReportsUseCase();\n'
+        '  ReportsService? _reportsService;\n'
+        '  Stream<Row> run(Params p) => _reportsService!.run(p);\n'
+        '}\n',
+      );
+
+      final register = RegisterCapability(
+        DiPlugin(
+          outputDir: outputDir,
+          options: const GeneratorOptions(dryRun: false, force: true),
+        ),
+        projectRoot: tempDir.path,
+      );
+
+      final result = await register.execute({
+        'target': 'ReportsUseCase',
+        'domain': 'reports',
+      });
+
+      expect(result.success, isTrue);
+
+      final diFile = File(
+        p.join(outputDir, 'di', 'usecases', 'reports_usecase_di.dart'),
+      );
+      final content = diFile.readAsStringSync();
+      expect(
+        content.contains('ReportsUseCase()'),
+        isTrue,
+        reason:
+            'the unnamed (zero-arg) constructor must be selected and wired '
+            'with no arguments — selecting the leading named constructor '
+            'would emit an argument the unnamed constructor cannot accept',
+      );
+      expect(
+        content.contains('ReportsUseCase(getIt'),
+        isFalse,
+        reason:
+            'no getIt argument may be emitted: the unnamed constructor takes '
+            'none, so wiring one reproduces the analyzer failure (#2118)',
+      );
+    },
+  );
 }
