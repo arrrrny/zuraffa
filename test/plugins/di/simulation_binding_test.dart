@@ -341,4 +341,79 @@ void main() {
       },
     );
   });
+
+  // Issue #2119 — the generated composition root must preserve the
+  // runtime registration order. Simulation bindings OVERRIDE the real
+  // bindings (they rebind an interface to its generated mock), so
+  // `registerSimulationBindings` must be called AFTER every real binding
+  // category (datasources, repositories, services, providers) — never in
+  // the middle. A `zfa make ... --force` run used to alphabetically/
+  // structurally rewrite the index and drop the simulation call in the
+  // middle, reversing the established override order and breaking GetIt
+  // dependency resolution at runtime (static analysis could not catch it).
+  group('issue 2119: composition-root registration order is preserved', () {
+    Future<String> generateCompositionRoot({required bool force}) async {
+      await DiPlugin(
+        outputDir: outputDir,
+        options: GeneratorOptions(dryRun: false, force: force),
+      ).generate(
+        GeneratorConfig(
+          name: 'Customer',
+          methods: const ['get'],
+          generateData: true,
+          generateDataSource: true,
+          generateRepository: true,
+          useMockInDi: true,
+          generateDi: true,
+          outputDir: outputDir,
+        ),
+      );
+      return mainIndexFile().readAsStringSync();
+    }
+
+    int indexOfCall(String content, String call) =>
+        content.indexOf('$call(getIt);');
+
+    for (final force in [false, true]) {
+      final label = force ? 'force rewrite' : 'incremental append';
+      test(
+        'registerSimulationBindings comes after the real bindings ($label)',
+        () async {
+          final content = await generateCompositionRoot(force: force);
+
+          final dataSources = indexOfCall(content, 'registerAllDataSources');
+          final repositories = indexOfCall(content, 'registerAllRepositories');
+          final simulation = indexOfCall(content, 'registerSimulationBindings');
+
+          expect(dataSources, isNonNegative, reason: 'datasource call missing');
+          expect(
+            repositories,
+            isNonNegative,
+            reason: 'repository call missing',
+          );
+          expect(simulation, isNonNegative, reason: 'simulation call missing');
+
+          // Simulation overrides the real bindings — it must be LAST.
+          expect(
+            simulation,
+            greaterThan(repositories),
+            reason:
+                'registerSimulationBindings must come AFTER '
+                'registerAllRepositories (issue #2119: the simulation '
+                'mocks override the real registrations, so a mid-chain '
+                'position breaks GetIt resolution). Order was: '
+                'dataSources=$dataSources repositories=$repositories '
+                'simulation=$simulation',
+          );
+          expect(
+            simulation,
+            greaterThan(dataSources),
+            reason:
+                'registerSimulationBindings must come AFTER '
+                'registerAllDataSources',
+          );
+        },
+      );
+    }
+  });
 }
