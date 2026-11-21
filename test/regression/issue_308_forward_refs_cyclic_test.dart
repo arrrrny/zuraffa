@@ -86,13 +86,14 @@ dev_dependencies:
     });
 
     test(
-      'entity create WITHOUT --allow-forward-refs rejects a forward reference (opt-in)',
+      'entity create WITHOUT --allow-forward-refs accepts a forward reference (#2125 default)',
       timeout: const Timeout(Duration(minutes: 2)),
       () async {
         // Customer references Order, which does NOT exist on disk yet.
-        // Without --allow-forward-refs, the #296 validator must still
-        // fire and abort. This proves the flag is OPT-IN and the default
-        // behaviour is unchanged from #296.
+        // As of #2125 forward references are ACCEPTED BY DEFAULT, so the
+        // parent can be created first and the nested entity created next.
+        // The strict #296 behaviour is now reached with
+        // `--allow-forward-refs=false` (see the dedicated test below).
         final result = await runZfa([
           'entity',
           'create',
@@ -106,8 +107,54 @@ dev_dependencies:
 
         expect(
           result.exitCode,
+          equals(0),
+          reason:
+              'Forward refs must be accepted by default (#2125); '
+              'stderr/stdout: ${result.stdout} ${result.stderr}',
+        );
+
+        final entityFile = File(
+          p.join(
+            workspace.path,
+            'lib',
+            'src',
+            'domain',
+            'entities',
+            'customer',
+            'customer.dart',
+          ),
+        );
+        expect(entityFile.existsSync(), isTrue);
+        final content = await entityFile.readAsString();
+        expect(content, contains('List<\$Order>'));
+        expect(content, contains("import '../order/order.dart';"));
+      },
+    );
+
+    test(
+      'entity create with --allow-forward-refs=false rejects a forward reference (#296 strict opt-out)',
+      timeout: const Timeout(Duration(minutes: 2)),
+      () async {
+        // Customer references Order, which does NOT exist on disk yet.
+        // `--allow-forward-refs=false` restores the strict #296 on-disk
+        // check, so the command aborts and writes nothing.
+        final result = await runZfa([
+          'entity',
+          'create',
+          '-n',
+          'Customer',
+          '--field',
+          'id:String?',
+          '--field',
+          'orders:List<Order>', // forward reference
+          '--allow-forward-refs=false',
+        ]);
+
+        expect(
+          result.exitCode,
           equals(1),
-          reason: 'Forward refs must be rejected by default (#296 guard)',
+          reason:
+              '--allow-forward-refs=false must restore the #296 strict guard',
         );
 
         final output = result.stdout.toString() + result.stderr.toString();
@@ -263,7 +310,7 @@ dev_dependencies:
     );
 
     test(
-      'add-field WITHOUT --allow-forward-refs rejects a forward reference',
+      'add-field with --allow-forward-refs=false rejects a forward reference (#296 strict opt-out)',
       timeout: const Timeout(Duration(minutes: 2)),
       () async {
         // First create a valid entity (all primitives).
@@ -293,7 +340,8 @@ dev_dependencies:
         expect(noteFile.existsSync(), isTrue);
         final before = await noteFile.readAsString();
 
-        // Now try to add a field whose type does not exist anywhere.
+        // Now try to add a field whose type does not exist anywhere, with
+        // the strict check explicitly requested.
         final add = await runZfa([
           'entity',
           'add-field',
@@ -301,12 +349,15 @@ dev_dependencies:
           'Note',
           '--field',
           'category:NoteCategory', // forward reference
+          '--allow-forward-refs=false',
         ]);
 
         expect(
           add.exitCode,
           equals(1),
-          reason: 'add-field must also validate field types by default',
+          reason:
+              '--allow-forward-refs=false must restore the strict on-disk '
+              'check for add-field',
         );
 
         final output = add.stdout.toString() + add.stderr.toString();

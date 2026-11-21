@@ -188,9 +188,9 @@ dev_dependencies:
     );
   });
 
-  group('issue #1270 — custom (non-primitive) resolution unchanged', () {
+  group('issue #1270 — custom (non-primitive) resolution', () {
     test(
-      'still rejects a custom type with no entity dir / enum file',
+      'accepts a custom type with no entity dir yet by default (forward ref, #2125)',
       () async {
         final result = await runZfaSource([
           'entity',
@@ -201,28 +201,61 @@ dev_dependencies:
           'product:Product',
         ], workingDirectory: workspace.path);
 
-        // Constraint: the fix must NOT loosen custom-type resolution. A
-        // missing Product entity is still the #296 loud error.
-        expect(result.exitCode, isNot(0), reason: 'stdout=${result.stdout}');
-        expect(result.stdout, contains('field type(s) could not be resolved'));
-        expect(result.stdout, contains('Unknown type "Product"'));
+        // As of #2125 a missing custom type is a forward reference and is
+        // accepted by default; the referenced entity is created later.
+        expect(result.exitCode, 0, reason: 'stdout=${result.stdout}');
+        final orderFile = File(
+          p.join(
+            workspace.path,
+            'lib',
+            'src',
+            'domain',
+            'entities',
+            'order',
+            'order.dart',
+          ),
+        );
+        expect(orderFile.existsSync(), isTrue);
         expect(
-          File(
-            p.join(
-              workspace.path,
-              'lib',
-              'src',
-              'domain',
-              'entities',
-              'order',
-              'order.dart',
-            ),
-          ).existsSync(),
-          isFalse,
-          reason: 'No entity file may be written for unresolved custom types',
+          await orderFile.readAsString(),
+          contains('\$Product get product'),
         );
       },
     );
+
+    test('still rejects a custom type with no entity dir / enum file when the '
+        'strict check is requested (--allow-forward-refs=false)', () async {
+      final result = await runZfaSource([
+        'entity',
+        'create',
+        '-n',
+        'Order',
+        '--fields',
+        'product:Product',
+        '--allow-forward-refs=false',
+      ], workingDirectory: workspace.path);
+
+      // Constraint: the #296 loud error stays reachable via the strict
+      // opt-out. A missing Product entity is still reported clearly.
+      expect(result.exitCode, isNot(0), reason: 'stdout=${result.stdout}');
+      expect(result.stdout, contains('field type(s) could not be resolved'));
+      expect(result.stdout, contains('Unknown type "Product"'));
+      expect(
+        File(
+          p.join(
+            workspace.path,
+            'lib',
+            'src',
+            'domain',
+            'entities',
+            'order',
+            'order.dart',
+          ),
+        ).existsSync(),
+        isFalse,
+        reason: 'No entity file may be written for unresolved custom types',
+      );
+    });
   });
 
   group('EntityUtils.normalizePrimitiveTypeAliases — unit contract', () {
