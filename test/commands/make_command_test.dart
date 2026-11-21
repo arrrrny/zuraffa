@@ -1115,6 +1115,34 @@ class TestEntity {
           contains('RunPriceCheckForItemService'),
           reason: 'the service interface must be named after the feature',
         );
+        // The provider is the artifact the original crash surfaced THROUGH
+        // (-_-provider_service.dart): asserting it pins the whole triad —
+        // service interface, provider, stream usecase — against the same
+        // feature service name resolution.
+        final providerFile = File(
+          path.join(
+            outputDir,
+            'data',
+            'providers',
+            'price_check',
+            'run_price_check_for_item_provider.dart',
+          ),
+        );
+        expect(
+          providerFile.existsSync(),
+          isTrue,
+          reason:
+              'the bare --service run did not emit the provider against the '
+              'feature service (issue #2126). output:\n${result.stdout}',
+        );
+        final providerSource = providerFile.readAsStringSync();
+        expect(
+          providerSource,
+          contains('RunPriceCheckForItemService'),
+          reason:
+              'the provider must implement the feature service interface, '
+              'not a placeholder name',
+        );
       },
     );
   });

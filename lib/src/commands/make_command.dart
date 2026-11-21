@@ -1694,6 +1694,7 @@ class MakeCommand extends Command<void> {
     data['service'] = null;
   }
 
+  /// Issue #2023: true when the request explicitly selects the `usecase`
   /// generator AND supplies both its own `--params` and `--returns` types.
   ///
   /// Such a request is a standalone use case by design — it carries the
