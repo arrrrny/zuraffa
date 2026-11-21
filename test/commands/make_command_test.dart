@@ -1043,6 +1043,108 @@ class TestEntity {
         );
       },
     );
+
+    // Issue #2126: a bare `--service` used as a boolean (e.g.
+    // `zfa make Foo --service --provider ...`) swallowed the next flag as
+    // the option's value, producing the invalid placeholder path
+    // `lib/src/domain/services/-_-provider_service.dart` and crashing with
+    // `service interface not found or declares no methods`. A bare
+    // `--service` must mean "the feature's OWN service" (<Name>Service),
+    // matching the successful `ImportOrders` invocation the issue cites.
+    test(
+      '#2126 — bare --service with --provider generates the feature service '
+      '(no -_-provider placeholder)',
+      timeout: const Timeout(Duration(minutes: 5)),
+      () async {
+        final result = await runZfaSource([
+          'make',
+          'RunPriceCheckForItem',
+          '--service',
+          '--provider',
+          '--usecase',
+          '--di',
+          '--domain=price_check',
+          '--params=PriceCheckParams',
+          '--returns=PriceCheckItemResult',
+          '--type=stream',
+          '--no-entity',
+          '--allow-forward-refs',
+        ]);
+
+        expect(
+          result.exitCode,
+          0,
+          reason:
+              'bare --service crashed (issue #2126):\n'
+              'stdout: ${result.stdout}\n'
+              'stderr: ${result.stderr}',
+        );
+        expect(
+          '${result.stdout}${result.stderr}',
+          isNot(contains('-_-provider_service')),
+          reason:
+              'the bare --service value collapsed to the invalid placeholder '
+              'path -_-provider_service.dart',
+        );
+        expect(
+          '${result.stdout}${result.stderr}',
+          isNot(contains('service interface not found or declares no methods')),
+          reason: 'the service interface was not resolved (issue #2126)',
+        );
+
+        // The feature's own service interface must have been emitted, and
+        // its provider + stream usecase generated against it.
+        final serviceFile = File(
+          path.join(
+            outputDir,
+            'domain',
+            'services',
+            'run_price_check_for_item_service.dart',
+          ),
+        );
+        expect(
+          serviceFile.existsSync(),
+          isTrue,
+          reason:
+              'the bare --service run did not emit the feature service '
+              'interface (issue #2126). output:\n${result.stdout}',
+        );
+        final serviceSource = serviceFile.readAsStringSync();
+        expect(
+          serviceSource,
+          contains('RunPriceCheckForItemService'),
+          reason: 'the service interface must be named after the feature',
+        );
+        // The provider is the artifact the original crash surfaced THROUGH
+        // (-_-provider_service.dart): asserting it pins the whole triad —
+        // service interface, provider, stream usecase — against the same
+        // feature service name resolution.
+        final providerFile = File(
+          path.join(
+            outputDir,
+            'data',
+            'providers',
+            'price_check',
+            'run_price_check_for_item_provider.dart',
+          ),
+        );
+        expect(
+          providerFile.existsSync(),
+          isTrue,
+          reason:
+              'the bare --service run did not emit the provider against the '
+              'feature service (issue #2126). output:\n${result.stdout}',
+        );
+        final providerSource = providerFile.readAsStringSync();
+        expect(
+          providerSource,
+          contains('RunPriceCheckForItemService'),
+          reason:
+              'the provider must implement the feature service interface, '
+              'not a placeholder name',
+        );
+      },
+    );
   });
 
   // #508: the #307 loud no-id failure over-applies — it runs before plugin

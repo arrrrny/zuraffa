@@ -1,9 +1,11 @@
 import 'package:args/command_runner.dart';
+import 'package:analyzer/dart/ast/ast.dart' as ast;
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../commands/modular_di_command.dart';
 import '../../core/ast/append_executor.dart';
+import '../../core/ast/ast_helper.dart';
 import '../../core/ast/strategies/append_strategy.dart';
 import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
@@ -1359,6 +1361,53 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       }
     }
 
+    // Issue #2118: `zfa di register --target=<X>UseCase --domain=<d>` carries
+    // neither a repo nor a service in the config, so the constructor call was
+    // emitted with NO arguments even though the generated usecase constructor
+    // requires its backing service/repo — `XUseCase()` against
+    // `XUseCase(this._xService)`, which fails the analyzer gate. When the
+    // config supplied no dependency, infer the required constructor type(s)
+    // from the already-generated usecase source and resolve them via getIt.
+    if (constructorParams.isEmpty) {
+      final usecasePath = path.join(
+        outputDir,
+        'domain',
+        'usecases',
+        domainSnake,
+        '${classSnake}_usecase.dart',
+      );
+      for (final typeName in await _inferConstructorDependencyTypes(
+        usecasePath,
+        className,
+        fs,
+      )) {
+        final importPath = await _dependencyImportPath(
+          typeName,
+          domainSnake,
+          fs,
+        );
+        // Issue #2118 review (zuraffa): a required positional dependency type
+        // that resolves to no domain-layer import (not `*Service` /
+        // `*Provider` / `*Repository`) is still REQUIRED by the constructor —
+        // silently dropping it emits a call with fewer arguments than the
+        // constructor declares, reproducing the exact analyzer failure this PR
+        // fixes (`N positional argument(s) expected, but M found`). Surface it
+        // loudly on stderr instead of letting it resurface as a confusing
+        // build error downstream.
+        if (importPath == null) {
+          print(
+            '⚠️  $className: cannot resolve DI import for required '
+            'constructor dependency "$typeName" — the generated registration '
+            'will omit this argument. Register it manually or add a '
+            'domain-layer import the DI generator can infer.',
+          );
+          continue;
+        }
+        imports.add(importPath);
+        constructorParams.add(refer('getIt').call([], {}, [refer(typeName)]));
+      }
+    }
+
     final constructorCall = refer(className).call(constructorParams);
     final registrationCall = refer('getIt')
         .property('registerLazySingleton')
@@ -1391,6 +1440,120 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       revert: config.revert,
       fileSystem: fs,
     );
+  }
+
+  /// Issue #2118: reads the already-generated usecase source and returns the
+  /// declared type of each positional constructor parameter, in declaration
+  /// order. The generated custom-usecase constructor injects its dependencies
+  /// as field-formal parameters (`Class(this._service)` / `Class(this._repo)`),
+  /// so a parameter's type is read from the field it forwards to (the
+  /// field-formal carries no own type) or from the parameter's own `type`
+  /// annotation. Named/optional parameters and parameters whose type cannot be
+  /// resolved are skipped — a DI constructor call can only supply the required
+  /// positional dependencies.
+  Future<List<String>> _inferConstructorDependencyTypes(
+    String usecasePath,
+    String className,
+    FileSystem fs,
+  ) async {
+    if (!await fs.exists(usecasePath)) return const [];
+    final helper = const AstHelper();
+    final unit = (await helper.parseFile(usecasePath, fileSystem: fs)).unit;
+    if (unit == null) return const [];
+    final classNode = helper.findClass(unit, className);
+    if (classNode == null) return const [];
+
+    final body = classNode.body;
+    if (body is! ast.BlockClassBody) return const [];
+
+    // Issue #2118 review (coderabbit): pick the UNNAMED constructor — the one
+    // the registration path at line ~1395 actually invokes
+    // (`refer(className).call(...)` targets `Class.new`, never a named
+    // constructor). A named constructor such as `Class.withService(...)` may be
+    // declared first; selecting it would infer its params and emit a call the
+    // unnamed constructor cannot accept.
+    ast.ConstructorDeclaration? constructor;
+    for (final member in body.members) {
+      if (member is ast.ConstructorDeclaration && member.name == null) {
+        constructor = member;
+        break;
+      }
+    }
+    if (constructor == null) return const [];
+
+    // field name -> declared field type, for field-formal (`this._x`)
+    // parameters that carry no type of their own. The type annotation lives
+    // on the `FieldDeclaration`'s variable list, not on the individual
+    // `VariableDeclaration`.
+    final fieldTypes = <String, String>{};
+    for (final member in body.members) {
+      if (member is! ast.FieldDeclaration) continue;
+      final type = member.fields.type?.toSource();
+      if (type == null || type.isEmpty) continue;
+      for (final variable in member.fields.variables) {
+        fieldTypes[variable.name.lexeme] = type;
+      }
+    }
+
+    final types = <String>[];
+    for (final param in constructor.parameters.parameters) {
+      if (param.isRequiredPositional) {
+        final resolved = _formalParameterType(param, fieldTypes);
+        if (resolved != null && resolved.isNotEmpty) types.add(resolved);
+      }
+    }
+    return types;
+  }
+
+  /// Resolves the declared type of a required positional [param]: its own
+  /// `type` annotation when present, otherwise the field type a field-formal
+  /// (`this._x`) forwards to.
+  String? _formalParameterType(
+    ast.FormalParameter param,
+    Map<String, String> fieldTypes,
+  ) {
+    final ownType = param.type?.toSource();
+    if (ownType != null && ownType.isNotEmpty && ownType != 'dynamic') {
+      return ownType;
+    }
+    if (param is ast.FieldFormalParameter) {
+      return fieldTypes[param.name.lexeme];
+    }
+    return null;
+  }
+
+  /// Resolves the domain-layer import path for an inferred constructor
+  /// dependency type (#2118). A `*Service` / `*Provider` resolves under
+  /// `domain/services` (the per-domain subfolder when the file lives there),
+  /// a `*Repository` under `domain/repositories`, and any other type is left
+  /// unresolved (returns null) so the caller skips it rather than emitting an
+  /// import that cannot resolve.
+  Future<String?> _dependencyImportPath(
+    String typeName,
+    String domainSnake,
+    FileSystem fs,
+  ) async {
+    if (typeName.endsWith('Repository')) {
+      final repoSnake = StringUtils.camelToSnake(
+        typeName.replaceAll('Repository', ''),
+      );
+      return '../../domain/repositories/${repoSnake}_repository.dart';
+    }
+    if (typeName.endsWith('Service') || typeName.endsWith('Provider')) {
+      final serviceSnake = StringUtils.camelToSnake(typeName);
+      return await fs.exists(
+            path.join(
+              outputDir,
+              'domain',
+              'services',
+              domainSnake,
+              '$serviceSnake.dart',
+            ),
+          )
+          ? '../../domain/services/$domainSnake/$serviceSnake.dart'
+          : '../../domain/services/$serviceSnake.dart';
+    }
+    return null;
   }
 
   ({String className, String methodPrefix}) _getUseCaseInfo(
