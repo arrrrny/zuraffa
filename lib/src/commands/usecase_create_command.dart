@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart' as crypto;
+import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
 import '../core/plugin_system/capability_invocation_wrapper.dart';
@@ -158,6 +159,12 @@ class UseCaseCreateCommand extends Command<void> {
   @override
   String get name => 'create';
 
+  /// The invocation every usage hint prints. A group that mounts this
+  /// command under its own name (issue #2114: `zfa define usecase`)
+  /// overrides it so the grammar it echoes back is the one the user typed.
+  @protected
+  String get usagePrefix => 'zfa usecase create';
+
   @override
   String get description =>
       'Create a Clean Architecture UseCase — per-method verdicts (--json) '
@@ -175,8 +182,8 @@ class UseCaseCreateCommand extends Command<void> {
         ? results.rest.first
         : results['name'] as String?;
     if (entityName == null || entityName.trim().isEmpty) {
-      print('❌ Usage: zfa usecase create <EntityName> [options]');
-      print('   Run `zfa usecase create --help` for the full grammar.');
+      print('❌ Usage: $usagePrefix <EntityName> [options]');
+      print('   Run `$usagePrefix --help` for the full grammar.');
       exitCode = ExitProtocol.usage;
       return;
     }
