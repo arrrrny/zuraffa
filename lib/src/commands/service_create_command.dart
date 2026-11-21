@@ -635,12 +635,7 @@ class ServiceCreateCommand extends Command<void> {
 
   String _serviceFilePath(GeneratorConfig config) {
     final snake = config.serviceSnake ?? StringUtils.camelToSnake(config.name);
-    return p.posix.join(
-      plugin.outputDir,
-      'domain',
-      'services',
-      '$snake.dart',
-    );
+    return p.posix.join(plugin.outputDir, 'domain', 'services', '$snake.dart');
   }
 
   String _baseName(GeneratorConfig config) {
