@@ -64,6 +64,21 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   @override
   String get id => 'usecase';
 
+  // Issue #2127: the stream/custom usecase generators read the service
+  // interface from disk (MethodExtractor.extractMethodsFromInterface) to
+  // resolve the service method — so the service stage must scaffold that
+  // interface BEFORE the usecase stage runs. Without this constraint the
+  // usecase plugin had no ordering relative to `service` and ran first,
+  // failing a combined `--service --provider --usecase` make with
+  // "service interface not found or declares no methods". The dependency
+  // is one-directional: the service interface builder generates from
+  // config (methods/params/returns) and never reads usecase output, so
+  // `runAfter` (not `dependsOn`) is the correct edge. sortPlugins only
+  // honors the edge when `service` is in the same plan, so usecase-only
+  // plans are unaffected.
+  @override
+  List<String> get runAfter => ['service'];
+
   @override
   String get name => 'UseCase Plugin';
 
