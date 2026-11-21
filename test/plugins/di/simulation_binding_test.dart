@@ -374,6 +374,9 @@ void main() {
     int indexOfCall(String content, String call) =>
         content.indexOf('$call(getIt);');
 
+    int simulationCallCount(String content) =>
+        'registerSimulationBindings(getIt);'.allMatches(content).length;
+
     for (final force in [false, true]) {
       final label = force ? 'force rewrite' : 'incremental append';
       test(
@@ -415,5 +418,57 @@ void main() {
         },
       );
     }
+
+    test(
+      'incremental append migrates a pre-fix index with a mid-chain '
+      'simulation call (issue #2119)',
+      () async {
+        // Seed a di/index.dart in the exact shape the pre-fix generator
+        // emitted — registerSimulationBindings in the MIDDLE, before
+        // registerAllRepositories — then re-run WITHOUT --force so
+        // _regenerateMainIndex takes the incremental _updateIndexFile
+        // path (the documented default; --force is opt-in).
+        final mainIndex = mainIndexFile();
+        mainIndex.parent.createSync(recursive: true);
+        mainIndex.writeAsStringSync(
+          "import 'package:zuraffa/zuraffa.dart';\n"
+          'import "datasources/index.dart";\n'
+          'import "repositories/index.dart";\n'
+          'import "simulation/index.dart";\n'
+          '\n'
+          'void setupDependencies(GetIt getIt) {\n'
+          '  registerAllDataSources(getIt);\n'
+          '  registerSimulationBindings(getIt);\n'
+          '  registerAllRepositories(getIt);\n'
+          '}\n',
+        );
+
+        final content = await generateCompositionRoot(force: false);
+
+        final dataSources = indexOfCall(content, 'registerAllDataSources');
+        final repositories = indexOfCall(content, 'registerAllRepositories');
+        final simulation = indexOfCall(content, 'registerSimulationBindings');
+
+        expect(dataSources, isNonNegative, reason: 'datasource call missing');
+        expect(repositories, isNonNegative, reason: 'repository call missing');
+        expect(simulation, isNonNegative, reason: 'simulation call missing');
+        expect(
+          simulation,
+          greaterThan(repositories),
+          reason:
+              'the incremental (force:false) path must reorder a '
+              'pre-fix mid-chain registerSimulationBindings to the end '
+              '(issue #2119). Order was: '
+              'dataSources=$dataSources repositories=$repositories '
+              'simulation=$simulation',
+        );
+        // A reorder, not a duplicate: the simulation call appears once.
+        expect(
+          simulationCallCount(content),
+          1,
+          reason: 'registerSimulationBindings must not be duplicated',
+        );
+      },
+    );
   });
 }

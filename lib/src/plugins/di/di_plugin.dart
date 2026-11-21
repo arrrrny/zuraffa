@@ -1770,6 +1770,19 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       content = result.source;
     }
 
+    if (!revert && isMainIndex) {
+      // Issue #2119 migration: an index generated before the
+      // simulation-last fix keeps `registerSimulationBindings(getIt);`
+      // mid-chain (before the repositories/services/providers). The
+      // append strategy treats an already-present statement as a
+      // duplicate and never repositions it, so the incremental
+      // (force:false) path could not repair an existing file — only a
+      // --force full rewrite moved it last. Remove a stale simulation
+      // call here so the loop below re-appends it in the list's final
+      // position, making the order correct regardless of `force`.
+      content = _removeStaleSimulationCall(content, functionName);
+    }
+
     for (final registration in registrationCalls) {
       final request = AppendRequest.functionStatement(
         source: content,
@@ -1793,6 +1806,24 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     return content;
+  }
+
+  /// Issue #2119 migration: removes a `registerSimulationBindings(getIt);`
+  /// statement from [functionName] so the incremental merge path can
+  /// re-append it last. A no-op when the call is absent.
+  String _removeStaleSimulationCall(String content, String functionName) {
+    const simulationCall = 'registerSimulationBindings(getIt);';
+    if (!content.contains(simulationCall)) {
+      return content;
+    }
+    final result = appendExecutor.undo(
+      AppendRequest.functionStatement(
+        source: content,
+        functionName: functionName,
+        memberSource: simulationCall,
+      ),
+    );
+    return result.source;
   }
 
   /// #1102: appends the resetDependencies test-lane hook to an index
