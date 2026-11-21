@@ -1327,10 +1327,11 @@ class MakeCommand extends Command<void> {
   /// Spec #979 (orders 2 + 4): the provider post-pass — receipt + gates.
   ///
   /// Returns true when the run must FAIL (committed stubs survived, or a
-  /// conformance miss). Fresh stubs (the provider this run just wrote —
-  /// stub-first semantics) are recorded in the deterministic receipt and
-  /// named in the output, and do NOT fail the run: stubs are allowed to
-  /// exist, never to hide.
+  /// conformance miss). Fresh stubs (a provider this run wrote OR whose
+  /// converging re-run re-emitted the committed bytes — stub-first
+  /// semantics) are recorded in the deterministic receipt and named in
+  /// the output, and do NOT fail the run: stubs are allowed to exist,
+  /// never to hide.
   Future<bool> _providerPostPass(
     String entityName,
     List<GeneratedFile> files,
@@ -1369,14 +1370,24 @@ class MakeCommand extends Command<void> {
           return true;
         case 'skipped':
           // Issue #2129: a skip with the re-emitted content attached is a
-          // CONVERGING re-run, not an escape — FileUtils.writeFile skips an
-          // existing file whose bytes would not change (no --force), but the
-          // plugin still emitted the skeleton. When that content equals the
-          // committed bytes, the stubs on disk are this run's own stub-first
-          // output (fresh generation, again); when the content disagrees
-          // (or is absent — a file the run never emitted), the skeleton on
-          // disk was committed by someone else and the escape gate holds.
-          final committed = File(providerFile).readAsStringSync();
+          // CONVERGING re-run, not an escape — FileUtils.writeFile skips ANY
+          // existing file without --force, but the plugin still emitted the
+          // skeleton and the skip entry carries it. When that content equals
+          // the committed bytes, the stubs on disk are this run's own
+          // stub-first output (fresh generation, again); when the content
+          // disagrees (or is absent — a file the run never emitted), the
+          // skeleton on disk was committed by someone else and the escape
+          // gate holds. An unreadable provider file (deleted mid-run,
+          // permission denied, path is a directory) is treated as "not
+          // reproduced" — the escape gate holds and the stub-escape verdict
+          // below carries the actionable fix, instead of a read error
+          // masking the generation failure the gate exists to report.
+          String? committed;
+          try {
+            committed = File(providerFile).readAsStringSync();
+          } catch (_) {
+            return false;
+          }
           return f.content != null && f.content == committed;
         default:
           return false;
@@ -1385,15 +1396,29 @@ class MakeCommand extends Command<void> {
 
     // Receipt: proof.v1 digests of the final bytes + the ledger data
     // (interface / methods / stub count) — best-effort by design.
+    // ProviderReceiptWriter digests only created/overwritten/updated
+    // entries, so a converging re-run's skipped-only runEntry would
+    // yield a digest-empty receipt (the synthetic fallback below only
+    // fires on an EMPTY runEntry). Digested set = the rewritten entries
+    // when any, else the on-disk provider bytes (this run's own output
+    // either way — the converging re-run re-emitted them).
+    final digested = runEntry
+        .where(
+          (f) =>
+              f.action == 'created' ||
+              f.action == 'overwritten' ||
+              f.action == 'updated',
+        )
+        .toList();
     try {
       await ProviderReceiptWriter().write(
         projectRoot: manager.projectRoot,
         entity: entity,
-        files: runEntry.isNotEmpty
-            ? runEntry
+        files: digested.isNotEmpty
+            ? digested
             : [
-                // Committed, untouched by this run — digest the current
-                // bytes so the receipt stays truthful.
+                // Committed, untouched by this run (or a converging skip) —
+                // digest the current bytes so the receipt stays truthful.
                 GeneratedFile(
                   path: providerFile,
                   type: 'provider',
@@ -1434,8 +1459,10 @@ class MakeCommand extends Command<void> {
     if (stubs.isEmpty) return false;
 
     if (fresh) {
-      // Fresh stubs are the intended stub-first output: NAME them and
-      // record them (the receipt above carries the count), do not fail.
+      // Fresh stubs are the intended stub-first output (this run wrote
+      // them, or a converging re-run re-emitted the committed bytes —
+      // either way NOT a committed escape): NAME them and record them (the
+      // receipt above carries the count), do not fail.
       print(
         'ℹ️  Provider $relative generated stub-first: '
         '${stubs.length} method(s) still throw UnimplementedError '

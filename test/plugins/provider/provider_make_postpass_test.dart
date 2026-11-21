@@ -171,21 +171,28 @@ $members
       'disk, re-run does not reproduce the stub bytes', () async {
     await writeServiceInterface(methods: ['execute']);
 
-    await runMake(); // generate stub-first
+    // Run 1: fresh generation (green, stubs recorded).
+    final first = await runMake();
+    expect(first.code, equals(0));
+    final provider = File(providerPath);
+    final generated = provider.readAsStringSync();
 
-    // Hand-write a DIFFERENT committed stub — the run's re-emit no longer
-    // matches the on-disk bytes, so the skeleton on disk was NOT derived
-    // by this run: the escape gate must hold.
-    File(providerPath).writeAsStringSync('''
-import 'package:zuraffa/zuraffa.dart';
-
-class ProductProvider implements ProductService {
-  @override
-  Future<void> execute(NoParams params) {
-    throw UnimplementedError('hand-written escape');
-  }
-}
-''');
+    // Hand-write a DIFFERENT committed stub — a valid but divergent
+    // signature the builder does not re-emit, so the re-emitted content
+    // DISAGREES with the on-disk bytes (rather than matching them, which
+    // would take the converging-skip fresh branch and exit 0). The body
+    // still carries UnimplementedError: the skeleton on disk was NOT
+    // derived by this run, so the escape gate must hold.
+    final escaped = generated.replaceFirst(
+      RegExp(r'Future<void> execute\(([^)]*)\)'),
+      'Future<void> execute(${1}, [int? extra])',
+    );
+    expect(
+      escaped,
+      isNot(equals(generated)),
+      reason: 'the hand-edit must change the signature the builder re-emits',
+    );
+    provider.writeAsStringSync(escaped);
 
     final result = await runMake();
 
