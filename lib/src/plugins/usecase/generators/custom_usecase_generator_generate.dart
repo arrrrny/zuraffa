@@ -2,27 +2,47 @@ part of 'custom_usecase_generator.dart';
 
 extension CustomUseCaseGeneratorGenerate on CustomUseCaseGenerator {
   Future<GeneratedFile> generate(GeneratorConfig config) async {
+    // Issue #2141: infer the feature's own `<Name>Service` interface when a
+    // non-sync custom usecase names no explicit dependency, instead of
+    // refusing outright. `zfa make Foo --type=completable --no-entity`
+    // used to exit with "you must specify a repository or service" even when
+    // the matching `FooService` already existed on disk; a bare `--service`
+    // already selects that same surface (`effectiveService` → `<Name>Service`),
+    // so route the no-dependency case through it and let the interface/method
+    // resolution below verify the service actually exists — a missing
+    // interface still fails loudly with a named fix rather than emitting a
+    // use case that cannot compile. Entity-based runs keep their repository
+    // default (`hasRepo`), so inference is a no-op for them.
+    var effectiveConfig = config;
+    if (!config.revert &&
+        config.useCaseType != 'sync' &&
+        !config.hasRepo &&
+        !config.hasService &&
+        !config.isEntityBased) {
+      effectiveConfig = config.copyWith(useService: true);
+    }
+
     // Resolve the service method name from the on-disk service interface
     // instead of inventing it from the use-case name (#1799). When the
     // service declares a single method, that method is used; when it
     // declares several, the one whose params/returns match this request is
     // used. If the surface cannot be resolved, refuse with a named fix
     // rather than writing a use case that cannot compile.
-    var resolvedConfig = config;
-    if (config.hasService && config.serviceMethod == null) {
-      final serviceName = config.effectiveService;
-      final serviceSnake = config.serviceSnake;
+    var resolvedConfig = effectiveConfig;
+    if (effectiveConfig.hasService && effectiveConfig.serviceMethod == null) {
+      final serviceName = effectiveConfig.effectiveService;
+      final serviceSnake = effectiveConfig.serviceSnake;
       if (serviceName != null && serviceSnake != null) {
-        final filePath = config.isEntityBased
+        final filePath = effectiveConfig.isEntityBased
             ? path.join(
-                config.outputDir,
+                effectiveConfig.outputDir,
                 'domain',
                 'services',
-                config.effectiveDomain,
+                effectiveConfig.effectiveDomain,
                 '$serviceSnake.dart',
               )
             : path.join(
-                config.outputDir,
+                effectiveConfig.outputDir,
                 'domain',
                 'services',
                 '$serviceSnake.dart',
@@ -79,7 +99,7 @@ extension CustomUseCaseGeneratorGenerate on CustomUseCaseGenerator {
           );
         }
 
-        resolvedConfig = config.copyWith(serviceMethod: resolved);
+        resolvedConfig = effectiveConfig.copyWith(serviceMethod: resolved);
       }
     }
 
