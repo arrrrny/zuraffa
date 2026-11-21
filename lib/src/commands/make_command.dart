@@ -1361,12 +1361,27 @@ class MakeCommand extends Command<void> {
           providerFile.endsWith('/${fRel.split('/').last}') &&
               f.type == 'provider';
     }).toList();
-    final fresh = runEntry.any(
-      (f) =>
-          f.action == 'created' ||
-          f.action == 'overwritten' ||
-          f.action == 'updated',
-    );
+    final fresh = runEntry.any((f) {
+      switch (f.action) {
+        case 'created':
+        case 'overwritten':
+        case 'updated':
+          return true;
+        case 'skipped':
+          // Issue #2129: a skip with the re-emitted content attached is a
+          // CONVERGING re-run, not an escape — FileUtils.writeFile skips an
+          // existing file whose bytes would not change (no --force), but the
+          // plugin still emitted the skeleton. When that content equals the
+          // committed bytes, the stubs on disk are this run's own stub-first
+          // output (fresh generation, again); when the content disagrees
+          // (or is absent — a file the run never emitted), the skeleton on
+          // disk was committed by someone else and the escape gate holds.
+          final committed = File(providerFile).readAsStringSync();
+          return f.content != null && f.content == committed;
+        default:
+          return false;
+      }
+    });
 
     // Receipt: proof.v1 digests of the final bytes + the ledger data
     // (interface / methods / stub count) — best-effort by design.
