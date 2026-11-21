@@ -89,6 +89,7 @@ void main() {
   late String outputDir;
 
   setUp(() async {
+    exitCode = 0;
     tempDir = await Directory.systemTemp.createTemp('spec1129_explain_');
     projectRoot = tempDir.path;
     outputDir = p.join(projectRoot, 'lib', 'src');
