@@ -854,6 +854,40 @@ class MakeCommand extends Command<void> {
     // issue's `ImportOrders` receipt shows.
     _normalizeBareServiceFlag(argResults!, context.data);
 
+    // Issue #2140: the provider plugin carries the feature-service binding
+    // (`useService: true` → effectiveService resolves to '<Name>Service')
+    // on ITS OWN config, but the usecase plugin builds a separate
+    // GeneratorConfig from context.data — which never sees that binding.
+    // A `zfa make X --provider ... --no-entity` run (usecase active via
+    // the default tier) then hit the non-entity guard with NEITHER a
+    // domain NOR a service, dying on "you must specify a domain using
+    // --domain." Mirror the provider's service binding into context.data
+    // so every plugin in the plan binds to the SAME feature service the
+    // provider targets. Gated to the no-entity shape — an entity-based
+    // CRUD run keeps its repository path — and never overrides an
+    // explicit dependency choice (--service <Name>, --repo, bare
+    // --service, --from-json use-service). The repository schema declares
+    // `use-service` with default false, so an ABSENT key and an explicit
+    // false are indistinguishable: read the VALUE, not the key.
+    final service = context.data['service'] is String
+        ? context.data['service'] as String?
+        : null;
+    final useServiceAlready =
+        context.data['use-service'] == true ||
+        context.data['useService'] == true;
+    final providerExplicit =
+        argResults!.options.contains('provider') &&
+        argResults!.wasParsed('provider') &&
+        argResults!['provider'] == true;
+    if (service == null &&
+        !useServiceAlready &&
+        context.data['no-entity'] == true &&
+        context.data['repo'] == null &&
+        providerExplicit) {
+      context.data['use-service'] = true;
+      context.data['useService'] = true;
+    }
+
     // #360: honor .zfa.json xray default for the view plugin.
     // --xray flag always wins; otherwise fall back to config. An explicit
     // `false` already present in context.data (e.g. set by a plugin or

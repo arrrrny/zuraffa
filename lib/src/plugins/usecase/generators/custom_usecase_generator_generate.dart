@@ -86,7 +86,15 @@ extension CustomUseCaseGeneratorGenerate on CustomUseCaseGenerator {
     config = resolvedConfig;
 
     // 1. Check for required Domain for non-entity usecases
-    if (config.useCaseType != 'entity' && config.domain == null) {
+    // Issue #2140: a non-entity usecase that binds to a service does not
+    // need an explicit --domain — the service (resolved from --service,
+    // --provider or useService) scopes the work, and the domain falls
+    // back to the config name through effectiveDomain, the same
+    // convention `zfa provider create` documents. Only a usecase with
+    // NEITHER a domain NOR a resolvable service still fails loudly.
+    final inferredDomain =
+        config.domain ?? (config.hasService ? config.nameSnake : null);
+    if (config.useCaseType != 'entity' && inferredDomain == null) {
       throw ArgumentError(
         'For non-entity usecases (like ${config.useCaseType}), you must specify a domain using --domain.',
       );
