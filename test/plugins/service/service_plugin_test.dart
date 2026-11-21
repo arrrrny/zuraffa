@@ -350,4 +350,77 @@ void main() {
       );
     },
   );
+
+  test(
+    'issue #2131 — a no-entity service still imports an entity file that '
+    'exists (the #2131 guard must not over-skip in no-entity mode)',
+    () async {
+      // CodeRabbit review nitpick on #2134: the guard
+      // `includeMissingEntityFallback: !config.noEntity` suppresses ONLY
+      // the missing-file fallback branch — `CommonPatterns.entityImports`
+      // probes the filesystem first and emits a real import when the
+      // entity file exists, whatever the fallback flag says. Pin that with
+      // a fixture entity present AND noEntity: true, so a regression that
+      // suppresses ALL entity imports in no-entity mode is caught.
+      await _scaffoldEntity(outputDir, 'Barcode');
+
+      final plugin = ServicePlugin(
+        outputDir: outputDir,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
+      );
+
+      await plugin.generate(
+        GeneratorConfig(
+          name: 'GetListingByBarcode',
+          service: 'Listing',
+          domain: 'listing',
+          paramsType: 'Barcode',
+          returnsType: 'Listing?',
+          noEntity: true,
+          outputDir: outputDir,
+        ),
+      );
+
+      final serviceFile = File(
+        '$outputDir/domain/services/listing_service.dart',
+      );
+      final content = serviceFile.readAsStringSync();
+
+      expect(
+        content.contains("'../entities/barcode/barcode.dart'"),
+        isTrue,
+        reason:
+            'an existing entity file is still imported with noEntity: '
+            'true — the guard suppresses only the missing-file fallback',
+      );
+      expect(
+        content,
+        isNot(contains("'../entities/listing/listing.dart'")),
+        reason: 'a genuinely missing entity import stays suppressed',
+      );
+    },
+  );
+}
+
+/// Scaffolds a minimal entity file at the canonical v5 location
+/// `lib/src/domain/entities/<snake>/<snake>.dart` so that
+/// `CommonPatterns.entityImports`' filesystem resolver finds it.
+Future<void> _scaffoldEntity(String outputDir, String entityName) async {
+  final snake = _camelToSnake(entityName);
+  final dir = Directory('$outputDir/domain/entities/$snake');
+  await dir.create(recursive: true);
+  final file = File('${dir.path}/$snake.dart');
+  await file.writeAsString('class $entityName {}\n');
+}
+
+String _camelToSnake(String input) {
+  final out = input.replaceAllMapped(
+    RegExp(r'[A-Z]'),
+    (m) => '_${m.group(0)!.toLowerCase()}',
+  );
+  return out.startsWith('_') ? out.substring(1) : out;
 }
