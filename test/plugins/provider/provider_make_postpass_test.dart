@@ -16,17 +16,24 @@ import 'package:zuraffa/src/cli/cli_runner.dart';
 ///     HIDE — the hook prints the stub notice naming the file, the count,
 ///     and the fix, records them in the provider receipt, and the run
 ///     stays green (exit 0);
-///   * COMMITTED stubs: a provider the run did NOT rewrite (file existed,
-///     action `skipped`) that still contains `UnimplementedError` bodies
-///     fails the run — exit 1 + `--> fix:` naming file + method — the
-///     stub-escape gate;
+///   * COMMITTED stubs: a provider whose committed bytes the run does NOT
+///     reproduce (a skip whose re-emitted content disagrees with the file)
+///     and that still contains `UnimplementedError` bodies fails the run —
+///     exit 1 + `--> fix:` naming file + method — the stub-escape gate.
+///     A skip whose re-emitted content IS the committed bytes (issue
+///     #2129: the same plan re-run while the TDD flow has not filled the
+///     stubs yet) is this run's own stub-first output — visible + recorded,
+///     run stays green;
 ///   * CONFORMANCE miss: a provider missing a method its Service
 ///     interface declares fails the run — exit 1 + `--> fix:` — even on
 ///     a fresh run (a missing member is a generation defect, not
 ///     stub-first semantics).
 ///
 /// Runs the real `zfa make` in-process against a temp project (the
-/// `runCapturing` pattern from make_command_test.dart).
+/// `runCapturing` pattern from make_command_test.dart). The make plan is
+/// `--no-entity` (the issue #2129 shape): a custom Service interface the
+/// provider must mirror, no entity-default method surface (get/update/
+/// toggle) overriding the mirror.
 void main() {
   late Directory workspace;
   late String outputDir;
@@ -48,16 +55,6 @@ name: zuraffa_provider_postpass_test
 environment:
   sdk: ^3.11.0
 ''');
-    // Entity source (make's entity-exists guard).
-    final entityDir = p.join(outputDir, 'domain', 'entities', 'product');
-    await Directory(entityDir).create(recursive: true);
-    await File(p.join(entityDir, 'product.dart')).writeAsString('''
-class Product {
-  final String id;
-
-  const Product({required this.id});
-}
-''');
   });
 
   tearDown(() async {
@@ -73,6 +70,12 @@ class Product {
   /// Hand-writes the `ProductService` interface BEFORE the make run — the
   /// provider mirrors its members (existingMethods extraction) and the
   /// service plugin skips overwriting it (no --force).
+  ///
+  /// The file lives at the FLAT path (`domain/services/`): the make run
+  /// carries `--no-entity`, so the service plugin and the provider builder
+  /// resolve the interface there (the entity path gains a domain folder
+  /// only when entity methods are generated — the #978 default surface,
+  /// which the --no-entity plan below does not request).
   Future<String> writeServiceInterface({
     List<String> methods = const [],
   }) async {
@@ -102,6 +105,8 @@ $members
       'Product',
       '--service',
       'Product',
+      '--no-entity',
+      '--domain=product',
     ]);
     final code = CliRunner.lastDispatchedExitCode;
     exitCode = 0; // hermetic
@@ -132,23 +137,68 @@ $members
     expect(receipt.existsSync(), isTrue);
   });
 
-  test('committed stubs: a provider the run did NOT rewrite fails the run — '
-      'exit 1 + fix naming file and method', () async {
+  test('issue #2129: a converging re-run of the SAME make plan stays green '
+      'while its own stub-first skeleton is on disk', () async {
     await writeServiceInterface(methods: ['execute']);
 
     // Run 1: fresh generation (green, stubs recorded).
     final first = await runMake();
     expect(first.code, equals(0));
 
-    // Run 2: the provider file exists and is SKIPPED (no --force) — the
-    // committed stubs must now trip the escape gate.
+    // Run 2: the SAME plan again — the provider plugin re-emits the
+    // identical stub-first skeleton, and FileUtils.writeFile skips the
+    // write because the bytes would not change (no --force). The run
+    // re-derived the skeleton itself, so its stubs are the intended
+    // stub-first output, NOT a committed escape: the run must stay green
+    // and name the stubs (visibility), not fail the convergence run.
     final second = await runMake();
 
-    expect(second.code, equals(1));
-    expect(second.output, contains('UnimplementedError'));
-    expect(second.output, contains('product_provider.dart'));
-    expect(second.output, contains('execute'));
-    expect(second.output, contains('--> fix:'));
+    expect(
+      second.code,
+      equals(0),
+      reason:
+          'a same-plan re-run must not trip the stub-escape gate: '
+          '${second.output}',
+    );
+    expect(
+      second.output,
+      contains('stub'),
+      reason: 'the re-run must still NAME the stubs (not allowed to hide)',
+    );
+  });
+
+  test('a genuinely committed escape still fails: hand-edited provider on '
+      'disk, re-run does not reproduce the stub bytes', () async {
+    await writeServiceInterface(methods: ['execute']);
+
+    // Run 1: fresh generation (green, stubs recorded).
+    final first = await runMake();
+    expect(first.code, equals(0));
+    final provider = File(providerPath);
+    final generated = provider.readAsStringSync();
+
+    // Hand-write a DIFFERENT committed stub — a valid but divergent
+    // signature the builder does not re-emit, so the re-emitted content
+    // DISAGREES with the on-disk bytes (rather than matching them, which
+    // would take the converging-skip fresh branch and exit 0). The body
+    // still carries UnimplementedError: the skeleton on disk was NOT
+    // derived by this run, so the escape gate must hold.
+    final escaped = generated.replaceFirst(
+      RegExp(r'Future<void> execute\(([^)]*)\)'),
+      'Future<void> execute(${1}, [int? extra])',
+    );
+    expect(
+      escaped,
+      isNot(equals(generated)),
+      reason: 'the hand-edit must change the signature the builder re-emits',
+    );
+    provider.writeAsStringSync(escaped);
+
+    final result = await runMake();
+
+    expect(result.code, equals(1));
+    expect(result.output, contains('Provider stub-escape'));
+    expect(result.output, contains('product_provider.dart'));
   });
 
   test('filled bodies: after the TDD flow fills the stubs, make is green '
@@ -180,7 +230,10 @@ $members
 
     await runMake(); // generate provider mirroring `execute`
 
-    // Declare a NEW interface method the provider does not implement.
+    // Declare a NEW interface method the provider does not implement. Its
+    // signature differs from `execute`'s (NoParams -> void): two members
+    // of the same shape read as one ambiguous service method (the #1799
+    // guard) and the run fails before the conformance gate runs.
     final service = File(
       p.join(outputDir, 'domain', 'services', 'product_service.dart'),
     );
@@ -189,7 +242,7 @@ import 'package:zuraffa/zuraffa.dart';
 
 abstract class ProductService {
   Future<void> execute(NoParams params);
-  Future<void> rollback(NoParams params);
+  Future<bool> rollback(NoParams params);
 }
 ''');
 
