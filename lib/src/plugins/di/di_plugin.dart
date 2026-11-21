@@ -1633,16 +1633,6 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       registrationCalls.add('registerAllDataSources(getIt);');
     }
 
-    // Spec 893: the generated simulation bindings are wired into the
-    // composition root whenever the simulation index exists — the flavor
-    // switch is a single --dart-define evaluated inside each binding
-    // (FR-002, SC-004), never hand-wired.
-    if (await hasIndex(simulationDir)) {
-      exportPaths.add('$simulationDiFolder/index.dart');
-      importPaths.add('$simulationDiFolder/index.dart');
-      registrationCalls.add('registerSimulationBindings(getIt);');
-    }
-
     if (await hasIndex(repositoriesDir)) {
       exportPaths.add('repositories/index.dart');
       importPaths.add('repositories/index.dart');
@@ -1659,6 +1649,23 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       exportPaths.add('providers/index.dart');
       importPaths.add('providers/index.dart');
       registrationCalls.add('registerAllProviders(getIt);');
+    }
+
+    // Issue #2119: simulation bindings OVERRIDE the real registrations
+    // (each binding rebinds an interface to its generated mock), so the
+    // simulation call MUST come AFTER every real binding category.
+    // Emitting it in the middle (as it used to be, before repositories)
+    // reversed the established override order: `registerSimulationBindings`
+    // ran before `registerAllRepositories`, so the real registrations then
+    // overwrote the mocks — a runtime GetIt "Dependent X is not
+    // registered" failure that static analysis cannot catch. Keep this
+    // call LAST in the composition root (spec 893: the flavor switch is a
+    // single --dart-define evaluated inside each binding, never
+    // hand-wired).
+    if (await hasIndex(simulationDir)) {
+      exportPaths.add('$simulationDiFolder/index.dart');
+      importPaths.add('$simulationDiFolder/index.dart');
+      registrationCalls.add('registerSimulationBindings(getIt);');
     }
 
     if (registrationCalls.isEmpty) {
@@ -1763,6 +1770,19 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       content = result.source;
     }
 
+    if (!revert && isMainIndex) {
+      // Issue #2119 migration: an index generated before the
+      // simulation-last fix keeps `registerSimulationBindings(getIt);`
+      // mid-chain (before the repositories/services/providers). The
+      // append strategy treats an already-present statement as a
+      // duplicate and never repositions it, so the incremental
+      // (force:false) path could not repair an existing file — only a
+      // --force full rewrite moved it last. Remove a stale simulation
+      // call here so the loop below re-appends it in the list's final
+      // position, making the order correct regardless of `force`.
+      content = _removeStaleSimulationCall(content, functionName);
+    }
+
     for (final registration in registrationCalls) {
       final request = AppendRequest.functionStatement(
         source: content,
@@ -1786,6 +1806,24 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     return content;
+  }
+
+  /// Issue #2119 migration: removes a `registerSimulationBindings(getIt);`
+  /// statement from [functionName] so the incremental merge path can
+  /// re-append it last. A no-op when the call is absent.
+  String _removeStaleSimulationCall(String content, String functionName) {
+    const simulationCall = 'registerSimulationBindings(getIt);';
+    if (!content.contains(simulationCall)) {
+      return content;
+    }
+    final result = appendExecutor.undo(
+      AppendRequest.functionStatement(
+        source: content,
+        functionName: functionName,
+        memberSource: simulationCall,
+      ),
+    );
+    return result.source;
   }
 
   /// #1102: appends the resetDependencies test-lane hook to an index
