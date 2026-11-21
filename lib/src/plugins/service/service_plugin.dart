@@ -117,6 +117,13 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       revert: context.core.revert,
       generateService: true,
       service: context.get<String>('service'),
+      // Issue #2126: a bare `--service` (normalized to useService by
+      // make_command) must resolve to the feature's own <Name>Service so
+      // the service plugin emits the interface the provider/usecase
+      // generated against it can implement.
+      useService:
+          context.data['use-service'] == true ||
+          context.data['useService'] == true,
       // Issue #978 (make-triad consistency): mirror the usecase/repository
       // entity-methods default (['get', 'update', 'toggle']) so the service
       // interface lands on the ENTITY path with the same member surface
