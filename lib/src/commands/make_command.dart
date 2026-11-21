@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
 
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as path;
@@ -840,6 +841,19 @@ class MakeCommand extends Command<void> {
     );
     context.data.addAll(normalizedOptions);
 
+    // Issue #2126: a bare `--service` used as a boolean (e.g.
+    // `zfa make Foo --service --provider ...`) swallows the next token as
+    // the option's value because `--service` is an `addOption`, not a
+    // flag. `--service --provider` parses service='--provider', and
+    // `effectiveService` then appends 'Service' → '--providerService',
+    // whose snake-case is the invalid placeholder '-_-provider_service'
+    // (the issue's exact crash). A `--service` value that is really a
+    // swallowed flag (starts with '-') or is empty means the user wanted
+    // the feature's OWN service — route it through useService so
+    // effectiveService resolves to '<Name>Service', the behavior the
+    // issue's `ImportOrders` receipt shows.
+    _normalizeBareServiceFlag(argResults!, context.data);
+
     // #360: honor .zfa.json xray default for the view plugin.
     // --xray flag always wins; otherwise fall back to config. An explicit
     // `false` already present in context.data (e.g. set by a plugin or
@@ -1644,6 +1658,40 @@ class MakeCommand extends Command<void> {
     });
 
     return normalized;
+  }
+
+  /// Issue #2126: normalize a bare `--service` used as a boolean.
+  ///
+  /// `--service` is declared with `argParser.addOption`, so a bare
+  /// `--service --provider` makes the `args` package consume `--provider`
+  /// as the option's value (service == '--provider'). Downstream,
+  /// `GeneratorConfig.effectiveService` appends 'Service' to whatever
+  /// does not already end in Service/Provider, and `serviceSnake`
+  /// snake-cases the result — `'--providerService'` becomes the invalid
+  /// placeholder path `lib/src/domain/services/-_-provider_service.dart`
+  /// (the issue's exact crash). A bare `--service` is a boolean in
+  /// intent: it selects the feature's OWN service. Route it through
+  /// `useService` (which makes `effectiveService` resolve to
+  /// '<Name>Service') and clear the bogus name, so the service plugin,
+  /// provider plugin and usecase generator all see a concrete, valid
+  /// interface name.
+  ///
+  /// Only a value that is empty or begins with '-' is treated as a
+  /// swallowed flag. An explicit `--service <Name>` (or `--service=<Name>`)
+  /// keeps its value untouched.
+  static void _normalizeBareServiceFlag(
+    ArgResults argResults,
+    Map<String, dynamic> data,
+  ) {
+    if (!argResults.wasParsed('service')) return;
+    final value = argResults['service'];
+    if (value is! String) return;
+    final isSwallowedFlag = value.isEmpty || value.startsWith('-');
+    if (!isSwallowedFlag) return;
+    // Bare boolean `--service`: use the feature's own <Name>Service.
+    data['use-service'] = true;
+    data['useService'] = true;
+    data['service'] = null;
   }
 
   /// Issue #2023: true when the request explicitly selects the `usecase`
