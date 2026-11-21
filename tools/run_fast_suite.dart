@@ -204,9 +204,9 @@ FastSuiteDecision decideFastSuite(List<String> args) {
       return FastSuiteDecision.refuse(
         raw.isEmpty
             ? 'run_fast_suite: the concurrency flag has no value (expected '
-                'an integer >= 1).\n'
+                  'an integer >= 1).\n'
             : 'run_fast_suite: bad concurrency value "$raw" (expected an '
-                'integer >= 1).\n',
+                  'integer >= 1).\n',
       );
     }
     if (requested < 1) {
@@ -232,14 +232,14 @@ FastSuiteDecision decideFastSuite(List<String> args) {
       preset.isEmpty
           ? 'run_fast_suite: the preset flag has no value.\n'
           : 'run_fast_suite: REFUSING preset "$preset".\n\n'
-              "A preset's own selector configuration WINS over the CLI's "
-              'tag selectors (package/test), so a preset would replace the '
-              "fast lane's `--exclude-tags '$fastSuiteExcludeTags'` and take "
-              'the run outside the bounded lane.\n\n'
-              'Run the fast tier through this entrypoint (no preset):\n'
-              '  dart run tools/run_fast_suite.dart\n\n'
-              'Run a heavy tier directly, with its own lane:\n'
-              '  dart test --preset=regression\n',
+                "A preset's own selector configuration WINS over the CLI's "
+                'tag selectors (package/test), so a preset would replace the '
+                "fast lane's `--exclude-tags '$fastSuiteExcludeTags'` and take "
+                'the run outside the bounded lane.\n\n'
+                'Run the fast tier through this entrypoint (no preset):\n'
+                '  dart run tools/run_fast_suite.dart\n\n'
+                'Run a heavy tier directly, with its own lane:\n'
+                '  dart test --preset=regression\n',
     );
   }
 
