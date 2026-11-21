@@ -1,9 +1,11 @@
+import 'package:analyzer/dart/ast/ast.dart' as ast;
 import 'package:args/command_runner.dart';
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../commands/modular_di_command.dart';
 import '../../core/ast/append_executor.dart';
+import '../../core/ast/ast_helper.dart';
 import '../../core/ast/strategies/append_strategy.dart';
 import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
@@ -1359,7 +1361,35 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       }
     }
 
-    final constructorCall = refer(className).call(constructorParams);
+    final useCaseFilePath = path.join(
+      outputDir,
+      'domain',
+      'usecases',
+      domainSnake,
+      '${classSnake}_usecase.dart',
+    );
+
+    // Issue #2128: when the use-case file already exists on disk it is the
+    // authority on the constructor shape — `zfa make --usecase` SKIPS an
+    // existing use case, so a legacy (e.g. named-constructor) declaration is
+    // retained while this DI file is regenerated. Emitting the positional
+    // service-delegation call against a named constructor does not compile.
+    // Parse the retained file's constructor and match its call shape.
+    final actualConstructor = await _parseUseCaseConstructor(
+      className,
+      useCaseFilePath,
+      fs,
+    );
+
+    final Expression constructorCall;
+    if (actualConstructor != null) {
+      final resolved = _resolveConstructorArgs(actualConstructor, imports);
+      constructorCall = refer(
+        className,
+      ).call(resolved.positional, resolved.named);
+    } else {
+      constructorCall = refer(className).call(constructorParams);
+    }
     final registrationCall = refer('getIt')
         .property('registerLazySingleton')
         .call(
@@ -1391,6 +1421,169 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       revert: config.revert,
       fileSystem: fs,
     );
+  }
+
+  /// Parses the constructor declaration of [className] in the use-case file
+  /// at [usecaseFilePath]. Returns `null` when the file is absent (a freshly
+  /// generated use case — the positional service call is correct), when the
+  /// class has no explicit constructor (an implicit no-arg constructor), or
+  /// when the source cannot be parsed.
+  ///
+  /// Issue #2128: a retained legacy use case keeps whatever constructor it
+  /// was written with; the DI registration must call THAT constructor, not
+  /// the positional shape the current generator would emit.
+  Future<_CtorSpec?> _parseUseCaseConstructor(
+    String className,
+    String usecaseFilePath,
+    FileSystem fs,
+  ) async {
+    if (!await fs.exists(usecaseFilePath)) return null;
+
+    final helper = const AstHelper();
+    final parseResult = await helper.parseFile(usecaseFilePath, fileSystem: fs);
+    final unit = parseResult.unit;
+    if (unit == null) return null;
+
+    final classNode = helper.findClass(unit, className);
+    if (classNode == null) return null;
+
+    final constructors = classNode.body.members
+        .whereType<ast.ConstructorDeclaration>()
+        .where((c) => c.name == null)
+        .toList();
+    if (constructors.isEmpty) return null;
+    final ctor = constructors.first;
+
+    // Field declarations keyed by name: a field-formal parameter
+    // (`Type this._field`) carries no type of its own — the type lives on
+    // the field it binds to (issue #2128: the legacy LoginUseCase constructor
+    // is `LoginUseCase(this._authService)`).
+    final fieldTypes = <String, String>{};
+    for (final member
+        in classNode.body.members.whereType<ast.FieldDeclaration>()) {
+      final fieldType = member.fields.type?.toSource();
+      if (fieldType == null) continue;
+      for (final variable in member.fields.variables) {
+        fieldTypes[variable.name.lexeme] = fieldType;
+      }
+    }
+
+    final positional = <_CtorParam>[];
+    final named = <_CtorParam>[];
+    for (final param in ctor.parameters.parameters) {
+      final name = param.name?.lexeme;
+      if (name == null || name.isEmpty) continue;
+      final type = _formalParameterType(param, fieldTypes);
+      if (type.isEmpty || type == 'dynamic') continue;
+      final entry = _CtorParam(
+        name: name,
+        type: type,
+        required: param.isRequiredNamed || param.isRequiredPositional,
+      );
+      if (param.isNamed) {
+        named.add(entry);
+      } else {
+        positional.add(entry);
+      }
+    }
+
+    // A constructor with unresolvable parameters (no type to resolve from
+    // the container) is left to the legacy positional emission — a parsed
+    // subset would shift the positional argument order.
+    if (positional.length + named.length != ctor.parameters.parameters.length) {
+      return null;
+    }
+
+    return _CtorSpec(positional: positional, named: named);
+  }
+
+  /// Builds the constructor call arguments for [_generateCustomUseCaseDI] from
+  /// the retained [ctor], resolving each parameter type from the DI container
+  /// and registering the import its declaration lives in. A named parameter
+  /// is emitted as a named argument, a positional one as a positional argument
+  /// — matching the use-case's actual constructor (issue #2128).
+  ({List<Expression> positional, Map<String, Expression> named})
+  _resolveConstructorArgs(_CtorSpec ctor, Set<String> imports) {
+    final positional = <Expression>[];
+    final named = <String, Expression>{};
+
+    for (final param in ctor.positional) {
+      _addParamImport(param.type, imports);
+      positional.add(refer('getIt').call([], {}, [refer(param.type)]));
+    }
+    for (final param in ctor.named) {
+      _addParamImport(param.type, imports);
+      named[param.name] = refer('getIt').call([], {}, [refer(param.type)]);
+    }
+
+    return (positional: positional, named: named);
+  }
+
+  /// Adds the import for a use-case constructor parameter [typeName] to
+  /// [imports] when it resolves to an on-disk repository or service interface.
+  /// A framework/core type (e.g. `CancelToken`) or an unresolvable type is
+  /// left to the use-case file's own imports.
+  void _addParamImport(String typeName, Set<String> imports) {
+    final baseName = typeName.replaceAll('?', '').trim();
+    if (baseName.isEmpty || baseName.endsWith('Params')) return;
+
+    final baseSnake = StringUtils.camelToSnake(baseName);
+
+    final repoImport = '../../domain/repositories/${baseSnake}_repository.dart';
+    final repoFile = path.join(
+      outputDir,
+      'domain',
+      'repositories',
+      '${baseSnake}_repository.dart',
+    );
+    if (fileSystem.existsSync(repoFile)) {
+      imports.add(repoImport);
+      return;
+    }
+
+    final serviceImport = '../../domain/services/${baseSnake}_service.dart';
+    final serviceFile = path.join(
+      outputDir,
+      'domain',
+      'services',
+      '${baseSnake}_service.dart',
+    );
+    if (fileSystem.existsSync(serviceFile)) {
+      imports.add(serviceImport);
+      return;
+    }
+
+    // Nested service path: domain/services/<domain>/<snake>.dart
+    final servicesDir = path.join(outputDir, 'domain', 'services');
+    if (fileSystem.existsSync(servicesDir)) {
+      for (final entry in fileSystem.listSync(servicesDir)) {
+        if (fileSystem.isDirectorySync(entry)) {
+          final nested = path.join(entry, '${baseSnake}_service.dart');
+          if (fileSystem.existsSync(nested)) {
+            imports.add(
+              '../../domain/services/${path.basename(entry)}/${baseSnake}_service.dart',
+            );
+            return;
+          }
+        }
+      }
+    }
+
+    // Fallback: a use case dependency lives under domain/usecases/<domain>/.
+    final usecasesDir = path.join(outputDir, 'domain', 'usecases');
+    if (fileSystem.existsSync(usecasesDir)) {
+      for (final entry in fileSystem.listSync(usecasesDir)) {
+        if (fileSystem.isDirectorySync(entry)) {
+          final nested = path.join(entry, '${baseSnake}_usecase.dart');
+          if (fileSystem.existsSync(nested)) {
+            imports.add(
+              '../../domain/usecases/${path.basename(entry)}/${baseSnake}_usecase.dart',
+            );
+            return;
+          }
+        }
+      }
+    }
   }
 
   ({String className, String methodPrefix}) _getUseCaseInfo(
@@ -2047,4 +2240,59 @@ void resetDependencies(GetIt getIt) {
     // zuraffa package which owns them (#1722).
     return 'package:zuraffa/simulation.dart';
   }
+
+  /// The declared type source of a constructor [param], resolved against the
+  /// class's [fieldTypes] (name → declared type) when the parameter is a
+  /// field-formal (`Type this._field`) — a field-formal carries its type on
+  /// the field it binds to, not on the parameter itself. A plain/regular
+  /// parameter carries its own `.type` (analyzer 14 `RegularFormalParameter`).
+  /// Returns an empty string when the type cannot be determined.
+  String _formalParameterType(
+    ast.FormalParameter param,
+    Map<String, String> fieldTypes,
+  ) {
+    if (param is ast.FieldFormalParameter) {
+      final declared = param.type?.toSource();
+      if (declared != null && declared.isNotEmpty) return declared;
+      final name = param.name.lexeme;
+      if (name.isNotEmpty) {
+        final fieldType = fieldTypes[name];
+        if (fieldType != null && fieldType.isNotEmpty) return fieldType;
+      }
+      return '';
+    }
+    try {
+      final t = (param as dynamic).type;
+      if (t != null) {
+        final source = t.toSource() as String?;
+        if (source != null && source.isNotEmpty) return source;
+      }
+    } catch (_) {
+      // Parameter kind without a declared `type` (e.g. function-typed).
+    }
+    return '';
+  }
+}
+
+/// One constructor parameter of a retained use-case file (issue #2128):
+/// its name, declared type and whether it is a required named argument.
+class _CtorParam {
+  final String name;
+  final String type;
+  final bool required;
+
+  const _CtorParam({
+    required this.name,
+    required this.type,
+    required this.required,
+  });
+}
+
+/// A parsed use-case constructor: positional and named parameters in
+/// declaration order (issue #2128).
+class _CtorSpec {
+  final List<_CtorParam> positional;
+  final List<_CtorParam> named;
+
+  const _CtorSpec({required this.positional, required this.named});
 }
