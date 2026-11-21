@@ -93,6 +93,24 @@ class EntityCommand {
         .where((arg) => arg != '--build' && arg != '--dart-format')
         .toList();
 
+    // Issue #2124: a subcommand-level help request must short-circuit
+    // command-specific required-argument validation (and the pubspec guard)
+    // the same way `zfa entity --help` does. The entity subcommands parse
+    // their args manually and otherwise validate the required entity name
+    // first, so `zfa entity create --help` exited 2 with "Entity name is
+    // required" instead of printing usage. Help must be reachable from any
+    // directory, so this runs before the dependency guard below.
+    //
+    // Only the flag forms (`--help` / `-h`) are matched — never a bare
+    // `help` token — so an entity literally named `help` (`-n help`) or a
+    // field value `help` is not mistaken for a help request.
+    const subcommandHelpFlags = {'--help', '-h'};
+    if (subArgs.any(subcommandHelpFlags.contains)) {
+      _printHelp();
+      if (exitOnCompletion) exit(0);
+      return;
+    }
+
     final config = ZfaConfig.load();
     final runBuild = shouldBuild || (config?.buildByDefault ?? false);
     final runFormat = shouldFormat || (config?.formatByDefault ?? false);
