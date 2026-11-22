@@ -24,7 +24,6 @@ library;
 //
 // Fast tier: in-process plugin invocation into a throwaway directory; no
 // subprocess, no pub get.
-library;
 
 import 'dart:io';
 
