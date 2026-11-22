@@ -882,9 +882,7 @@ class MakeCommand extends Command<void> {
         context.data['use-service'] == true ||
         context.data['useService'] == true;
     final providerExplicit =
-        argResults!.options.contains('provider') &&
-        argResults!.wasParsed('provider') &&
-        argResults!['provider'] == true;
+        argResults!.wasParsed('provider') && argResults!['provider'] == true;
     if (service == null &&
         !useServiceAlready &&
         context.data['no-entity'] == true &&
@@ -893,6 +891,15 @@ class MakeCommand extends Command<void> {
       context.data['use-service'] = true;
       context.data['useService'] = true;
     }
+
+    // Review fix (zuraffa#2145 reroute): tell the usecase plugin whether
+    // the service plugin is part of THIS plan. The service plugin runs
+    // after the usecase plugin and can still emit a missing
+    // `<Name>Service` interface, so the usecase's method resolution must
+    // defer instead of failing on the on-disk state (the #2126 bare
+    // `--service` ordering). A direct plugin generate never sets this —
+    // the loud #1799 failure is unchanged there.
+    context.data['service-plugin-in-plan'] = plan.pluginIds.contains('service');
 
     // #360: honor .zfa.json xray default for the view plugin.
     // --xray flag always wins; otherwise fall back to config. An explicit
