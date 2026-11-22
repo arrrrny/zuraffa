@@ -257,4 +257,170 @@ void main() {
       isTrue,
     );
   });
+
+  test(
+    'issue #2131 — no-entity service must not import phantom entities',
+    () async {
+      // Issue #2131: a no-entity standalone service (custom --params/
+      // --returns, no backing entity) must not emit the missing-file
+      // fallback import — it would reference a domain/entities/<type>/
+      // <type>.dart that does not exist and fail `zfa build`'s analyzer
+      // gate with `uri_does_not_exist` / `undefined_class`. The stream
+      // usecase generator already guards its entity imports with
+      // `includeMissingEntityFallback: !config.noEntity` (2025 review,
+      // issue #2023); the service builder did not, so it kept emitting
+      // the phantom imports.
+      final plugin = ServicePlugin(
+        outputDir: outputDir,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
+      );
+
+      await plugin.generate(
+        GeneratorConfig(
+          name: 'RunPriceCheckForItem',
+          service: 'RunPriceCheckForItemService',
+          domain: 'price_check',
+          methods: const [],
+          paramsType: 'PriceCheckParams',
+          returnsType: 'PriceCheckItemResult',
+          useCaseType: 'stream',
+          noEntity: true,
+          outputDir: outputDir,
+        ),
+      );
+
+      final serviceFile = File(
+        '$outputDir/domain/services/run_price_check_for_item_service.dart',
+      );
+      final content = serviceFile.readAsStringSync();
+
+      // The service must NOT import the nonexistent entity files.
+      expect(
+        content,
+        isNot(contains('entities/price_check_params')),
+        reason: 'no phantom entity import for the custom params type',
+      );
+      expect(
+        content,
+        isNot(contains('entities/price_check_item_result')),
+        reason: 'no phantom entity import for the custom returns type',
+      );
+    },
+  );
+
+  test(
+    'issue #2131 — entity-backed service still imports the entity file',
+    () async {
+      // The #2131 guard must not over-skip: an entity-backed service
+      // (noEntity: false) with a custom params type MUST keep importing
+      // its entity file.
+      final plugin = ServicePlugin(
+        outputDir: outputDir,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
+      );
+
+      await plugin.generate(
+        GeneratorConfig(
+          name: 'GetListingByBarcode',
+          service: 'Listing',
+          domain: 'listing',
+          paramsType: 'Barcode',
+          returnsType: 'Listing?',
+          outputDir: outputDir,
+        ),
+      );
+
+      final serviceFile = File(
+        '$outputDir/domain/services/listing_service.dart',
+      );
+      final content = serviceFile.readAsStringSync();
+
+      expect(
+        content.contains("'../entities/barcode/barcode.dart'"),
+        isTrue,
+        reason: 'an entity-backed service still imports its entity file',
+      );
+    },
+  );
+
+  test(
+    'issue #2131 — a no-entity service still imports an entity file that '
+    'exists (the #2131 guard must not over-skip in no-entity mode)',
+    () async {
+      // CodeRabbit review nitpick on #2134: the guard
+      // `includeMissingEntityFallback: !config.noEntity` suppresses ONLY
+      // the missing-file fallback branch — `CommonPatterns.entityImports`
+      // probes the filesystem first and emits a real import when the
+      // entity file exists, whatever the fallback flag says. Pin that with
+      // a fixture entity present AND noEntity: true, so a regression that
+      // suppresses ALL entity imports in no-entity mode is caught.
+      await _scaffoldEntity(outputDir, 'Barcode');
+
+      final plugin = ServicePlugin(
+        outputDir: outputDir,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
+      );
+
+      await plugin.generate(
+        GeneratorConfig(
+          name: 'GetListingByBarcode',
+          service: 'Listing',
+          domain: 'listing',
+          paramsType: 'Barcode',
+          returnsType: 'Listing?',
+          noEntity: true,
+          outputDir: outputDir,
+        ),
+      );
+
+      final serviceFile = File(
+        '$outputDir/domain/services/listing_service.dart',
+      );
+      final content = serviceFile.readAsStringSync();
+
+      expect(
+        content.contains("'../entities/barcode/barcode.dart'"),
+        isTrue,
+        reason:
+            'an existing entity file is still imported with noEntity: '
+            'true — the guard suppresses only the missing-file fallback',
+      );
+      expect(
+        content,
+        isNot(contains("'../entities/listing/listing.dart'")),
+        reason: 'a genuinely missing entity import stays suppressed',
+      );
+    },
+  );
+}
+
+/// Scaffolds a minimal entity file at the canonical v5 location
+/// `lib/src/domain/entities/<snake>/<snake>.dart` so that
+/// `CommonPatterns.entityImports`' filesystem resolver finds it.
+Future<void> _scaffoldEntity(String outputDir, String entityName) async {
+  final snake = _camelToSnake(entityName);
+  final dir = Directory('$outputDir/domain/entities/$snake');
+  await dir.create(recursive: true);
+  final file = File('${dir.path}/$snake.dart');
+  await file.writeAsString('class $entityName {}\n');
+}
+
+String _camelToSnake(String input) {
+  final out = input.replaceAllMapped(
+    RegExp(r'[A-Z]'),
+    (m) => '_${m.group(0)!.toLowerCase()}',
+  );
+  return out.startsWith('_') ? out.substring(1) : out;
 }

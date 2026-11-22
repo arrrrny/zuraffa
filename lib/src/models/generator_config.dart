@@ -26,6 +26,17 @@ class GeneratorConfig {
   final bool generateUseCase;
   final bool generateService;
   final bool useService;
+
+  /// Review fix (zuraffa#2145 reroute): true when the make plan that owns
+  /// this config also activates the service plugin — which runs AFTER the
+  /// usecase plugin and can still emit a missing `<Name>Service`
+  /// interface. The custom-usecase generator defers its loud
+  /// missing-interface failure (and its method-name resolution) to the
+  /// default method name when set, instead of refusing a plan that would
+  /// have produced the interface one step later (the #2126 bare
+  /// `--service` ordering). Direct plugin generates leave it false, so
+  /// the loud #1799 failure is unchanged there.
+  final bool servicePluginInPlan;
   final bool generateRepository;
   final String useCaseType;
   final String? paramsType;
@@ -163,6 +174,7 @@ class GeneratorConfig {
     this.generateUseCase = false,
     this.generateService = false,
     this.useService = false,
+    this.servicePluginInPlan = false,
     this.generateRepository = false,
     this.useCaseType = 'usecase',
     this.paramsType,
@@ -416,6 +428,7 @@ class GeneratorConfig {
     bool? generateUseCase,
     bool? generateService,
     bool? useService,
+    bool? servicePluginInPlan,
     bool? generateRepository,
     String? useCaseType,
     String? paramsType,
@@ -498,6 +511,7 @@ class GeneratorConfig {
       generateUseCase: generateUseCase ?? this.generateUseCase,
       generateService: generateService ?? this.generateService,
       useService: useService ?? this.useService,
+      servicePluginInPlan: servicePluginInPlan ?? this.servicePluginInPlan,
       generateRepository: generateRepository ?? this.generateRepository,
       useCaseType: useCaseType ?? this.useCaseType,
       paramsType: paramsType ?? this.paramsType,

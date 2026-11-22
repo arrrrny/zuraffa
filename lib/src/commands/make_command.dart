@@ -332,7 +332,13 @@ class MakeCommand extends Command<void> {
     argParser.addFlag('vpc', negatable: false, help: 'Generate full VPC set');
     argParser.addFlag('vpcs', negatable: false, help: 'Generate full VPC set');
     argParser.addFlag('state', negatable: false, help: 'Generate state class');
-    argParser.addFlag('data', negatable: false, help: 'Generate data layer');
+    // Issue #2139: `provider create` exposes `--[no-]data`, so the make-side
+    // fallback for a provider must accept the same `--no-data` negation —
+    // otherwise the equivalent commands have incompatible option grammars and
+    // `zfa make <Name> --provider ... --no-data` dies with exit 2
+    // `Cannot negate option "--no-data"`. The data-layer overgeneration this
+    // pairs with is the separate known issue #2131; this only aligns the grammar.
+    argParser.addFlag('data', negatable: true, help: 'Generate data layer');
     argParser.addFlag(
       'datasource',
       negatable: false,
@@ -854,6 +860,47 @@ class MakeCommand extends Command<void> {
     // issue's `ImportOrders` receipt shows.
     _normalizeBareServiceFlag(argResults!, context.data);
 
+    // Issue #2140: the provider plugin carries the feature-service binding
+    // (`useService: true` → effectiveService resolves to '<Name>Service')
+    // on ITS OWN config, but the usecase plugin builds a separate
+    // GeneratorConfig from context.data — which never sees that binding.
+    // A `zfa make X --provider ... --no-entity` run (usecase active via
+    // the default tier) then hit the non-entity guard with NEITHER a
+    // domain NOR a service, dying on "you must specify a domain using
+    // --domain." Mirror the provider's service binding into context.data
+    // so every plugin in the plan binds to the SAME feature service the
+    // provider targets. Gated to the no-entity shape — an entity-based
+    // CRUD run keeps its repository path — and never overrides an
+    // explicit dependency choice (--service <Name>, --repo, bare
+    // --service, --from-json use-service). The repository schema declares
+    // `use-service` with default false, so an ABSENT key and an explicit
+    // false are indistinguishable: read the VALUE, not the key.
+    final service = context.data['service'] is String
+        ? context.data['service'] as String?
+        : null;
+    final useServiceAlready =
+        context.data['use-service'] == true ||
+        context.data['useService'] == true;
+    final providerExplicit =
+        argResults!.wasParsed('provider') && argResults!['provider'] == true;
+    if (service == null &&
+        !useServiceAlready &&
+        context.data['no-entity'] == true &&
+        context.data['repo'] == null &&
+        providerExplicit) {
+      context.data['use-service'] = true;
+      context.data['useService'] = true;
+    }
+
+    // Review fix (zuraffa#2145 reroute): tell the usecase plugin whether
+    // the service plugin is part of THIS plan. The service plugin runs
+    // after the usecase plugin and can still emit a missing
+    // `<Name>Service` interface, so the usecase's method resolution must
+    // defer instead of failing on the on-disk state (the #2126 bare
+    // `--service` ordering). A direct plugin generate never sets this —
+    // the loud #1799 failure is unchanged there.
+    context.data['service-plugin-in-plan'] = plan.pluginIds.contains('service');
+
     // #360: honor .zfa.json xray default for the view plugin.
     // --xray flag always wins; otherwise fall back to config. An explicit
     // `false` already present in context.data (e.g. set by a plugin or
@@ -1341,10 +1388,11 @@ class MakeCommand extends Command<void> {
   /// Spec #979 (orders 2 + 4): the provider post-pass — receipt + gates.
   ///
   /// Returns true when the run must FAIL (committed stubs survived, or a
-  /// conformance miss). Fresh stubs (the provider this run just wrote —
-  /// stub-first semantics) are recorded in the deterministic receipt and
-  /// named in the output, and do NOT fail the run: stubs are allowed to
-  /// exist, never to hide.
+  /// conformance miss). Fresh stubs (a provider this run wrote OR whose
+  /// converging re-run re-emitted the committed bytes — stub-first
+  /// semantics) are recorded in the deterministic receipt and named in
+  /// the output, and do NOT fail the run: stubs are allowed to exist,
+  /// never to hide.
   Future<bool> _providerPostPass(
     String entityName,
     List<GeneratedFile> files,
@@ -1375,24 +1423,63 @@ class MakeCommand extends Command<void> {
           providerFile.endsWith('/${fRel.split('/').last}') &&
               f.type == 'provider';
     }).toList();
-    final fresh = runEntry.any(
-      (f) =>
-          f.action == 'created' ||
-          f.action == 'overwritten' ||
-          f.action == 'updated',
-    );
+    final fresh = runEntry.any((f) {
+      switch (f.action) {
+        case 'created':
+        case 'overwritten':
+        case 'updated':
+          return true;
+        case 'skipped':
+          // Issue #2129: a skip with the re-emitted content attached is a
+          // CONVERGING re-run, not an escape — FileUtils.writeFile skips ANY
+          // existing file without --force, but the plugin still emitted the
+          // skeleton and the skip entry carries it. When that content equals
+          // the committed bytes, the stubs on disk are this run's own
+          // stub-first output (fresh generation, again); when the content
+          // disagrees (or is absent — a file the run never emitted), the
+          // skeleton on disk was committed by someone else and the escape
+          // gate holds. An unreadable provider file (deleted mid-run,
+          // permission denied, path is a directory) is treated as "not
+          // reproduced" — the escape gate holds and the stub-escape verdict
+          // below carries the actionable fix, instead of a read error
+          // masking the generation failure the gate exists to report.
+          String? committed;
+          try {
+            committed = File(providerFile).readAsStringSync();
+          } catch (_) {
+            return false;
+          }
+          return f.content != null && f.content == committed;
+        default:
+          return false;
+      }
+    });
 
     // Receipt: proof.v1 digests of the final bytes + the ledger data
     // (interface / methods / stub count) — best-effort by design.
+    // ProviderReceiptWriter digests only created/overwritten/updated
+    // entries, so a converging re-run's skipped-only runEntry would
+    // yield a digest-empty receipt (the synthetic fallback below only
+    // fires on an EMPTY runEntry). Digested set = the rewritten entries
+    // when any, else the on-disk provider bytes (this run's own output
+    // either way — the converging re-run re-emitted them).
+    final digested = runEntry
+        .where(
+          (f) =>
+              f.action == 'created' ||
+              f.action == 'overwritten' ||
+              f.action == 'updated',
+        )
+        .toList();
     try {
       await ProviderReceiptWriter().write(
         projectRoot: manager.projectRoot,
         entity: entity,
-        files: runEntry.isNotEmpty
-            ? runEntry
+        files: digested.isNotEmpty
+            ? digested
             : [
-                // Committed, untouched by this run — digest the current
-                // bytes so the receipt stays truthful.
+                // Committed, untouched by this run (or a converging skip) —
+                // digest the current bytes so the receipt stays truthful.
                 GeneratedFile(
                   path: providerFile,
                   type: 'provider',
@@ -1433,8 +1520,10 @@ class MakeCommand extends Command<void> {
     if (stubs.isEmpty) return false;
 
     if (fresh) {
-      // Fresh stubs are the intended stub-first output: NAME them and
-      // record them (the receipt above carries the count), do not fail.
+      // Fresh stubs are the intended stub-first output (this run wrote
+      // them, or a converging re-run re-emitted the committed bytes —
+      // either way NOT a committed escape): NAME them and record them (the
+      // receipt above carries the count), do not fail.
       print(
         'ℹ️  Provider $relative generated stub-first: '
         '${stubs.length} method(s) still throw UnimplementedError '

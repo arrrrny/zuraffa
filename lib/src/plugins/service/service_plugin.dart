@@ -199,10 +199,48 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             fileName,
           )
         : path.join(outputDir, 'domain', 'services', fileName);
+
+    // Review fix (zuraffa#2145 reroute): never silently replace an
+    // existing service interface's members. A `--provider --no-entity
+    // --force` run (make_command sets use-service after plan resolution)
+    // reaches this plugin with NO --methods/--params/--returns, so the
+    // builder would emit an EMPTY interface and --force would overwrite
+    // the existing memberful file — generated code calling the removed
+    // members then no longer compiles. When the file exists with a
+    // different content and this run would produce no members, stop
+    // before the write with a structured skip and an actionable fix.
+    final fs = context?.fileSystem;
+    final existing = fs != null && await fs.exists(filePath)
+        ? await fs.read(filePath)
+        : null;
     final content = await interfaceBuilder.build(
       config,
       fileSystem: context?.fileSystem,
     );
+    final wouldEmitNoMembers = config.methods.isEmpty && !config.generateInit;
+    if (existing != null &&
+        existing.trim().isNotEmpty &&
+        existing.trim() != content.trim() &&
+        wouldEmitNoMembers) {
+      print(
+        '⚠️  Skipping service generation: $filePath already declares a '
+        'member surface and this run names no --methods/--params/--returns '
+        'to rebuild it — refusing the destructive overwrite (review fix '
+        'on #2145).\n'
+        '--> fix: name the surface explicitly (zfa service create '
+        '${config.name} --service=${config.effectiveService} '
+        '--methods=<method,...>), or re-run without --force to keep the '
+        'existing interface.',
+      );
+      return [
+        GeneratedFile(
+          path: filePath,
+          type: 'service',
+          action: 'skipped',
+          skipReason: 'overwrite-conflict',
+        ),
+      ];
+    }
 
     final file = await FileUtils.writeFile(
       filePath,

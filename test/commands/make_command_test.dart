@@ -1645,5 +1645,156 @@ abstract class \$ChatMessage {
       );
       expect(output, contains('❌ Error: Cannot generate architecture'));
     });
+
+    // Issue #2140: `zfa make <Name> --provider --no-entity` with the
+    // usecase plugin default-enabled must generate the completable
+    // usecase beside the existing service instead of dying on
+    // "you must specify a domain using --domain." The provider-implied
+    // feature service (<Name>Service) is the scope: the make bridge
+    // mirrors the provider's useService binding into context.data, the
+    // usecase plugin reads it like its siblings, and the guard infers the
+    // domain from the service (effectiveDomain → nameSnake).
+    test('#2140 — --provider + --no-entity completable generates beside the '
+        'existing service without --domain', () async {
+      // The issue's shape: usecase is default-enabled via project config
+      // (the #1496 default tier / .zfa.json), so the one-line provider
+      // request carries BOTH plugins.
+      await File(path.join(workspace.path, '.zfa.json')).writeAsString(
+        jsonEncode({
+          'plugins': {
+            'defaults': {'usecase': true},
+          },
+        }),
+      );
+      // The service interface the provider binds to (the issue's premise:
+      // the service already exists).
+      final serviceDir = Directory(path.join(outputDir, 'domain', 'services'));
+      await serviceDir.create(recursive: true);
+      await File(
+        path.join(serviceDir.path, 'schedule_price_check_service.dart'),
+      ).writeAsString(
+        'abstract class SchedulePriceCheckService {\n'
+        '  Future<void> schedulePriceCheck(NoParams params);\n'
+        '}\n',
+      );
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
+        'make',
+        'SchedulePriceCheck',
+        '--provider',
+        '--params=NoParams',
+        '--returns=void',
+        '--type=completable',
+        '--no-entity',
+        '--force',
+        '--compile-only',
+        '--output',
+        outputDir,
+      ]);
+
+      expect(
+        output,
+        isNot(contains('you must specify a domain')),
+        reason:
+            'the non-entity guard must not demand --domain when the '
+            'provider-implied service scopes the work (issue #2140). '
+            'Output:\n$output',
+      );
+      expect(output, isNot(contains('❌ Error')));
+
+      // The usecase lands beside the service, under the name-derived
+      // domain (effectiveDomain = domain ?? nameSnake).
+      final usecaseFile = File(
+        path.join(
+          outputDir,
+          'domain',
+          'usecases',
+          'schedule_price_check',
+          'schedule_price_check_usecase.dart',
+        ),
+      );
+      expect(
+        usecaseFile.existsSync(),
+        isTrue,
+        reason:
+            'the completable usecase must be generated (#2140). '
+            'Output:\n$output',
+      );
+      final usecaseSource = usecaseFile.readAsStringSync();
+      expect(usecaseSource, contains('class SchedulePriceCheckUseCase'));
+      expect(usecaseSource, contains('CompletableUseCase<NoParams>'));
+      expect(
+        usecaseSource,
+        contains('final SchedulePriceCheckService _schedulePriceCheckService;'),
+        reason: 'the usecase must bind to the feature service (#2140)',
+      );
+
+      // The provider is the artifact the issue asked for: it implements
+      // the service beside it.
+      final providerFile = File(
+        path.join(
+          outputDir,
+          'data',
+          'providers',
+          'schedule_price_check',
+          'schedule_price_check_provider.dart',
+        ),
+      );
+      expect(
+        providerFile.existsSync(),
+        isTrue,
+        reason: 'the provider must be generated beside the service (#2140)',
+      );
+      expect(
+        providerFile.readAsStringSync(),
+        contains('implements SchedulePriceCheckService'),
+      );
+    });
+
+    // Complement: the guard must keep failing loudly when NOTHING scopes
+    // the work — a non-entity completable usecase with neither a domain
+    // nor a resolvable service is exactly the honest error the issue
+    // kept for that case.
+    test('#2140 — non-entity completable with no service and no domain still '
+        'fails loudly', () async {
+      final runner = CliRunner(exitOnCompletion: false);
+      final output = await runner.runCapturing([
+        '-C',
+        workspace.path,
+        'make',
+        'OrphanAction',
+        'usecase',
+        '--params=NoParams',
+        '--returns=void',
+        '--type=completable',
+        '--no-entity',
+        '--force',
+        '--compile-only',
+        '--output',
+        outputDir,
+      ]);
+
+      expect(
+        output,
+        contains('service interface not found'),
+        reason:
+            'a non-entity usecase with neither a domain nor a resolvable '
+            'service must keep failing loudly — since #2141 the loud error '
+            'names the missing <Name>Service the completable inference '
+            'resolves before the domain guard (CodeRabbit finding on #2145; '
+            'the plugin-level twin was aligned in 888a4878). '
+            'Output:\n$output',
+      );
+      expect(
+        output,
+        contains('OrphanActionService'),
+        reason:
+            'the loud failure must name the unresolved service. '
+            'Output:\n$output',
+      );
+    });
   });
 }
