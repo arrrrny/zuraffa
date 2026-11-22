@@ -55,5 +55,39 @@ void main() {
         expect(loaded.disabledPlugins, contains('route'));
       },
     );
+
+    // Issue #2125: forward references are accepted by default so a parent
+    // entity can be created before its nested entity. The default can be
+    // turned off (strict on-disk validation) via the constructor or
+    // `.zfa.json` `entity.allowForwardRefs: false`.
+    group('allowForwardRefs (#2125)', () {
+      test('defaults to true', () {
+        expect(ZfaConfig().allowForwardRefs, isTrue);
+      });
+
+      test('round-trips through .zfa.json entity.allowForwardRefs', () async {
+        await ZfaConfig.save(
+          ZfaConfig(allowForwardRefs: false),
+          projectRoot: projectRoot,
+        );
+        final loaded = ZfaConfig.load(projectRoot: projectRoot);
+        expect(loaded, isNotNull);
+        expect(loaded!.allowForwardRefs, isFalse);
+      });
+
+      test('loads true from a legacy config without the key', () async {
+        await File(
+          p.join(projectRoot, '.zfa.json'),
+        ).writeAsString('{"entity": {"jsonByDefault": true}}');
+        final loaded = ZfaConfig.load(projectRoot: projectRoot);
+        expect(loaded, isNotNull);
+        expect(loaded!.allowForwardRefs, isTrue);
+      });
+
+      test('copyWith preserves allowForwardRefs', () {
+        final config = ZfaConfig(allowForwardRefs: false);
+        expect(config.copyWith(buildByDefault: true).allowForwardRefs, isFalse);
+      });
+    });
   });
 }
