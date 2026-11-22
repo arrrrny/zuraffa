@@ -1,5 +1,5 @@
-import 'package:args/command_runner.dart';
 import 'package:analyzer/dart/ast/ast.dart' as ast;
+import 'package:args/command_runner.dart';
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
@@ -1361,54 +1361,39 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       }
     }
 
-    // Issue #2118: `zfa di register --target=<X>UseCase --domain=<d>` carries
-    // neither a repo nor a service in the config, so the constructor call was
-    // emitted with NO arguments even though the generated usecase constructor
-    // requires its backing service/repo — `XUseCase()` against
-    // `XUseCase(this._xService)`, which fails the analyzer gate. When the
-    // config supplied no dependency, infer the required constructor type(s)
-    // from the already-generated usecase source and resolve them via getIt.
-    if (constructorParams.isEmpty) {
-      final usecasePath = path.join(
-        outputDir,
-        'domain',
-        'usecases',
-        domainSnake,
-        '${classSnake}_usecase.dart',
-      );
-      for (final typeName in await _inferConstructorDependencyTypes(
-        usecasePath,
-        className,
-        fs,
-      )) {
-        final importPath = await _dependencyImportPath(
-          typeName,
-          domainSnake,
-          fs,
-        );
-        // Issue #2118 review (zuraffa): a required positional dependency type
-        // that resolves to no domain-layer import (not `*Service` /
-        // `*Provider` / `*Repository`) is still REQUIRED by the constructor —
-        // silently dropping it emits a call with fewer arguments than the
-        // constructor declares, reproducing the exact analyzer failure this PR
-        // fixes (`N positional argument(s) expected, but M found`). Surface it
-        // loudly on stderr instead of letting it resurface as a confusing
-        // build error downstream.
-        if (importPath == null) {
-          print(
-            '⚠️  $className: cannot resolve DI import for required '
-            'constructor dependency "$typeName" — the generated registration '
-            'will omit this argument. Register it manually or add a '
-            'domain-layer import the DI generator can infer.',
-          );
-          continue;
-        }
-        imports.add(importPath);
-        constructorParams.add(refer('getIt').call([], {}, [refer(typeName)]));
-      }
-    }
+    final useCaseFilePath = path.join(
+      outputDir,
+      'domain',
+      'usecases',
+      domainSnake,
+      '${classSnake}_usecase.dart',
+    );
 
-    final constructorCall = refer(className).call(constructorParams);
+    // Issue #2128: when the use-case file already exists on disk it is the
+    // authority on the constructor shape — `zfa make --usecase` SKIPS an
+    // existing use case, so a legacy (e.g. named-constructor) declaration is
+    // retained while this DI file is regenerated. Emitting the positional
+    // service-delegation call against a named constructor does not compile.
+    // Parse the retained file's constructor and match its call shape. This also
+    // subsumes issue #2118 (`di register --target=<X>UseCase` with no repo/
+    // service in the config): the retained constructor's required dependencies
+    // are inferred from the use-case source and resolved via getIt, rather than
+    // emitting a no-argument call that fails the analyzer gate.
+    final actualConstructor = await _parseUseCaseConstructor(
+      className,
+      useCaseFilePath,
+      fs,
+    );
+
+    final Expression constructorCall;
+    if (actualConstructor != null) {
+      final resolved = _resolveConstructorArgs(actualConstructor, imports, fs);
+      constructorCall = refer(
+        className,
+      ).call(resolved.positional, resolved.named);
+    } else {
+      constructorCall = refer(className).call(constructorParams);
+    }
     final registrationCall = refer('getIt')
         .property('registerLazySingleton')
         .call(
@@ -1442,116 +1427,237 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     );
   }
 
-  /// Issue #2118: reads the already-generated usecase source and returns the
-  /// declared type of each positional constructor parameter, in declaration
-  /// order. The generated custom-usecase constructor injects its dependencies
-  /// as field-formal parameters (`Class(this._service)` / `Class(this._repo)`),
-  /// so a parameter's type is read from the field it forwards to (the
-  /// field-formal carries no own type) or from the parameter's own `type`
-  /// annotation. Named/optional parameters and parameters whose type cannot be
-  /// resolved are skipped — a DI constructor call can only supply the required
-  /// positional dependencies.
-  Future<List<String>> _inferConstructorDependencyTypes(
-    String usecasePath,
+  /// Parses the constructor declaration of [className] in the use-case file
+  /// at [usecaseFilePath]. Returns `null` when the file is absent (a freshly
+  /// generated use case — the positional service call is correct), when the
+  /// class has no explicit constructor (an implicit no-arg constructor), or
+  /// when the source cannot be parsed.
+  ///
+  /// Issue #2128: a retained legacy use case keeps whatever constructor it
+  /// was written with; the DI registration must call THAT constructor, not
+  /// the positional shape the current generator would emit.
+  Future<_CtorSpec?> _parseUseCaseConstructor(
     String className,
+    String usecaseFilePath,
     FileSystem fs,
   ) async {
-    if (!await fs.exists(usecasePath)) return const [];
+    if (!await fs.exists(usecaseFilePath)) return null;
+
     final helper = const AstHelper();
-    final unit = (await helper.parseFile(usecasePath, fileSystem: fs)).unit;
-    if (unit == null) return const [];
+    final parseResult = await helper.parseFile(usecaseFilePath, fileSystem: fs);
+    final unit = parseResult.unit;
+    if (unit == null) return null;
+
     final classNode = helper.findClass(unit, className);
-    if (classNode == null) return const [];
+    if (classNode == null) return null;
 
-    final body = classNode.body;
-    if (body is! ast.BlockClassBody) return const [];
+    final constructors = classNode.body.members
+        .whereType<ast.ConstructorDeclaration>()
+        .where((c) => c.name == null)
+        .toList();
+    if (constructors.isEmpty) return null;
+    final ctor = constructors.first;
 
-    // Issue #2118 review (coderabbit): pick the UNNAMED constructor — the one
-    // the registration path at line ~1395 actually invokes
-    // (`refer(className).call(...)` targets `Class.new`, never a named
-    // constructor). A named constructor such as `Class.withService(...)` may be
-    // declared first; selecting it would infer its params and emit a call the
-    // unnamed constructor cannot accept.
-    ast.ConstructorDeclaration? constructor;
-    for (final member in body.members) {
-      if (member is ast.ConstructorDeclaration && member.name == null) {
-        constructor = member;
-        break;
-      }
-    }
-    if (constructor == null) return const [];
-
-    // field name -> declared field type, for field-formal (`this._x`)
-    // parameters that carry no type of their own. The type annotation lives
-    // on the `FieldDeclaration`'s variable list, not on the individual
-    // `VariableDeclaration`.
+    // Field declarations keyed by name: a field-formal parameter
+    // (`Type this._field`) carries no type of its own — the type lives on
+    // the field it binds to (issue #2128: the legacy LoginUseCase constructor
+    // is `LoginUseCase(this._authService)`).
     final fieldTypes = <String, String>{};
-    for (final member in body.members) {
-      if (member is! ast.FieldDeclaration) continue;
-      final type = member.fields.type?.toSource();
-      if (type == null || type.isEmpty) continue;
+    for (final member
+        in classNode.body.members.whereType<ast.FieldDeclaration>()) {
+      final fieldType = member.fields.type?.toSource();
+      if (fieldType == null) continue;
       for (final variable in member.fields.variables) {
-        fieldTypes[variable.name.lexeme] = type;
+        fieldTypes[variable.name.lexeme] = fieldType;
       }
     }
 
-    final types = <String>[];
-    for (final param in constructor.parameters.parameters) {
-      if (param.isRequiredPositional) {
-        final resolved = _formalParameterType(param, fieldTypes);
-        if (resolved != null && resolved.isNotEmpty) types.add(resolved);
-      }
-    }
-    return types;
-  }
-
-  /// Resolves the declared type of a required positional [param]: its own
-  /// `type` annotation when present, otherwise the field type a field-formal
-  /// (`this._x`) forwards to.
-  String? _formalParameterType(
-    ast.FormalParameter param,
-    Map<String, String> fieldTypes,
-  ) {
-    final ownType = param.type?.toSource();
-    if (ownType != null && ownType.isNotEmpty && ownType != 'dynamic') {
-      return ownType;
-    }
-    if (param is ast.FieldFormalParameter) {
-      return fieldTypes[param.name.lexeme];
-    }
-    return null;
-  }
-
-  /// Resolves the domain-layer import path for an inferred constructor
-  /// dependency type (#2118). A `*Service` / `*Provider` resolves under
-  /// `domain/services` (the per-domain subfolder when the file lives there),
-  /// a `*Repository` under `domain/repositories`, and any other type is left
-  /// unresolved (returns null) so the caller skips it rather than emitting an
-  /// import that cannot resolve.
-  Future<String?> _dependencyImportPath(
-    String typeName,
-    String domainSnake,
-    FileSystem fs,
-  ) async {
-    if (typeName.endsWith('Repository')) {
-      final repoSnake = StringUtils.camelToSnake(
-        typeName.replaceAll('Repository', ''),
+    final positional = <_CtorParam>[];
+    final named = <_CtorParam>[];
+    for (final param in ctor.parameters.parameters) {
+      final name = param.name?.lexeme;
+      if (name == null || name.isEmpty) continue;
+      final type = _formalParameterType(param, fieldTypes);
+      if (type.isEmpty || type == 'dynamic') continue;
+      final entry = _CtorParam(
+        name: name,
+        type: type,
+        required: param.isRequiredNamed || param.isRequiredPositional,
       );
-      return '../../domain/repositories/${repoSnake}_repository.dart';
+      if (param.isNamed) {
+        named.add(entry);
+      } else {
+        positional.add(entry);
+      }
     }
-    if (typeName.endsWith('Service') || typeName.endsWith('Provider')) {
-      final serviceSnake = StringUtils.camelToSnake(typeName);
-      return await fs.exists(
-            path.join(
-              outputDir,
-              'domain',
-              'services',
-              domainSnake,
-              '$serviceSnake.dart',
-            ),
-          )
-          ? '../../domain/services/$domainSnake/$serviceSnake.dart'
-          : '../../domain/services/$serviceSnake.dart';
+
+    // A constructor with unresolvable parameters (no type to resolve from
+    // the container) is left to the legacy positional emission — a parsed
+    // subset would shift the positional argument order.
+    if (positional.length + named.length != ctor.parameters.parameters.length) {
+      return null;
+    }
+
+    return _CtorSpec(positional: positional, named: named);
+  }
+
+  /// Builds the constructor call arguments for [_generateCustomUseCaseDI] from
+  /// the retained [ctor], resolving each parameter type from the DI container
+  /// and registering the import its declaration lives in. A named parameter
+  /// is emitted as a named argument, a positional one as a positional argument
+  /// — matching the use-case's actual constructor (issue #2128).
+  ///
+  /// Issues #2133 review: optional named parameters whose `required` flag is
+  /// false are skipped so the constructor's own default applies, rather than
+  /// force-resolving a nullable type from the container (a runtime throw).
+  /// The `getIt<T>()` lookup type strips outer nullability — GetIt 9.x
+  /// declares `call<T extends Object>`, so `getIt<AuthService?>()` does not
+  /// compile; the constructor parameter's nullable type is preserved but the
+  /// lookup uses the non-nullable base type.
+  ({List<Expression> positional, Map<String, Expression> named})
+  _resolveConstructorArgs(_CtorSpec ctor, Set<String> imports, FileSystem fs) {
+    final positional = <Expression>[];
+    final named = <String, Expression>{};
+
+    for (final param in ctor.positional) {
+      _addParamImport(param.type, imports, fs);
+      positional.add(
+        refer('getIt').call([], {}, [refer(_lookupType(param.type))]),
+      );
+    }
+    for (final param in ctor.named) {
+      // An optional named parameter (!required) carries a default in the
+      // retained constructor; emitting `name: getIt<T>()` would override that
+      // default with a container lookup that is not registered. Skip it so
+      // the default applies.
+      if (!param.required) continue;
+      _addParamImport(param.type, imports, fs);
+      named[param.name] = refer(
+        'getIt',
+      ).call([], {}, [refer(_lookupType(param.type))]);
+    }
+
+    return (positional: positional, named: named);
+  }
+
+  /// The `getIt<...>()` type argument for a parameter type. GetIt 9.x
+  /// declares `call<T extends Object>`, so an outer nullable type
+  /// (`AuthService?`) is not a valid type argument and does not compile;
+  /// the lookup strips outer nullability while the constructor parameter's
+  /// own nullable type is left unchanged in the use-case file (issue #2133).
+  String _lookupType(String typeName) => typeName.replaceAll('?', '').trim();
+
+  /// Adds the import for a use-case constructor parameter [typeName] to
+  /// [imports] when it resolves to an on-disk repository, service, or use-case
+  /// interface. A framework/core type (e.g. `CancelToken`) or an unresolvable
+  /// type is left to the use-case file's own imports.
+  ///
+  /// Issue #2133 review: each dependency kind has its own file-naming
+  /// convention, and the import path must match the on-disk file exactly:
+  ///
+  /// - **Repository**: `<entity_snake>_repository.dart`, where the entity stem
+  ///   is the type name minus the `Repository` suffix (`ProductRepository`
+  ///   → `product` → `product_repository.dart`). Snake-casing the full name
+  ///   and re-appending `_repository` produced `product_repository_repository.dart`.
+  /// - **Service / Provider**: `<full_snake>.dart` — the snake of the FULL
+  ///   type name, with NO extra suffix appended (`AuthService` →
+  ///   `auth_service.dart`, `OnboardingProvider` → `onboarding_provider.dart`).
+  ///   `GeneratorConfig.serviceSnake` is the snake of `effectiveService`,
+  ///   which keeps the `Service`/`Provider` suffix, so the file stem already
+  ///   contains the suffix. Appending `_service` produced `auth_service_service.dart`.
+  /// - **Use case**: `<stem_snake>_usecase.dart`, where the stem is the type
+  ///   name minus the `UseCase` suffix (`GetUrlListingUseCase` →
+  ///   `get_url_listing` → `get_url_listing_usecase.dart`). The full-name
+  ///   snake `get_url_listing_use_case` does not match because `UseCase`
+  ///   snake-cases to `use_case`, not `usecase`.
+  ///
+  /// The existence checks use [fs] — the active filesystem view (which may be
+  /// a context view carrying pending operations) rather than the plugin's own
+  /// [fileSystem] field, so a repository file created earlier in the same
+  /// transaction is seen.
+  void _addParamImport(String typeName, Set<String> imports, FileSystem fs) {
+    final baseName = typeName.replaceAll('?', '').trim();
+    if (baseName.isEmpty || baseName.endsWith('Params')) return;
+
+    // Repository: strip the Repository suffix, snake the entity stem, and
+    // re-append _repository.dart (the convention _generateCustomUseCaseDI
+    // uses via repoSnake = entitySnake).
+    final repoStem = _stripSuffix(baseName, 'Repository');
+    if (repoStem != null) {
+      final repoSnake = StringUtils.camelToSnake(repoStem);
+      final repoFile = path.join(
+        outputDir,
+        'domain',
+        'repositories',
+        '${repoSnake}_repository.dart',
+      );
+      if (fs.existsSync(repoFile)) {
+        imports.add('../../domain/repositories/${repoSnake}_repository.dart');
+        return;
+      }
+    }
+
+    // Service / Provider: the file stem is the snake of the FULL type name
+    // (no suffix appended — serviceSnake already carries the Service/Provider
+    // suffix). Check domain/services/<snake>.dart first, then the nested
+    // domain/services/<domain>/<snake>.dart form.
+    final serviceSnake = StringUtils.camelToSnake(baseName);
+    final serviceFile = path.join(
+      outputDir,
+      'domain',
+      'services',
+      '$serviceSnake.dart',
+    );
+    if (fs.existsSync(serviceFile)) {
+      imports.add('../../domain/services/$serviceSnake.dart');
+      return;
+    }
+
+    // Nested service path: domain/services/<domain>/<snake>.dart
+    final servicesDir = path.join(outputDir, 'domain', 'services');
+    if (fs.existsSync(servicesDir)) {
+      for (final entry in fs.listSync(servicesDir)) {
+        if (fs.isDirectorySync(entry)) {
+          final nested = path.join(entry, '$serviceSnake.dart');
+          if (fs.existsSync(nested)) {
+            imports.add(
+              '../../domain/services/${path.basename(entry)}/$serviceSnake.dart',
+            );
+            return;
+          }
+        }
+      }
+    }
+
+    // Use case: strip the UseCase suffix, snake the stem, and re-append
+    // _usecase.dart (the convention _generateCustomUseCaseDI uses via
+    // classSnake = camelToSnake(className.replaceAll('UseCase', ''))).
+    final usecaseStem = _stripSuffix(baseName, 'UseCase');
+    if (usecaseStem != null) {
+      final usecaseSnake = StringUtils.camelToSnake(usecaseStem);
+      final usecasesDir = path.join(outputDir, 'domain', 'usecases');
+      if (fs.existsSync(usecasesDir)) {
+        for (final entry in fs.listSync(usecasesDir)) {
+          if (fs.isDirectorySync(entry)) {
+            final nested = path.join(entry, '${usecaseSnake}_usecase.dart');
+            if (fs.existsSync(nested)) {
+              imports.add(
+                '../../domain/usecases/${path.basename(entry)}/${usecaseSnake}_usecase.dart',
+              );
+              return;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /// Returns [name] with [suffix] removed when it ends with [suffix] (and the
+  /// stem would be non-empty), or `null` when it does not — so the caller can
+  /// tell "no suffix to strip" from "stripped to an empty string".
+  static String? _stripSuffix(String name, String suffix) {
+    if (name.endsWith(suffix) && name.length > suffix.length) {
+      return name.substring(0, name.length - suffix.length);
     }
     return null;
   }
@@ -2210,4 +2316,59 @@ void resetDependencies(GetIt getIt) {
     // zuraffa package which owns them (#1722).
     return 'package:zuraffa/simulation.dart';
   }
+
+  /// The declared type source of a constructor [param], resolved against the
+  /// class's [fieldTypes] (name → declared type) when the parameter is a
+  /// field-formal (`Type this._field`) — a field-formal carries its type on
+  /// the field it binds to, not on the parameter itself. A plain/regular
+  /// parameter carries its own `.type` (analyzer 14 `RegularFormalParameter`).
+  /// Returns an empty string when the type cannot be determined.
+  String _formalParameterType(
+    ast.FormalParameter param,
+    Map<String, String> fieldTypes,
+  ) {
+    if (param is ast.FieldFormalParameter) {
+      final declared = param.type?.toSource();
+      if (declared != null && declared.isNotEmpty) return declared;
+      final name = param.name.lexeme;
+      if (name.isNotEmpty) {
+        final fieldType = fieldTypes[name];
+        if (fieldType != null && fieldType.isNotEmpty) return fieldType;
+      }
+      return '';
+    }
+    try {
+      final t = (param as dynamic).type;
+      if (t != null) {
+        final source = t.toSource() as String?;
+        if (source != null && source.isNotEmpty) return source;
+      }
+    } catch (_) {
+      // Parameter kind without a declared `type` (e.g. function-typed).
+    }
+    return '';
+  }
+}
+
+/// One constructor parameter of a retained use-case file (issue #2128):
+/// its name, declared type and whether it is a required named argument.
+class _CtorParam {
+  final String name;
+  final String type;
+  final bool required;
+
+  const _CtorParam({
+    required this.name,
+    required this.type,
+    required this.required,
+  });
+}
+
+/// A parsed use-case constructor: positional and named parameters in
+/// declaration order (issue #2128).
+class _CtorSpec {
+  final List<_CtorParam> positional;
+  final List<_CtorParam> named;
+
+  const _CtorSpec({required this.positional, required this.named});
 }
