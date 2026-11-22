@@ -1387,7 +1387,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final Expression constructorCall;
     if (actualConstructor != null) {
-      final resolved = _resolveConstructorArgs(actualConstructor, imports);
+      final resolved = _resolveConstructorArgs(actualConstructor, imports, fs);
       constructorCall = refer(
         className,
       ).call(resolved.positional, resolved.named);
@@ -1506,66 +1506,121 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   /// and registering the import its declaration lives in. A named parameter
   /// is emitted as a named argument, a positional one as a positional argument
   /// — matching the use-case's actual constructor (issue #2128).
+  ///
+  /// Issues #2133 review: optional named parameters whose `required` flag is
+  /// false are skipped so the constructor's own default applies, rather than
+  /// force-resolving a nullable type from the container (a runtime throw).
+  /// The `getIt<T>()` lookup type strips outer nullability — GetIt 9.x
+  /// declares `call<T extends Object>`, so `getIt<AuthService?>()` does not
+  /// compile; the constructor parameter's nullable type is preserved but the
+  /// lookup uses the non-nullable base type.
   ({List<Expression> positional, Map<String, Expression> named})
-  _resolveConstructorArgs(_CtorSpec ctor, Set<String> imports) {
+  _resolveConstructorArgs(_CtorSpec ctor, Set<String> imports, FileSystem fs) {
     final positional = <Expression>[];
     final named = <String, Expression>{};
 
     for (final param in ctor.positional) {
-      _addParamImport(param.type, imports);
-      positional.add(refer('getIt').call([], {}, [refer(param.type)]));
+      _addParamImport(param.type, imports, fs);
+      positional.add(
+        refer('getIt').call([], {}, [refer(_lookupType(param.type))]),
+      );
     }
     for (final param in ctor.named) {
-      _addParamImport(param.type, imports);
-      named[param.name] = refer('getIt').call([], {}, [refer(param.type)]);
+      // An optional named parameter (!required) carries a default in the
+      // retained constructor; emitting `name: getIt<T>()` would override that
+      // default with a container lookup that is not registered. Skip it so
+      // the default applies.
+      if (!param.required) continue;
+      _addParamImport(param.type, imports, fs);
+      named[param.name] =
+          refer('getIt').call([], {}, [refer(_lookupType(param.type))]);
     }
 
     return (positional: positional, named: named);
   }
 
+  /// The `getIt<...>()` type argument for a parameter type. GetIt 9.x
+  /// declares `call<T extends Object>`, so an outer nullable type
+  /// (`AuthService?`) is not a valid type argument and does not compile;
+  /// the lookup strips outer nullability while the constructor parameter's
+  /// own nullable type is left unchanged in the use-case file (issue #2133).
+  String _lookupType(String typeName) => typeName.replaceAll('?', '').trim();
+
   /// Adds the import for a use-case constructor parameter [typeName] to
-  /// [imports] when it resolves to an on-disk repository or service interface.
-  /// A framework/core type (e.g. `CancelToken`) or an unresolvable type is
-  /// left to the use-case file's own imports.
-  void _addParamImport(String typeName, Set<String> imports) {
+  /// [imports] when it resolves to an on-disk repository, service, or use-case
+  /// interface. A framework/core type (e.g. `CancelToken`) or an unresolvable
+  /// type is left to the use-case file's own imports.
+  ///
+  /// Issue #2133 review: each dependency kind has its own file-naming
+  /// convention, and the import path must match the on-disk file exactly:
+  ///
+  /// - **Repository**: `<entity_snake>_repository.dart`, where the entity stem
+  ///   is the type name minus the `Repository` suffix (`ProductRepository`
+  ///   → `product` → `product_repository.dart`). Snake-casing the full name
+  ///   and re-appending `_repository` produced `product_repository_repository.dart`.
+  /// - **Service / Provider**: `<full_snake>.dart` — the snake of the FULL
+  ///   type name, with NO extra suffix appended (`AuthService` →
+  ///   `auth_service.dart`, `OnboardingProvider` → `onboarding_provider.dart`).
+  ///   `GeneratorConfig.serviceSnake` is the snake of `effectiveService`,
+  ///   which keeps the `Service`/`Provider` suffix, so the file stem already
+  ///   contains the suffix. Appending `_service` produced `auth_service_service.dart`.
+  /// - **Use case**: `<stem_snake>_usecase.dart`, where the stem is the type
+  ///   name minus the `UseCase` suffix (`GetUrlListingUseCase` →
+  ///   `get_url_listing` → `get_url_listing_usecase.dart`). The full-name
+  ///   snake `get_url_listing_use_case` does not match because `UseCase`
+  ///   snake-cases to `use_case`, not `usecase`.
+  ///
+  /// The existence checks use [fs] — the active filesystem view (which may be
+  /// a context view carrying pending operations) rather than the plugin's own
+  /// [fileSystem] field, so a repository file created earlier in the same
+  /// transaction is seen.
+  void _addParamImport(String typeName, Set<String> imports, FileSystem fs) {
     final baseName = typeName.replaceAll('?', '').trim();
     if (baseName.isEmpty || baseName.endsWith('Params')) return;
 
-    final baseSnake = StringUtils.camelToSnake(baseName);
-
-    final repoImport = '../../domain/repositories/${baseSnake}_repository.dart';
-    final repoFile = path.join(
-      outputDir,
-      'domain',
-      'repositories',
-      '${baseSnake}_repository.dart',
-    );
-    if (fileSystem.existsSync(repoFile)) {
-      imports.add(repoImport);
-      return;
+    // Repository: strip the Repository suffix, snake the entity stem, and
+    // re-append _repository.dart (the convention _generateCustomUseCaseDI
+    // uses via repoSnake = entitySnake).
+    final repoStem = _stripSuffix(baseName, 'Repository');
+    if (repoStem != null) {
+      final repoSnake = StringUtils.camelToSnake(repoStem);
+      final repoFile = path.join(
+        outputDir,
+        'domain',
+        'repositories',
+        '${repoSnake}_repository.dart',
+      );
+      if (fs.existsSync(repoFile)) {
+        imports.add('../../domain/repositories/${repoSnake}_repository.dart');
+        return;
+      }
     }
 
-    final serviceImport = '../../domain/services/${baseSnake}_service.dart';
+    // Service / Provider: the file stem is the snake of the FULL type name
+    // (no suffix appended — serviceSnake already carries the Service/Provider
+    // suffix). Check domain/services/<snake>.dart first, then the nested
+    // domain/services/<domain>/<snake>.dart form.
+    final serviceSnake = StringUtils.camelToSnake(baseName);
     final serviceFile = path.join(
       outputDir,
       'domain',
       'services',
-      '${baseSnake}_service.dart',
+      '$serviceSnake.dart',
     );
-    if (fileSystem.existsSync(serviceFile)) {
-      imports.add(serviceImport);
+    if (fs.existsSync(serviceFile)) {
+      imports.add('../../domain/services/$serviceSnake.dart');
       return;
     }
 
     // Nested service path: domain/services/<domain>/<snake>.dart
     final servicesDir = path.join(outputDir, 'domain', 'services');
-    if (fileSystem.existsSync(servicesDir)) {
-      for (final entry in fileSystem.listSync(servicesDir)) {
-        if (fileSystem.isDirectorySync(entry)) {
-          final nested = path.join(entry, '${baseSnake}_service.dart');
-          if (fileSystem.existsSync(nested)) {
+    if (fs.existsSync(servicesDir)) {
+      for (final entry in fs.listSync(servicesDir)) {
+        if (fs.isDirectorySync(entry)) {
+          final nested = path.join(entry, '$serviceSnake.dart');
+          if (fs.existsSync(nested)) {
             imports.add(
-              '../../domain/services/${path.basename(entry)}/${baseSnake}_service.dart',
+              '../../domain/services/${path.basename(entry)}/$serviceSnake.dart',
             );
             return;
           }
@@ -1573,21 +1628,37 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       }
     }
 
-    // Fallback: a use case dependency lives under domain/usecases/<domain>/.
-    final usecasesDir = path.join(outputDir, 'domain', 'usecases');
-    if (fileSystem.existsSync(usecasesDir)) {
-      for (final entry in fileSystem.listSync(usecasesDir)) {
-        if (fileSystem.isDirectorySync(entry)) {
-          final nested = path.join(entry, '${baseSnake}_usecase.dart');
-          if (fileSystem.existsSync(nested)) {
-            imports.add(
-              '../../domain/usecases/${path.basename(entry)}/${baseSnake}_usecase.dart',
-            );
-            return;
+    // Use case: strip the UseCase suffix, snake the stem, and re-append
+    // _usecase.dart (the convention _generateCustomUseCaseDI uses via
+    // classSnake = camelToSnake(className.replaceAll('UseCase', ''))).
+    final usecaseStem = _stripSuffix(baseName, 'UseCase');
+    if (usecaseStem != null) {
+      final usecaseSnake = StringUtils.camelToSnake(usecaseStem);
+      final usecasesDir = path.join(outputDir, 'domain', 'usecases');
+      if (fs.existsSync(usecasesDir)) {
+        for (final entry in fs.listSync(usecasesDir)) {
+          if (fs.isDirectorySync(entry)) {
+            final nested = path.join(entry, '${usecaseSnake}_usecase.dart');
+            if (fs.existsSync(nested)) {
+              imports.add(
+                '../../domain/usecases/${path.basename(entry)}/${usecaseSnake}_usecase.dart',
+              );
+              return;
+            }
           }
         }
       }
     }
+  }
+
+  /// Returns [name] with [suffix] removed when it ends with [suffix] (and the
+  /// stem would be non-empty), or `null` when it does not — so the caller can
+  /// tell "no suffix to strip" from "stripped to an empty string".
+  static String? _stripSuffix(String name, String suffix) {
+    if (name.endsWith(suffix) && name.length > suffix.length) {
+      return name.substring(0, name.length - suffix.length);
+    }
+    return null;
   }
 
   ({String className, String methodPrefix}) _getUseCaseInfo(
