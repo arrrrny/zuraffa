@@ -305,7 +305,12 @@ class CreateProviderCapability implements ZuraffaCapability {
     // must not be blocked by the service-interface precondition below
     // (deleting a provider whose service interface was already removed is
     // a legitimate cleanup). The precondition only guards CREATION.
-    if (generateData && !revert) {
+    // Issue #2138: the precondition is NO LONGER gated on `generateData` —
+    // the provider file is always emitted now (the `data` toggle no longer
+    // suppresses it), so the interface it implements must always exist. A
+    // `--no-data` run against a missing service therefore fails with this
+    // actionable message instead of a silent "No files were generated".
+    if (!revert) {
       final serviceSnake = config.serviceSnake;
       if (serviceSnake != null) {
         final serviceFile = p.join(
