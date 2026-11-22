@@ -147,7 +147,7 @@ class EntityCommand {
           await _handleEnum(subArgs);
           break;
         case 'add-field':
-          await _handleAddField(subArgs);
+          await _handleAddField(subArgs, config);
           break;
         case 'rename-field':
         case 'rename':
@@ -961,7 +961,7 @@ ${missing.map((d) => '   • $d').join('\n')}
     }
   }
 
-  Future<void> _handleAddField(List<String> args) async {
+  Future<void> _handleAddField(List<String> args, [ZfaConfig? config]) async {
     final parsed = _parseArgs(args);
     final name = parsed['name'] as String?;
 
@@ -1031,7 +1031,7 @@ ${missing.map((d) => '   • $d').join('\n')}
     // config default, true), same as `entity create`.
     final allowForwardRefs =
         _asBool(parsed['allow_forward_refs']) ??
-        (ZfaConfig.load()?.allowForwardRefs ?? true);
+        (config?.allowForwardRefs ?? true);
     final typeErrors = allowForwardRefs
         ? const <UnresolvedTypeError>[]
         : EntityTypeValidator.validate(
@@ -1467,6 +1467,14 @@ ${missing.map((d) => '   • $d').join('\n')}
       final normalized = value.trim().toLowerCase();
       if (normalized == 'true') return true;
       if (normalized == 'false') return false;
+      // #296 philosophy: never silently accept an unrecognized flag value —
+      // warn so a typo like `--allow-forward-refs=yes` (which falls through
+      // to the permissive default) is never mistaken for an explicit strict
+      // opt-out.
+      print(
+        "⚠️  unrecognized boolean value '$value' for --allow-forward-refs; "
+        'expected true or false — using the default.',
+      );
     }
     return null;
   }
@@ -2006,7 +2014,7 @@ EXAMPLES:
   zfa entity create -n PriceCheckRun
     --field id:String? --field 'results:List<PriceCheckRetailerResult>'
   # Vendure-style filter parameter with nested _and/_or composition:
-  zfa entity create -n ProductFilterParameter --allow-forward-refs
+  zfa entity create -n ProductFilterParameter
     --field and:ProductFilterParameter:json=_and
     --field or:ProductFilterParameter:json=_or
   # External (non-entity) type - no \$ prefix, no import, no validation:
