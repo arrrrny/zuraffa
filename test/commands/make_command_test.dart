@@ -187,6 +187,111 @@ class Product {
       );
     });
 
+    test(
+      '#2127 — a combined --service --provider --usecase pipeline '
+      'scaffolds the service interface before the usecase reads it',
+      () async {
+        // Issue #2127: `zfa make <Name> --service=<Svc> --provider --usecase`
+        // failed with "service interface not found or declares no methods"
+        // because the usecase stage ran before the service stage and its
+        // stream generator read the not-yet-written interface from disk. The
+        // combined pipeline must scaffold the service interface first.
+        final runner = CliRunner(exitOnCompletion: false);
+        final output = await runner.runCapturing([
+          '-C',
+          workspace.path,
+          'make',
+          'RunPriceCheckForItem',
+          '--service=RunPriceCheckForItemService',
+          '--provider',
+          '--usecase',
+          '--di',
+          '--domain=price_check',
+          '--params=PriceCheckParams',
+          '--returns=PriceCheckItemResult',
+          '--type=stream',
+          '--no-entity',
+          // `--allow-forward-refs` is intentionally NOT passed: it is a
+          // no-op on the make path (make_command.dart never reads it — only
+          // `service create` does), so passing it here implied a forward-ref
+          // guard the make pipeline does not have (review nit on #2137).
+          '--output',
+          outputDir,
+        ]);
+
+        expect(
+          output,
+          isNot(contains('service interface not found')),
+          reason:
+              'the service interface must exist before the usecase stage reads '
+              'it (#2127). output:\n$output',
+        );
+        final serviceFile = File(
+          path.join(
+            outputDir,
+            'domain',
+            'services',
+            'run_price_check_for_item_service.dart',
+          ),
+        );
+        expect(
+          serviceFile.existsSync(),
+          isTrue,
+          reason: 'service interface should be scaffolded. output:\n$output',
+        );
+        // Nit (review on #2137): existence alone is too weak — a hollow
+        // `abstract class RunPriceCheckForItemService {}` would pass, yet
+        // would still fail the real issue scenario downstream (the stream
+        // generator finds the file but `declared.isEmpty` -> same error).
+        // Assert the interface declares the method the usecase generator
+        // reads (`getServiceMethodName()` -> nameCamel), with the params and
+        // returns types wired through — mirroring the serviceSource pattern
+        // used elsewhere in this file.
+        final serviceSource = serviceFile.readAsStringSync();
+        expect(
+          serviceSource,
+          contains('abstract class RunPriceCheckForItemService'),
+          reason:
+              'the service interface must declare RunPriceCheckForItemService. '
+              'output:\n$output',
+        );
+        expect(
+          serviceSource,
+          contains('runPriceCheckForItem'),
+          reason:
+              'the service interface must declare the runPriceCheckForItem '
+              'method the usecase generator reads (#2127). output:\n$output',
+        );
+        expect(
+          serviceSource,
+          contains('PriceCheckParams'),
+          reason:
+              'the service method must take PriceCheckParams. output:\n$output',
+        );
+        expect(
+          serviceSource,
+          contains('PriceCheckItemResult'),
+          reason:
+              'the service method must return PriceCheckItemResult. '
+              'output:\n$output',
+        );
+        final usecaseFile = File(
+          path.join(
+            outputDir,
+            'domain',
+            'usecases',
+            'price_check',
+            'run_price_check_for_item_usecase.dart',
+          ),
+        );
+        expect(
+          usecaseFile.existsSync(),
+          isTrue,
+          reason: 'stream usecase should be generated. output:\n$output',
+        );
+      },
+    );
+
     test('#2023 carve-out — --with=usecase qualifies as an explicit '
         'standalone request', () async {
       // --with=usecase is the spelling the #496 dead-end message itself
