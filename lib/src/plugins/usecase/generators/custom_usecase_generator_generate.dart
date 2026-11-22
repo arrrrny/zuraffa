@@ -54,52 +54,67 @@ extension CustomUseCaseGeneratorGenerate on CustomUseCaseGenerator {
         );
 
         String? resolved;
-        if (declared.isEmpty) {
-          throw ArgumentError(
-            'service interface not found or declares no methods: '
-            '$serviceName ($filePath). Create it first with: '
-            'zfa service create ${config.name} --service=$serviceName '
-            '--methods=<method>  (see zuraffa issue #1799)',
-          );
-        }
-
-        final paramsType = config.paramsType ?? 'NoParams';
-        final returnsType = config.returnsType ?? 'void';
-
-        final matches = declared.where((m) {
-          final pOk = m.paramsType == paramsType;
-          final rOk = m.returnsType == returnsType;
-          return pOk && rOk;
-        }).toList();
-
-        if (matches.length == 1) {
-          resolved = matches.first.fieldName;
-        } else if (matches.isEmpty &&
-            declared.length == 1 &&
-            (config.paramsType == null || config.hasMultipleParams)) {
-          // Single declared method: trust it when params/returns were not
-          // supplied (or use multiple params) — the interface is the
-          // authority on the method name (issue #1799).
-          resolved = declared.first.fieldName;
-        } else if (matches.length > 1) {
-          throw ArgumentError(
-            'ambiguous service method: $serviceName declares '
-            '${matches.map((m) => m.fieldName).join(', ')} matching '
-            '$paramsType -> $returnsType. Refine --params/--returns. '
-            '(zuraffa issue #1799)',
-          );
+        // Review fix (zuraffa#2145 reroute): when the service plugin is
+        // part of the SAME make plan it runs AFTER the usecase plugin and
+        // can still emit the missing interface — the bare `--service`
+        // flow (#2126) depends on that ordering. Only a run where NOTHING
+        // produces the interface (a direct plugin generate, or no service
+        // plugin in the plan) fails loudly below; otherwise method
+        // resolution is skipped and generation proceeds with the default
+        // method name (GeneratorConfig.getServiceMethodName). A plan that
+        // ends with no interface on disk still fails closed at the CLI
+        // compile gate (unresolved import), never silently.
+        final serviceWillRun = config.servicePluginInPlan == true;
+        if (declared.isEmpty && serviceWillRun) {
+          resolvedConfig = effectiveConfig;
         } else {
-          throw ArgumentError(
-            'no service method on $serviceName matches '
-            '$paramsType -> $returnsType. Declared: '
-            '${declared.map((m) => '${m.fieldName}(${m.paramsType}) -> ${m.returnsType}').join(', ')}. '
-            'Adjust --params/--returns or create the method with: '
-            'zfa service create ${config.name} --service=$serviceName '
-            '--methods=<method>  (zuraffa issue #1799)',
-          );
-        }
+          if (declared.isEmpty) {
+            throw ArgumentError(
+              'service interface not found or declares no methods: '
+              '$serviceName ($filePath). Create it first with: '
+              'zfa service create ${config.name} --service=$serviceName '
+              '--methods=<method>  (see zuraffa issue #1799)',
+            );
+          }
 
-        resolvedConfig = effectiveConfig.copyWith(serviceMethod: resolved);
+          final paramsType = config.paramsType ?? 'NoParams';
+          final returnsType = config.returnsType ?? 'void';
+
+          final matches = declared.where((m) {
+            final pOk = m.paramsType == paramsType;
+            final rOk = m.returnsType == returnsType;
+            return pOk && rOk;
+          }).toList();
+
+          if (matches.length == 1) {
+            resolved = matches.first.fieldName;
+          } else if (matches.isEmpty &&
+              declared.length == 1 &&
+              (config.paramsType == null || config.hasMultipleParams)) {
+            // Single declared method: trust it when params/returns were not
+            // supplied (or use multiple params) — the interface is the
+            // authority on the method name (issue #1799).
+            resolved = declared.first.fieldName;
+          } else if (matches.length > 1) {
+            throw ArgumentError(
+              'ambiguous service method: $serviceName declares '
+              '${matches.map((m) => m.fieldName).join(', ')} matching '
+              '$paramsType -> $returnsType. Refine --params/--returns. '
+              '(zuraffa issue #1799)',
+            );
+          } else {
+            throw ArgumentError(
+              'no service method on $serviceName matches '
+              '$paramsType -> $returnsType. Declared: '
+              '${declared.map((m) => '${m.fieldName}(${m.paramsType}) -> ${m.returnsType}').join(', ')}. '
+              'Adjust --params/--returns or create the method with: '
+              'zfa service create ${config.name} --service=$serviceName '
+              '--methods=<method>  (zuraffa issue #1799)',
+            );
+          }
+
+          resolvedConfig = effectiveConfig.copyWith(serviceMethod: resolved);
+        }
       }
     }
 

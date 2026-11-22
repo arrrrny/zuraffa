@@ -1674,10 +1674,21 @@ abstract class \$ChatMessage {
 
       expect(
         output,
-        contains('you must specify a domain'),
+        contains('service interface not found'),
         reason:
-            'a non-entity usecase with neither a domain nor a service must '
-            'keep the actionable --domain error (#2140). Output:\n$output',
+            'a non-entity usecase with neither a domain nor a resolvable '
+            'service must keep failing loudly — since #2141 the loud error '
+            'names the missing <Name>Service the completable inference '
+            'resolves before the domain guard (CodeRabbit finding on #2145; '
+            'the plugin-level twin was aligned in 888a4878). '
+            'Output:\n$output',
+      );
+      expect(
+        output,
+        contains('OrphanActionService'),
+        reason:
+            'the loud failure must name the unresolved service. '
+            'Output:\n$output',
       );
     });
   });
