@@ -147,6 +147,103 @@ void main() {
     );
   });
 
+  test(
+    'generates non-entity completable usecase with service, no explicit domain (#2140)',
+    () async {
+      final serviceDir = Directory('$outputDir/domain/services');
+      await serviceDir.create(recursive: true);
+      await File(
+        '${serviceDir.path}/schedule_price_check_service.dart',
+      ).writeAsString(
+        'abstract class SchedulePriceCheckService {\n  Future<void> schedulePriceCheck(NoParams params);\n}',
+      );
+      final plugin = UseCasePlugin(
+        outputDir: outputDir,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
+      );
+      // The issue's exact shape: a non-entity completable usecase that binds
+      // to an existing service interface, with NO --domain passed. The guard
+      // must not demand --domain when the service name scopes the work —
+      // the domain falls back to the config name (effectiveDomain), the same
+      // convention zfa provider create documents.
+      final config = GeneratorConfig(
+        name: 'SchedulePriceCheck',
+        service: 'SchedulePriceCheckService',
+        paramsType: 'NoParams',
+        returnsType: 'void',
+        useCaseType: 'completable',
+        noEntity: true,
+        outputDir: outputDir,
+      );
+      final files = await plugin.generate(config);
+      expect(files.length, equals(1));
+      final content = files.first.content ?? '';
+      expect(content.contains('class SchedulePriceCheckUseCase'), isTrue);
+      expect(content.contains('CompletableUseCase<NoParams>'), isTrue);
+      expect(
+        content.contains(
+          'final SchedulePriceCheckService _schedulePriceCheckService;',
+        ),
+        isTrue,
+      );
+      // The file lands beside the service, under the name-derived domain.
+      expect(
+        files.first.path.contains('/domain/usecases/schedule_price_check/'),
+        isTrue,
+        reason:
+            'domain must fall back to the config name (effectiveDomain) '
+            'when --domain is omitted and a service is present (#2140)',
+      );
+    },
+  );
+
+  test(
+    'non-entity completable usecase without service or domain still fails loudly (#2140)',
+    () async {
+      final plugin = UseCasePlugin(
+        outputDir: outputDir,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
+      );
+      final config = GeneratorConfig(
+        name: 'OrphanAction',
+        paramsType: 'NoParams',
+        returnsType: 'void',
+        useCaseType: 'completable',
+        noEntity: true,
+        outputDir: outputDir,
+      );
+      // The intent is "fail loudly, never emit a use case that cannot
+      // compile" (#2140). Since #2141 merged, the non-entity completable
+      // path infers `<Name>Service` and resolves it against the on-disk
+      // interface (#1799) before the domain guard runs, so the loud
+      // failure now names the missing service rather than the missing
+      // domain — the same ArgumentError contract, a more actionable
+      // message. This mirrors master's own #2141 regression assertion in
+      // test/regression/issue_2141_completable_infer_service_test.dart.
+      await expectLater(
+        plugin.generate(config),
+        throwsA(
+          isA<ArgumentError>().having(
+            (e) => e.message,
+            'message',
+            allOf(
+              contains('service interface not found'),
+              contains('OrphanActionService'),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+
   test('generates orchestrator usecase', () async {
     final plugin = UseCasePlugin(
       outputDir: outputDir,
