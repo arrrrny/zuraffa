@@ -72,6 +72,7 @@ class ZfaConfig {
   final bool filterByDefault;
   final bool buildByDefault;
   final bool formatByDefault;
+  final bool allowForwardRefs;
   final bool entityFirst;
   final bool zorphyOnly;
   final String domainRoot;
@@ -101,6 +102,7 @@ class ZfaConfig {
     this.filterByDefault = false,
     this.buildByDefault = false,
     this.formatByDefault = false,
+    this.allowForwardRefs = true,
     this.entityFirst = true,
     this.zorphyOnly = true,
     this.domainRoot = fixedDomainRoot,
@@ -235,6 +237,7 @@ class ZfaConfig {
     bool? filterByDefault,
     bool? buildByDefault,
     bool? formatByDefault,
+    bool? allowForwardRefs,
     bool? entityFirst,
     bool? zorphyOnly,
     String? domainRoot,
@@ -253,6 +256,7 @@ class ZfaConfig {
       filterByDefault: filterByDefault ?? this.filterByDefault,
       buildByDefault: buildByDefault ?? this.buildByDefault,
       formatByDefault: formatByDefault ?? this.formatByDefault,
+      allowForwardRefs: allowForwardRefs ?? this.allowForwardRefs,
       entityFirst: entityFirst ?? this.entityFirst,
       zorphyOnly: zorphyOnly ?? this.zorphyOnly,
       domainRoot: domainRoot ?? this.domainRoot,
@@ -360,6 +364,8 @@ class ZfaConfig {
           entity['filterByDefault'] == true || json['filterByDefault'] == true,
       buildByDefault: json['buildByDefault'] == true,
       formatByDefault: json['formatByDefault'] == true,
+      allowForwardRefs:
+          (entity['allowForwardRefs'] ?? json['allowForwardRefs']) != false,
       entityFirst: entity['entityFirst'] != false,
       zorphyOnly: true,
       domainRoot: fixedDomainRoot,
@@ -422,6 +428,7 @@ class ZfaConfig {
       'jsonByDefault': jsonByDefault,
       'compareByDefault': compareByDefault,
       'filterByDefault': filterByDefault,
+      'allowForwardRefs': allowForwardRefs,
     },
     'buildByDefault': buildByDefault,
     'formatByDefault': formatByDefault,

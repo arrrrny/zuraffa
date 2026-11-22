@@ -157,7 +157,7 @@ class EntityCommand {
           await _handleEnum(subArgs);
           break;
         case 'add-field':
-          await _handleAddField(subArgs);
+          await _handleAddField(subArgs, config);
           break;
         case 'rename-field':
         case 'rename':
@@ -388,8 +388,16 @@ ${missing.map((d) => '   • $d').join('\n')}
     // nor an existing enum, abort with a clear error so the entity is
     // never written with a bogus `$`-prefixed `InvalidType`.
     // `--allow-forward-refs` opts out for batch generation of cyclic schemas
-    // (issue #308): the referenced entity will exist by build time.
-    final allowForwardRefs = parsed['allow_forward_refs'] == true;
+    // (issue #308): the referenced entity will exist by build time. As of
+    // #2125 forward references are ACCEPTED BY DEFAULT (the
+    // `entity.allowForwardRefs` config default, true) so a parent whose
+    // nested entity is created immediately afterwards can be generated
+    // without reordering the commands — pass `--allow-forward-refs=false`
+    // (or set `entity.allowForwardRefs: false` in .zfa.json) to restore the
+    // strict on-disk check.
+    final allowForwardRefs =
+        _asBool(parsed['allow_forward_refs']) ??
+        (config?.allowForwardRefs ?? true);
     final typeErrors = allowForwardRefs
         ? const <UnresolvedTypeError>[]
         : EntityTypeValidator.validate(
@@ -963,7 +971,7 @@ ${missing.map((d) => '   • $d').join('\n')}
     }
   }
 
-  Future<void> _handleAddField(List<String> args) async {
+  Future<void> _handleAddField(List<String> args, [ZfaConfig? config]) async {
     final parsed = _parseArgs(args);
     final name = parsed['name'] as String?;
 
@@ -1028,8 +1036,12 @@ ${missing.map((d) => '   • $d').join('\n')}
     // Validate field types BEFORE writing anything (issue #296):
     // same guard as `entity create` — refuse to add fields whose types
     // cannot be resolved against the on-disk entity/enum layout.
-    // `--allow-forward-refs` opts out (issue #308), same as `entity create`.
-    final allowForwardRefs = parsed['allow_forward_refs'] == true;
+    // `--allow-forward-refs` opts out (issue #308); as of #2125 forward
+    // references are accepted by default (the `entity.allowForwardRefs`
+    // config default, true), same as `entity create`.
+    final allowForwardRefs =
+        _asBool(parsed['allow_forward_refs']) ??
+        (config?.allowForwardRefs ?? true);
     final typeErrors = allowForwardRefs
         ? const <UnresolvedTypeError>[]
         : EntityTypeValidator.validate(
@@ -1450,6 +1462,31 @@ ${missing.map((d) => '   • $d').join('\n')}
       );
       _bail(ExitProtocol.failure);
     }
+  }
+
+  /// Interprets a parsed flag value as a nullable boolean.
+  ///
+  /// The custom [_parseArgs] stores a bare `--flag` as the bool `true`, but
+  /// `--flag=false` (or `--flag false`) as the STRING `'false'`/`'true'`.
+  /// A plain `as bool?` cast on the string form throws (#2125), so this
+  /// helper accepts both shapes and returns null for anything that is not a
+  /// recognizable boolean (so the caller's config default applies).
+  bool? _asBool(dynamic value) {
+    if (value is bool) return value;
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      if (normalized == 'true') return true;
+      if (normalized == 'false') return false;
+      // #296 philosophy: never silently accept an unrecognized flag value —
+      // warn so a typo like `--allow-forward-refs=yes` (which falls through
+      // to the permissive default) is never mistaken for an explicit strict
+      // opt-out.
+      print(
+        "⚠️  unrecognized boolean value '$value' for --allow-forward-refs; "
+        'expected true or false — using the default.',
+      );
+    }
+    return null;
   }
 
   Map<String, dynamic> _parseArgs(List<String> args) {
@@ -1916,8 +1953,12 @@ CREATE COMMAND:
                             composition type: no id required and `zfa make`
                             generates no repository/usecase/controller/
                             presenter for it.
-    --allow-forward-refs    Skip on-disk type validation (batch generation of
-                            cyclic schemas — referenced entity is created later).
+    --allow-forward-refs    Accept forward references (field types created later).
+                            This is the DEFAULT since #2125 — a parent entity can
+                            reference a nested entity that is created immediately
+                            afterwards without reordering the commands. Pass
+                            `--allow-forward-refs=false` to require referenced
+                            types to exist on disk at creation time.
                             For types that are NEVER entities (external classes
                             like plugin wrappers), use the `!Type` prefix
                             instead (see FIELD SYNTAX below).
@@ -1928,8 +1969,10 @@ ADD-FIELD COMMAND:
     -n, --name              Entity name (required)
     --field                 Add field "name:type"
     -F, --fields            Add multiple fields "name:type,name:type"
-    --allow-forward-refs    Skip on-disk type validation (batch generation of
-                            cyclic schemas — referenced entity is created later).
+    --allow-forward-refs    Accept forward references (field types created later).
+                            This is the DEFAULT since #2125. Pass
+                            `--allow-forward-refs=false` to require referenced
+                            types to exist on disk at add-field time.
                             For types that are NEVER entities (external classes
                             like plugin wrappers), use the `!Type` prefix
                             instead (see FIELD SYNTAX below).
@@ -1976,8 +2019,12 @@ EXAMPLES:
     --field content:String --field timestamp:DateTime
   zfa entity create -n ParserConfig --kind=value_object
     --field separator:String --field trimWhitespace:bool
+  # Forward reference is accepted by default since #2125 — a parent can be
+  # created before its nested entity (the nested entity is created next):
+  zfa entity create -n PriceCheckRun
+    --field id:String? --field 'results:List<PriceCheckRetailerResult>'
   # Vendure-style filter parameter with nested _and/_or composition:
-  zfa entity create -n ProductFilterParameter --allow-forward-refs
+  zfa entity create -n ProductFilterParameter
     --field and:ProductFilterParameter:json=_and
     --field or:ProductFilterParameter:json=_or
   # External (non-entity) type - no \$ prefix, no import, no validation:

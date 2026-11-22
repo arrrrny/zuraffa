@@ -67,9 +67,13 @@ dev_dependencies:
     });
 
     test(
-      'entity create with an unresolvable enum type exits 1 and writes NO file',
+      'entity create with an unresolvable enum type exits 1 and writes NO file '
+      '(--allow-forward-refs=false)',
       timeout: const Timeout(Duration(minutes: 2)),
       () async {
+        // As of #2125 forward references are accepted by DEFAULT, so the
+        // strict #296 on-disk check is now opt-in via
+        // `--allow-forward-refs=false`. This test keeps that guard covered.
         final result = await runZfa([
           'entity',
           'create',
@@ -85,6 +89,7 @@ dev_dependencies:
           'imageUrl:String?',
           '--field',
           'createdAt:DateTime?',
+          '--allow-forward-refs=false',
         ]);
 
         // MUST exit non-zero — the silent exit 0 was the original bug.
@@ -252,7 +257,9 @@ dev_dependencies:
         expect(entityFile.existsSync(), isTrue);
         final originalContent = await entityFile.readAsString();
 
-        // Now try to add a field whose type does not exist anywhere.
+        // Now try to add a field whose type does not exist anywhere, with
+        // the strict on-disk check explicitly requested (#2125 default-accept
+        // means the guard is now opt-in via --allow-forward-refs=false).
         final addResult = await runZfa([
           'entity',
           'add-field',
@@ -260,6 +267,7 @@ dev_dependencies:
           'Note',
           '--field',
           'category:NoteCategory', // unresolvable
+          '--allow-forward-refs=false',
         ]);
 
         expect(
