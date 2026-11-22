@@ -220,13 +220,24 @@ void main() {
         noEntity: true,
         outputDir: outputDir,
       );
+      // The intent is "fail loudly, never emit a use case that cannot
+      // compile" (#2140). Since #2141 merged, the non-entity completable
+      // path infers `<Name>Service` and resolves it against the on-disk
+      // interface (#1799) before the domain guard runs, so the loud
+      // failure now names the missing service rather than the missing
+      // domain — the same ArgumentError contract, a more actionable
+      // message. This mirrors master's own #2141 regression assertion in
+      // test/regression/issue_2141_completable_infer_service_test.dart.
       await expectLater(
         plugin.generate(config),
         throwsA(
           isA<ArgumentError>().having(
             (e) => e.message,
             'message',
-            contains('you must specify a domain'),
+            allOf(
+              contains('service interface not found'),
+              contains('OrphanActionService'),
+            ),
           ),
         ),
       );
