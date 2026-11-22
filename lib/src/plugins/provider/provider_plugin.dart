@@ -188,8 +188,34 @@ class ProviderPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     GeneratorConfig config, {
     PluginContext? context,
   }) async {
-    if (!config.hasService || !config.generateData) {
-      if (!config.revert) return [];
+    // Issue #2138: `provider create` IS the "generate the provider
+    // implementation" command, so the provider file must not depend on the
+    // `data` flag — that flag gates whether the DATA LAYER is generated,
+    // but the provider implementation IS this command's output. Before this
+    // fix the guard read `!config.hasService || !config.generateData`, so a
+    // valid `provider create ... --no-data` (or any direct caller that left
+    // generateData at its model default of false) returned zero files with
+    // no skip note — the command printed "No files were generated" and
+    // exited 1, and the caller could not tell which guard rejected the
+    // valid service. Only the genuinely unresolvable case remains a skip:
+    // no service name (service == null && useService == false) means there
+    // is no interface for the provider to implement, so nothing can be
+    // emitted. It is now a structured, machine-readable skip (mirroring
+    // the service plugin's #978 fix) instead of a silent empty return.
+    final serviceSnake = config.serviceSnake;
+    if (serviceSnake == null) {
+      if (!config.revert) {
+        print(
+          '⚠️  Skipping provider generation: no service name resolvable for '
+          '"${config.name}". A provider implements a service interface, so '
+          'it cannot be generated without one.\n'
+          '--> fix: name the service explicitly — `zfa service create '
+          '--name ${config.name}` then `zfa provider create --name '
+          '${config.name}`, or run the full-stack flow `zfa make '
+          '${config.name}`.',
+        );
+      }
+      return [];
     }
 
     final builder = context != null
