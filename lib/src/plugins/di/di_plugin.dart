@@ -1374,7 +1374,11 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     // existing use case, so a legacy (e.g. named-constructor) declaration is
     // retained while this DI file is regenerated. Emitting the positional
     // service-delegation call against a named constructor does not compile.
-    // Parse the retained file's constructor and match its call shape.
+    // Parse the retained file's constructor and match its call shape. This also
+    // subsumes issue #2118 (`di register --target=<X>UseCase` with no repo/
+    // service in the config): the retained constructor's required dependencies
+    // are inferred from the use-case source and resolved via getIt, rather than
+    // emitting a no-argument call that fails the analyzer gate.
     final actualConstructor = await _parseUseCaseConstructor(
       className,
       useCaseFilePath,

@@ -78,9 +78,19 @@ class EntityCommand {
 
     final subCommand = args[0];
 
-    // Handle the help path before the pubspec guard so `zfa entity --help`
-    // prints usage anywhere (help must never require a project context).
-    if (subCommand == '--help' || subCommand == '-h' || subCommand == 'help') {
+    // Issue #2115: `--help` in the subcommand tail (`zfa entity create
+    // --help`) used to reach `_handleCreate`, which validated the required
+    // name first — so a help request answered "Entity name is required" and
+    // exited 2. Help is a request for usage, never a partial invocation of
+    // the subcommand: it belongs on the same path as `zfa entity --help`
+    // (#764), i.e. before the pubspec guard, so it prints from any
+    // directory and from every subcommand.
+    final isHelp =
+        subCommand == '--help' ||
+        subCommand == '-h' ||
+        subCommand == 'help' ||
+        args.skip(1).any((arg) => arg == '--help' || arg == '-h');
+    if (isHelp) {
       _printHelp();
       if (exitOnCompletion) exit(0);
       return;
@@ -92,6 +102,24 @@ class EntityCommand {
         .skip(1)
         .where((arg) => arg != '--build' && arg != '--dart-format')
         .toList();
+
+    // Issue #2124: a subcommand-level help request must short-circuit
+    // command-specific required-argument validation (and the pubspec guard)
+    // the same way `zfa entity --help` does. The entity subcommands parse
+    // their args manually and otherwise validate the required entity name
+    // first, so `zfa entity create --help` exited 2 with "Entity name is
+    // required" instead of printing usage. Help must be reachable from any
+    // directory, so this runs before the dependency guard below.
+    //
+    // Only the flag forms (`--help` / `-h`) are matched — never a bare
+    // `help` token — so an entity literally named `help` (`-n help`) or a
+    // field value `help` is not mistaken for a help request.
+    const subcommandHelpFlags = {'--help', '-h'};
+    if (subArgs.any(subcommandHelpFlags.contains)) {
+      _printHelp();
+      if (exitOnCompletion) exit(0);
+      return;
+    }
 
     final config = ZfaConfig.load();
     final runBuild = shouldBuild || (config?.buildByDefault ?? false);

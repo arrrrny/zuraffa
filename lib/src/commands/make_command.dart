@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
 
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as path;
@@ -331,7 +332,13 @@ class MakeCommand extends Command<void> {
     argParser.addFlag('vpc', negatable: false, help: 'Generate full VPC set');
     argParser.addFlag('vpcs', negatable: false, help: 'Generate full VPC set');
     argParser.addFlag('state', negatable: false, help: 'Generate state class');
-    argParser.addFlag('data', negatable: false, help: 'Generate data layer');
+    // Issue #2139: `provider create` exposes `--[no-]data`, so the make-side
+    // fallback for a provider must accept the same `--no-data` negation —
+    // otherwise the equivalent commands have incompatible option grammars and
+    // `zfa make <Name> --provider ... --no-data` dies with exit 2
+    // `Cannot negate option "--no-data"`. The data-layer overgeneration this
+    // pairs with is the separate known issue #2131; this only aligns the grammar.
+    argParser.addFlag('data', negatable: true, help: 'Generate data layer');
     argParser.addFlag(
       'datasource',
       negatable: false,
@@ -840,6 +847,60 @@ class MakeCommand extends Command<void> {
     );
     context.data.addAll(normalizedOptions);
 
+    // Issue #2126: a bare `--service` used as a boolean (e.g.
+    // `zfa make Foo --service --provider ...`) swallows the next token as
+    // the option's value because `--service` is an `addOption`, not a
+    // flag. `--service --provider` parses service='--provider', and
+    // `effectiveService` then appends 'Service' → '--providerService',
+    // whose snake-case is the invalid placeholder '-_-provider_service'
+    // (the issue's exact crash). A `--service` value that is really a
+    // swallowed flag (starts with '-') or is empty means the user wanted
+    // the feature's OWN service — route it through useService so
+    // effectiveService resolves to '<Name>Service', the behavior the
+    // issue's `ImportOrders` receipt shows.
+    _normalizeBareServiceFlag(argResults!, context.data);
+
+    // Issue #2140: the provider plugin carries the feature-service binding
+    // (`useService: true` → effectiveService resolves to '<Name>Service')
+    // on ITS OWN config, but the usecase plugin builds a separate
+    // GeneratorConfig from context.data — which never sees that binding.
+    // A `zfa make X --provider ... --no-entity` run (usecase active via
+    // the default tier) then hit the non-entity guard with NEITHER a
+    // domain NOR a service, dying on "you must specify a domain using
+    // --domain." Mirror the provider's service binding into context.data
+    // so every plugin in the plan binds to the SAME feature service the
+    // provider targets. Gated to the no-entity shape — an entity-based
+    // CRUD run keeps its repository path — and never overrides an
+    // explicit dependency choice (--service <Name>, --repo, bare
+    // --service, --from-json use-service). The repository schema declares
+    // `use-service` with default false, so an ABSENT key and an explicit
+    // false are indistinguishable: read the VALUE, not the key.
+    final service = context.data['service'] is String
+        ? context.data['service'] as String?
+        : null;
+    final useServiceAlready =
+        context.data['use-service'] == true ||
+        context.data['useService'] == true;
+    final providerExplicit =
+        argResults!.wasParsed('provider') && argResults!['provider'] == true;
+    if (service == null &&
+        !useServiceAlready &&
+        context.data['no-entity'] == true &&
+        context.data['repo'] == null &&
+        providerExplicit) {
+      context.data['use-service'] = true;
+      context.data['useService'] = true;
+    }
+
+    // Review fix (zuraffa#2145 reroute): tell the usecase plugin whether
+    // the service plugin is part of THIS plan. The service plugin runs
+    // after the usecase plugin and can still emit a missing
+    // `<Name>Service` interface, so the usecase's method resolution must
+    // defer instead of failing on the on-disk state (the #2126 bare
+    // `--service` ordering). A direct plugin generate never sets this —
+    // the loud #1799 failure is unchanged there.
+    context.data['service-plugin-in-plan'] = plan.pluginIds.contains('service');
+
     // #360: honor .zfa.json xray default for the view plugin.
     // --xray flag always wins; otherwise fall back to config. An explicit
     // `false` already present in context.data (e.g. set by a plugin or
@@ -1327,10 +1388,11 @@ class MakeCommand extends Command<void> {
   /// Spec #979 (orders 2 + 4): the provider post-pass — receipt + gates.
   ///
   /// Returns true when the run must FAIL (committed stubs survived, or a
-  /// conformance miss). Fresh stubs (the provider this run just wrote —
-  /// stub-first semantics) are recorded in the deterministic receipt and
-  /// named in the output, and do NOT fail the run: stubs are allowed to
-  /// exist, never to hide.
+  /// conformance miss). Fresh stubs (a provider this run wrote OR whose
+  /// converging re-run re-emitted the committed bytes — stub-first
+  /// semantics) are recorded in the deterministic receipt and named in
+  /// the output, and do NOT fail the run: stubs are allowed to exist,
+  /// never to hide.
   Future<bool> _providerPostPass(
     String entityName,
     List<GeneratedFile> files,
@@ -1361,24 +1423,63 @@ class MakeCommand extends Command<void> {
           providerFile.endsWith('/${fRel.split('/').last}') &&
               f.type == 'provider';
     }).toList();
-    final fresh = runEntry.any(
-      (f) =>
-          f.action == 'created' ||
-          f.action == 'overwritten' ||
-          f.action == 'updated',
-    );
+    final fresh = runEntry.any((f) {
+      switch (f.action) {
+        case 'created':
+        case 'overwritten':
+        case 'updated':
+          return true;
+        case 'skipped':
+          // Issue #2129: a skip with the re-emitted content attached is a
+          // CONVERGING re-run, not an escape — FileUtils.writeFile skips ANY
+          // existing file without --force, but the plugin still emitted the
+          // skeleton and the skip entry carries it. When that content equals
+          // the committed bytes, the stubs on disk are this run's own
+          // stub-first output (fresh generation, again); when the content
+          // disagrees (or is absent — a file the run never emitted), the
+          // skeleton on disk was committed by someone else and the escape
+          // gate holds. An unreadable provider file (deleted mid-run,
+          // permission denied, path is a directory) is treated as "not
+          // reproduced" — the escape gate holds and the stub-escape verdict
+          // below carries the actionable fix, instead of a read error
+          // masking the generation failure the gate exists to report.
+          String? committed;
+          try {
+            committed = File(providerFile).readAsStringSync();
+          } catch (_) {
+            return false;
+          }
+          return f.content != null && f.content == committed;
+        default:
+          return false;
+      }
+    });
 
     // Receipt: proof.v1 digests of the final bytes + the ledger data
     // (interface / methods / stub count) — best-effort by design.
+    // ProviderReceiptWriter digests only created/overwritten/updated
+    // entries, so a converging re-run's skipped-only runEntry would
+    // yield a digest-empty receipt (the synthetic fallback below only
+    // fires on an EMPTY runEntry). Digested set = the rewritten entries
+    // when any, else the on-disk provider bytes (this run's own output
+    // either way — the converging re-run re-emitted them).
+    final digested = runEntry
+        .where(
+          (f) =>
+              f.action == 'created' ||
+              f.action == 'overwritten' ||
+              f.action == 'updated',
+        )
+        .toList();
     try {
       await ProviderReceiptWriter().write(
         projectRoot: manager.projectRoot,
         entity: entity,
-        files: runEntry.isNotEmpty
-            ? runEntry
+        files: digested.isNotEmpty
+            ? digested
             : [
-                // Committed, untouched by this run — digest the current
-                // bytes so the receipt stays truthful.
+                // Committed, untouched by this run (or a converging skip) —
+                // digest the current bytes so the receipt stays truthful.
                 GeneratedFile(
                   path: providerFile,
                   type: 'provider',
@@ -1419,8 +1520,10 @@ class MakeCommand extends Command<void> {
     if (stubs.isEmpty) return false;
 
     if (fresh) {
-      // Fresh stubs are the intended stub-first output: NAME them and
-      // record them (the receipt above carries the count), do not fail.
+      // Fresh stubs are the intended stub-first output (this run wrote
+      // them, or a converging re-run re-emitted the committed bytes —
+      // either way NOT a committed escape): NAME them and record them (the
+      // receipt above carries the count), do not fail.
       print(
         'ℹ️  Provider $relative generated stub-first: '
         '${stubs.length} method(s) still throw UnimplementedError '
@@ -1644,6 +1747,40 @@ class MakeCommand extends Command<void> {
     });
 
     return normalized;
+  }
+
+  /// Issue #2126: normalize a bare `--service` used as a boolean.
+  ///
+  /// `--service` is declared with `argParser.addOption`, so a bare
+  /// `--service --provider` makes the `args` package consume `--provider`
+  /// as the option's value (service == '--provider'). Downstream,
+  /// `GeneratorConfig.effectiveService` appends 'Service' to whatever
+  /// does not already end in Service/Provider, and `serviceSnake`
+  /// snake-cases the result — `'--providerService'` becomes the invalid
+  /// placeholder path `lib/src/domain/services/-_-provider_service.dart`
+  /// (the issue's exact crash). A bare `--service` is a boolean in
+  /// intent: it selects the feature's OWN service. Route it through
+  /// `useService` (which makes `effectiveService` resolve to
+  /// '<Name>Service') and clear the bogus name, so the service plugin,
+  /// provider plugin and usecase generator all see a concrete, valid
+  /// interface name.
+  ///
+  /// Only a value that is empty or begins with '-' is treated as a
+  /// swallowed flag. An explicit `--service <Name>` (or `--service=<Name>`)
+  /// keeps its value untouched.
+  static void _normalizeBareServiceFlag(
+    ArgResults argResults,
+    Map<String, dynamic> data,
+  ) {
+    if (!argResults.wasParsed('service')) return;
+    final value = argResults['service'];
+    if (value is! String) return;
+    final isSwallowedFlag = value.isEmpty || value.startsWith('-');
+    if (!isSwallowedFlag) return;
+    // Bare boolean `--service`: use the feature's own <Name>Service.
+    data['use-service'] = true;
+    data['useService'] = true;
+    data['service'] = null;
   }
 
   /// Issue #2023: true when the request explicitly selects the `usecase`

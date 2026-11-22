@@ -131,6 +131,16 @@ class ServiceInterfaceBuilder {
         config,
         depth: 0,
         includeDomain: false,
+        // Issue #2131: a no-entity standalone service (custom --params/
+        // --returns, no backing entity) must not emit the missing-file
+        // fallback import — it would reference a domain/entities/<type>/
+        // <type>.dart that does not exist and fail `zfa build`'s analyzer
+        // gate with `uri_does_not_exist` / `undefined_class`. Entity files
+        // that DO exist still import (the resolver checks the filesystem
+        // before falling back). Mirrors the stream usecase generator's
+        // `includeMissingEntityFallback: !config.noEntity` (2025 review,
+        // issue #2023).
+        includeMissingEntityFallback: !config.noEntity,
         fileSystem: fileSystem,
       );
       // Issue #1030: custom services write flat to

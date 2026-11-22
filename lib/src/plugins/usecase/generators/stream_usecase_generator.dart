@@ -47,37 +47,50 @@ class StreamUseCaseGenerator {
           serviceName,
           fileSystem: fileSystem,
         );
-        if (declared.isEmpty) {
-          throw ArgumentError(
-            'service interface not found or declares no methods: '
-            '$serviceName ($filePath). (zuraffa issue #1799)',
-          );
-        }
-        final paramsType = config.paramsType ?? 'NoParams';
-        final returnsType = config.returnsType ?? 'void';
-        final matches = declared.where((m) {
-          return m.paramsType == paramsType && m.returnsType == returnsType;
-        }).toList();
-        String? resolved;
-        if (matches.length == 1) {
-          resolved = matches.first.fieldName;
-        } else if (matches.isEmpty &&
-            declared.length == 1 &&
-            (config.paramsType == null || config.hasMultipleParams)) {
-          resolved = declared.first.fieldName;
-        } else if (matches.length > 1) {
-          throw ArgumentError(
-            'ambiguous service method on $serviceName. (zuraffa issue #1799)',
-          );
+        // Review fix (zuraffa#2145 reroute): defer to the plan — when the
+        // service plugin is part of the same make plan it runs after this
+        // generator and can still emit the missing interface (the #2126
+        // bare `--service` ordering). Only a run nothing produces the
+        // interface for keeps the loud #1799 failure; the deferred path
+        // proceeds with the default method name
+        // (GeneratorConfig.getServiceMethodName) and the CLI compile gate
+        // still fails closed if the plan ends with no interface on disk.
+        final serviceWillRun = config.servicePluginInPlan == true;
+        if (declared.isEmpty && serviceWillRun) {
+          // skip method resolution; config unchanged
         } else {
-          throw ArgumentError(
-            'no service method on $serviceName matches '
-            '$paramsType -> $returnsType. Declared: '
-            '${declared.map((m) => '${m.fieldName}(${m.paramsType}) -> ${m.returnsType}').join(', ')}. '
-            '(zuraffa issue #1799)',
-          );
+          if (declared.isEmpty) {
+            throw ArgumentError(
+              'service interface not found or declares no methods: '
+              '$serviceName ($filePath). (zuraffa issue #1799)',
+            );
+          }
+          final paramsType = config.paramsType ?? 'NoParams';
+          final returnsType = config.returnsType ?? 'void';
+          final matches = declared.where((m) {
+            return m.paramsType == paramsType && m.returnsType == returnsType;
+          }).toList();
+          String? resolved;
+          if (matches.length == 1) {
+            resolved = matches.first.fieldName;
+          } else if (matches.isEmpty &&
+              declared.length == 1 &&
+              (config.paramsType == null || config.hasMultipleParams)) {
+            resolved = declared.first.fieldName;
+          } else if (matches.length > 1) {
+            throw ArgumentError(
+              'ambiguous service method on $serviceName. (zuraffa issue #1799)',
+            );
+          } else {
+            throw ArgumentError(
+              'no service method on $serviceName matches '
+              '$paramsType -> $returnsType. Declared: '
+              '${declared.map((m) => '${m.fieldName}(${m.paramsType}) -> ${m.returnsType}').join(', ')}. '
+              '(zuraffa issue #1799)',
+            );
+          }
+          config = config.copyWith(serviceMethod: resolved);
         }
-        config = config.copyWith(serviceMethod: resolved);
       }
     }
     final baseName = config.name.endsWith('UseCase')
