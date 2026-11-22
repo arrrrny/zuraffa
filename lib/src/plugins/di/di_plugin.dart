@@ -438,9 +438,9 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             Method(
               (m) => m
                 ..lambda = true
-                ..body = refer('getIt')
-                    .call([], {}, [refer(dataSourceName)])
-                    .code,
+                ..body = refer(
+                  'getIt',
+                ).call([], {}, [refer(dataSourceName)]).code,
             ).closure,
           ],
           {},
@@ -505,9 +505,9 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           config.methods.contains('getList') ||
           config.methods.contains('watchList');
       final boxName = hasListMethod ? '${baseSnake}s' : baseSnake;
-      final boxCall = refer('Hive')
-          .property('box')
-          .call([literalString(boxName)], {}, [refer(baseName)]);
+      final boxCall = refer(
+        'Hive',
+      ).property('box').call([literalString(boxName)], {}, [refer(baseName)]);
       constructorCall = refer(dataSourceName).call([boxCall]);
     } else {
       constructorCall = refer(dataSourceName).call([]);
@@ -544,10 +544,9 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                               .statement,
                         );
                         b.statements.add(
-                          refer(dataSourceName)
-                              .call([refer(boxVar)])
-                              .returned
-                              .statement,
+                          refer(
+                            dataSourceName,
+                          ).call([refer(boxVar)]).returned.statement,
                         );
                       }),
                   ).closure,
@@ -624,17 +623,16 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                     ..statements.add(
                       declareFinal('db')
                           .assign(
-                            refer('sqlite3')
-                                .property('open')
-                                .call([literalString('$baseSnake.db')]),
+                            refer('sqlite3').property('open').call([
+                              literalString('$baseSnake.db'),
+                            ]),
                           )
                           .statement,
                     )
                     ..statements.add(
-                      refer(dataSourceName)
-                          .call([refer('db')])
-                          .returned
-                          .statement,
+                      refer(
+                        dataSourceName,
+                      ).call([refer('db')]).returned.statement,
                     ),
                 ),
             ).closure,
@@ -1390,8 +1388,9 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final Expression constructorCall;
     if (actualConstructor != null) {
       final resolved = _resolveConstructorArgs(actualConstructor, imports, fs);
-      constructorCall = refer(className)
-          .call(resolved.positional, resolved.named);
+      constructorCall = refer(
+        className,
+      ).call(resolved.positional, resolved.named);
     } else {
       constructorCall = refer(className).call(constructorParams);
     }
@@ -1533,8 +1532,9 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       // the default applies.
       if (!param.required) continue;
       _addParamImport(param.type, imports, fs);
-      named[param.name] = refer('getIt')
-          .call([], {}, [refer(_lookupType(param.type))]);
+      named[param.name] = refer(
+        'getIt',
+      ).call([], {}, [refer(_lookupType(param.type))]);
     }
 
     return (positional: positional, named: named);
