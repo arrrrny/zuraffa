@@ -211,7 +211,10 @@ class Product {
           '--returns=PriceCheckItemResult',
           '--type=stream',
           '--no-entity',
-          '--allow-forward-refs',
+          // `--allow-forward-refs` is intentionally NOT passed: it is a
+          // no-op on the make path (make_command.dart never reads it — only
+          // `service create` does), so passing it here implied a forward-ref
+          // guard the make pipeline does not have (review nit on #2137).
           '--output',
           outputDir,
         ]);
@@ -235,6 +238,42 @@ class Product {
           serviceFile.existsSync(),
           isTrue,
           reason: 'service interface should be scaffolded. output:\n$output',
+        );
+        // Nit (review on #2137): existence alone is too weak — a hollow
+        // `abstract class RunPriceCheckForItemService {}` would pass, yet
+        // would still fail the real issue scenario downstream (the stream
+        // generator finds the file but `declared.isEmpty` -> same error).
+        // Assert the interface declares the method the usecase generator
+        // reads (`getServiceMethodName()` -> nameCamel), with the params and
+        // returns types wired through — mirroring the serviceSource pattern
+        // used elsewhere in this file.
+        final serviceSource = serviceFile.readAsStringSync();
+        expect(
+          serviceSource,
+          contains('abstract class RunPriceCheckForItemService'),
+          reason:
+              'the service interface must declare RunPriceCheckForItemService. '
+              'output:\n$output',
+        );
+        expect(
+          serviceSource,
+          contains('runPriceCheckForItem'),
+          reason:
+              'the service interface must declare the runPriceCheckForItem '
+              'method the usecase generator reads (#2127). output:\n$output',
+        );
+        expect(
+          serviceSource,
+          contains('PriceCheckParams'),
+          reason:
+              'the service method must take PriceCheckParams. output:\n$output',
+        );
+        expect(
+          serviceSource,
+          contains('PriceCheckItemResult'),
+          reason:
+              'the service method must return PriceCheckItemResult. '
+              'output:\n$output',
         );
         final usecaseFile = File(
           path.join(
