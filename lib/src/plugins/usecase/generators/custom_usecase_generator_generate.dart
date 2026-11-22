@@ -2,27 +2,47 @@ part of 'custom_usecase_generator.dart';
 
 extension CustomUseCaseGeneratorGenerate on CustomUseCaseGenerator {
   Future<GeneratedFile> generate(GeneratorConfig config) async {
+    // Issue #2141: infer the feature's own `<Name>Service` interface when a
+    // non-sync custom usecase names no explicit dependency, instead of
+    // refusing outright. `zfa make Foo --type=completable --no-entity`
+    // used to exit with "you must specify a repository or service" even when
+    // the matching `FooService` already existed on disk; a bare `--service`
+    // already selects that same surface (`effectiveService` → `<Name>Service`),
+    // so route the no-dependency case through it and let the interface/method
+    // resolution below verify the service actually exists — a missing
+    // interface still fails loudly with a named fix rather than emitting a
+    // use case that cannot compile. Entity-based runs keep their repository
+    // default (`hasRepo`), so inference is a no-op for them.
+    var effectiveConfig = config;
+    if (!config.revert &&
+        config.useCaseType != 'sync' &&
+        !config.hasRepo &&
+        !config.hasService &&
+        !config.isEntityBased) {
+      effectiveConfig = config.copyWith(useService: true);
+    }
+
     // Resolve the service method name from the on-disk service interface
     // instead of inventing it from the use-case name (#1799). When the
     // service declares a single method, that method is used; when it
     // declares several, the one whose params/returns match this request is
     // used. If the surface cannot be resolved, refuse with a named fix
     // rather than writing a use case that cannot compile.
-    var resolvedConfig = config;
-    if (config.hasService && config.serviceMethod == null) {
-      final serviceName = config.effectiveService;
-      final serviceSnake = config.serviceSnake;
+    var resolvedConfig = effectiveConfig;
+    if (effectiveConfig.hasService && effectiveConfig.serviceMethod == null) {
+      final serviceName = effectiveConfig.effectiveService;
+      final serviceSnake = effectiveConfig.serviceSnake;
       if (serviceName != null && serviceSnake != null) {
-        final filePath = config.isEntityBased
+        final filePath = effectiveConfig.isEntityBased
             ? path.join(
-                config.outputDir,
+                effectiveConfig.outputDir,
                 'domain',
                 'services',
-                config.effectiveDomain,
+                effectiveConfig.effectiveDomain,
                 '$serviceSnake.dart',
               )
             : path.join(
-                config.outputDir,
+                effectiveConfig.outputDir,
                 'domain',
                 'services',
                 '$serviceSnake.dart',
@@ -34,59 +54,82 @@ extension CustomUseCaseGeneratorGenerate on CustomUseCaseGenerator {
         );
 
         String? resolved;
-        if (declared.isEmpty) {
-          throw ArgumentError(
-            'service interface not found or declares no methods: '
-            '$serviceName ($filePath). Create it first with: '
-            'zfa service create ${config.name} --service=$serviceName '
-            '--methods=<method>  (see zuraffa issue #1799)',
-          );
-        }
-
-        final paramsType = config.paramsType ?? 'NoParams';
-        final returnsType = config.returnsType ?? 'void';
-
-        final matches = declared.where((m) {
-          final pOk = m.paramsType == paramsType;
-          final rOk = m.returnsType == returnsType;
-          return pOk && rOk;
-        }).toList();
-
-        if (matches.length == 1) {
-          resolved = matches.first.fieldName;
-        } else if (matches.isEmpty &&
-            declared.length == 1 &&
-            (config.paramsType == null || config.hasMultipleParams)) {
-          // Single declared method: trust it when params/returns were not
-          // supplied (or use multiple params) — the interface is the
-          // authority on the method name (issue #1799).
-          resolved = declared.first.fieldName;
-        } else if (matches.length > 1) {
-          throw ArgumentError(
-            'ambiguous service method: $serviceName declares '
-            '${matches.map((m) => m.fieldName).join(', ')} matching '
-            '$paramsType -> $returnsType. Refine --params/--returns. '
-            '(zuraffa issue #1799)',
-          );
+        // Review fix (zuraffa#2145 reroute): when the service plugin is
+        // part of the SAME make plan it runs AFTER the usecase plugin and
+        // can still emit the missing interface — the bare `--service`
+        // flow (#2126) depends on that ordering. Only a run where NOTHING
+        // produces the interface (a direct plugin generate, or no service
+        // plugin in the plan) fails loudly below; otherwise method
+        // resolution is skipped and generation proceeds with the default
+        // method name (GeneratorConfig.getServiceMethodName). A plan that
+        // ends with no interface on disk still fails closed at the CLI
+        // compile gate (unresolved import), never silently.
+        final serviceWillRun = config.servicePluginInPlan == true;
+        if (declared.isEmpty && serviceWillRun) {
+          resolvedConfig = effectiveConfig;
         } else {
-          throw ArgumentError(
-            'no service method on $serviceName matches '
-            '$paramsType -> $returnsType. Declared: '
-            '${declared.map((m) => '${m.fieldName}(${m.paramsType}) -> ${m.returnsType}').join(', ')}. '
-            'Adjust --params/--returns or create the method with: '
-            'zfa service create ${config.name} --service=$serviceName '
-            '--methods=<method>  (zuraffa issue #1799)',
-          );
-        }
+          if (declared.isEmpty) {
+            throw ArgumentError(
+              'service interface not found or declares no methods: '
+              '$serviceName ($filePath). Create it first with: '
+              'zfa service create ${config.name} --service=$serviceName '
+              '--methods=<method>  (see zuraffa issue #1799)',
+            );
+          }
 
-        resolvedConfig = config.copyWith(serviceMethod: resolved);
+          final paramsType = config.paramsType ?? 'NoParams';
+          final returnsType = config.returnsType ?? 'void';
+
+          final matches = declared.where((m) {
+            final pOk = m.paramsType == paramsType;
+            final rOk = m.returnsType == returnsType;
+            return pOk && rOk;
+          }).toList();
+
+          if (matches.length == 1) {
+            resolved = matches.first.fieldName;
+          } else if (matches.isEmpty &&
+              declared.length == 1 &&
+              (config.paramsType == null || config.hasMultipleParams)) {
+            // Single declared method: trust it when params/returns were not
+            // supplied (or use multiple params) — the interface is the
+            // authority on the method name (issue #1799).
+            resolved = declared.first.fieldName;
+          } else if (matches.length > 1) {
+            throw ArgumentError(
+              'ambiguous service method: $serviceName declares '
+              '${matches.map((m) => m.fieldName).join(', ')} matching '
+              '$paramsType -> $returnsType. Refine --params/--returns. '
+              '(zuraffa issue #1799)',
+            );
+          } else {
+            throw ArgumentError(
+              'no service method on $serviceName matches '
+              '$paramsType -> $returnsType. Declared: '
+              '${declared.map((m) => '${m.fieldName}(${m.paramsType}) -> ${m.returnsType}').join(', ')}. '
+              'Adjust --params/--returns or create the method with: '
+              'zfa service create ${config.name} --service=$serviceName '
+              '--methods=<method>  (zuraffa issue #1799)',
+            );
+          }
+
+          resolvedConfig = effectiveConfig.copyWith(serviceMethod: resolved);
+        }
       }
     }
 
     config = resolvedConfig;
 
     // 1. Check for required Domain for non-entity usecases
-    if (config.useCaseType != 'entity' && config.domain == null) {
+    // Issue #2140: a non-entity usecase that binds to a service does not
+    // need an explicit --domain — the service (resolved from --service,
+    // --provider or useService) scopes the work, and the domain falls
+    // back to the config name through effectiveDomain, the same
+    // convention `zfa provider create` documents. Only a usecase with
+    // NEITHER a domain NOR a resolvable service still fails loudly.
+    final inferredDomain =
+        config.domain ?? (config.hasService ? config.nameSnake : null);
+    if (config.useCaseType != 'entity' && inferredDomain == null) {
       throw ArgumentError(
         'For non-entity usecases (like ${config.useCaseType}), you must specify a domain using --domain.',
       );

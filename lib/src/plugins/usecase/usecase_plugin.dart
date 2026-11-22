@@ -135,6 +135,20 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       domain: context.get<String>('domain'),
       repo: context.get<String>('repo'),
       service: context.get<String>('service'),
+      // Issue #2140: the make flow resolves the provider-implied feature
+      // service into use-service, and the sibling plugins
+      // (service/datasource/di) read the same key. The usecase config
+      // follows it ONLY on the no-entity shape — the #972 FR-4 semantic
+      // (an entity-based --use-service run keeps repository mode and its
+      // fail-open expectation guard) must not flip here.
+      useService:
+          context.get<bool>('no-entity') == true &&
+          (context.data['use-service'] == true ||
+              context.data['useService'] == true),
+      // Review fix (zuraffa#2145 reroute): the make plan may run the
+      // service plugin AFTER this one and still emit the interface the
+      // method resolver would otherwise fail on (#2126 bare --service).
+      servicePluginInPlan: context.data['service-plugin-in-plan'] == true,
       paramsType: context.get<String>('params'),
       returnsType: context.get<String>('returns'),
       usecases: context.data['usecases']?.cast<String>().toList() ?? [],
