@@ -332,7 +332,13 @@ class MakeCommand extends Command<void> {
     argParser.addFlag('vpc', negatable: false, help: 'Generate full VPC set');
     argParser.addFlag('vpcs', negatable: false, help: 'Generate full VPC set');
     argParser.addFlag('state', negatable: false, help: 'Generate state class');
-    argParser.addFlag('data', negatable: false, help: 'Generate data layer');
+    // Issue #2139: `provider create` exposes `--[no-]data`, so the make-side
+    // fallback for a provider must accept the same `--no-data` negation —
+    // otherwise the equivalent commands have incompatible option grammars and
+    // `zfa make <Name> --provider ... --no-data` dies with exit 2
+    // `Cannot negate option "--no-data"`. The data-layer overgeneration this
+    // pairs with is the separate known issue #2131; this only aligns the grammar.
+    argParser.addFlag('data', negatable: true, help: 'Generate data layer');
     argParser.addFlag(
       'datasource',
       negatable: false,
