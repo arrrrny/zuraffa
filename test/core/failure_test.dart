@@ -406,6 +406,7 @@ void main() {
             NotFoundFailure() => 'notFound',
             UnauthorizedFailure() => 'unauthorized',
             ForbiddenFailure() => 'forbidden',
+            PolicyDeniedFailure() => 'policyDenied',
             ConflictFailure() => 'conflict',
             TimeoutFailure() => 'timeout',
             CancellationFailure() => 'cancellation',
