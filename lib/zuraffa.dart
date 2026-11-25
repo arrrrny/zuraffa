@@ -484,7 +484,7 @@ export 'src/dda/plugins/middleware/track_event_generator.dart';
 /// consumer-facing entry points; without this barrel export the feature ships
 /// as unreachable dead code (lean core barrel check, #1661).
 export 'src/core/middleware/zfa_middleware.dart'
-    show ZfaMiddleware, ZfaContext, NextUseCase;
+    show ZfaMiddleware, ZfaMiddlewareContext, NextUseCase;
 export 'src/core/middleware/middleware_pipeline.dart' show MiddlewarePipeline;
 
 /// DIGenerator — code_builder-based DI registration generation.

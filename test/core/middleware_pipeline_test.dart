@@ -17,7 +17,7 @@ class TestMiddleware implements ZfaMiddleware<TestIntent, String> {
   @override
   Future<Result<String, AppFailure>> intercept(
     TestIntent intent,
-    ZfaContext ctx,
+    ZfaMiddlewareContext ctx,
     NextUseCase<TestIntent, String> next,
   ) async {
     ctx.metadata['log'] = (ctx.metadata['log'] as List<String>? ?? [])
@@ -32,7 +32,7 @@ class ShortCircuitMiddleware implements ZfaMiddleware<TestIntent, String> {
   @override
   Future<Result<String, AppFailure>> intercept(
     TestIntent intent,
-    ZfaContext ctx,
+    ZfaMiddlewareContext ctx,
     NextUseCase<TestIntent, String> next,
   ) async {
     ctx.metadata['log'] = (ctx.metadata['log'] as List<String>? ?? [])
@@ -46,7 +46,7 @@ class FailingMiddleware implements ZfaMiddleware<TestIntent, String> {
   @override
   Future<Result<String, AppFailure>> intercept(
     TestIntent intent,
-    ZfaContext ctx,
+    ZfaMiddlewareContext ctx,
     NextUseCase<TestIntent, String> next,
   ) async {
     ctx.metadata['log'] = (ctx.metadata['log'] as List<String>? ?? [])
@@ -63,7 +63,7 @@ void main() {
 
       Future<Result<String, AppFailure>> handler(
         TestIntent intent,
-        ZfaContext ctx,
+        ZfaMiddlewareContext ctx,
       ) async {
         (ctx.metadata['log'] as List<String>).add('handler');
         return Result.success('ok-${intent.value}');
@@ -73,7 +73,7 @@ void main() {
         ..use(m1)
         ..use(m2);
 
-      final ctx = ZfaContext(
+      final ctx = ZfaMiddlewareContext(
         useCaseName: 'TestUseCase',
         timestamp: DateTime.now(),
       );
@@ -91,7 +91,7 @@ void main() {
 
         Future<Result<String, AppFailure>> handler(
           TestIntent intent,
-          ZfaContext ctx,
+          ZfaMiddlewareContext ctx,
         ) async {
           (ctx.metadata['log'] as List<String>).add('handler');
           return Result.success('ok-${intent.value}');
@@ -101,7 +101,7 @@ void main() {
           ..use(ShortCircuitMiddleware())
           ..use(inner);
 
-        final ctx = ZfaContext(
+        final ctx = ZfaMiddlewareContext(
           useCaseName: 'ShortCircuitUseCase',
           timestamp: DateTime.now(),
         );
@@ -120,7 +120,7 @@ void main() {
 
       Future<Result<String, AppFailure>> handler(
         TestIntent intent,
-        ZfaContext ctx,
+        ZfaMiddlewareContext ctx,
       ) async {
         (ctx.metadata['log'] as List<String>).add('handler');
         return Result.success('ok-${intent.value}');
@@ -130,7 +130,7 @@ void main() {
         ..use(outer)
         ..use(FailingMiddleware());
 
-      final ctx = ZfaContext(
+      final ctx = ZfaMiddlewareContext(
         useCaseName: 'FailureUseCase',
         timestamp: DateTime.now(),
       );

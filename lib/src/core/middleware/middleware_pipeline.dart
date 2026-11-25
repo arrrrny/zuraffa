@@ -16,7 +16,7 @@ class MiddlewarePipeline<I, O> {
   /// Execute the pipeline wrapping the final handler.
   Future<Result<O, AppFailure>> execute(
     I intent,
-    ZfaContext ctx,
+    ZfaMiddlewareContext ctx,
     NextUseCase<I, O> handler,
   ) async {
     // Build the onion from inside out
@@ -24,7 +24,7 @@ class MiddlewarePipeline<I, O> {
 
     for (final middleware in _middlewares.reversed) {
       final nextStep = current;
-      current = (I intent, ZfaContext ctx) {
+      current = (I intent, ZfaMiddlewareContext ctx) {
         return middleware.intercept(intent, ctx, nextStep);
       };
     }
