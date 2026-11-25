@@ -469,6 +469,13 @@ export 'src/dda/plugins/middleware/retry_generator.dart';
 export 'src/dda/plugins/middleware/track_event_plugin.dart';
 export 'src/dda/plugins/middleware/track_event_generator.dart';
 
+/// Typed onion middleware (ZFA-005) — pure-Dart core contract. These are the
+/// consumer-facing entry points; without this barrel export the feature ships
+/// as unreachable dead code (lean core barrel check, #1661).
+export 'src/core/middleware/zfa_middleware.dart'
+    show ZfaMiddleware, ZfaMiddlewareContext, NextUseCase;
+export 'src/core/middleware/middleware_pipeline.dart' show MiddlewarePipeline;
+
 /// DIGenerator — code_builder-based DI registration generation.
 export 'src/dda/plugins/di/di_generator.dart';
 
