@@ -1,3 +1,4 @@
+import '../context/cancellation_token.dart';
 import '../context/zfa_context.dart';
 import '../failure.dart';
 import '../result.dart';
@@ -45,6 +46,11 @@ class ZfaReactionBus {
   ZfaReactionBus({this.maxCascadeDepth = 8});
 
   /// The maximum [ZfaContext.cascadeDepth] before a cascade is halted.
+  ///
+  /// This is the bus's own structural loop guard (default `8`). It is
+  /// independent of [ZfaContext.maxCascadeDepth] (`64`) and
+  /// [ZfaContext.isCascadeLimitExceeded], which the bus deliberately does not
+  /// consult — tuning the context's cascade limit does not move this guard.
   final int maxCascadeDepth;
 
   final List<ZfaReaction<dynamic, dynamic, dynamic>> _reactions = [];
@@ -83,19 +89,43 @@ class ZfaReactionBus {
   ///
   /// [runner] executes one intent under the supplied context. The returned
   /// result is the last step's result, or an [AppFailure.policyDenied] failure
-  /// when the cascade crosses [maxCascadeDepth].
+  /// when the cascade crosses [maxCascadeDepth]. An [AppFailure] (or a
+  /// cancellation thrown by [ZfaContext.throwIfCancelled]) raised by the runner
+  /// is also returned as a [Result.failure], so cancellation and loop-guard
+  /// termination reach callers on the same channel.
   Future<Result<Object?, AppFailure>> run(
     Object intent, {
     required ReactionRunner runner,
     required ZfaContext context,
   }) async {
-    final result = await runner(intent, context);
+    final result = await _invokeRunner(runner, intent, context);
     return _advance(
       intent: intent,
       result: result,
       runner: runner,
       context: context,
     );
+  }
+
+  /// Invoke [runner] for one step, routing a thrown failure onto the same
+  /// [Result.failure] channel used for returned failures and the loop guard.
+  ///
+  /// A runner following the idiomatic `ctx.throwIfCancelled()` pattern throws a
+  /// [CancellationTokenException] instead of returning a [Result]; without this
+  /// bridge that exception escapes [run] while every other termination is a
+  /// [Result.failure].
+  Future<Result<Object?, AppFailure>> _invokeRunner(
+    ReactionRunner runner,
+    Object intent,
+    ZfaContext context,
+  ) async {
+    try {
+      return await runner(intent, context);
+    } on AppFailure catch (failure) {
+      return Result.failure(failure);
+    } on CancellationTokenException catch (e) {
+      return Result.failure(AppFailure.cancellation(e.toString()));
+    }
   }
 
   Future<Result<Object?, AppFailure>> _advance({
@@ -120,15 +150,27 @@ class ZfaReactionBus {
     }
 
     final nextIntent = reaction.resolve(intent, payload!);
-    final nextResult = await runner(nextIntent, child);
-    return _advance(
+    final nextResult = await _invokeRunner(runner, nextIntent, child);
+    final advanced = await _advance(
       intent: nextIntent,
       result: nextResult,
       runner: runner,
       context: child,
     );
+    // The child (and its descendants, absorbed during the recursive advance)
+    // spent into their own ledgers. Roll the whole subtree's spend up so the
+    // root context's ledger reflects the cost of the entire choreography.
+    context.cost.absorb(child.cost);
+    return advanced;
   }
 
+  /// Find the first registered reaction matching the runtime `(intent,
+  /// payload)` types and the success/failure polarity.
+  ///
+  /// Matching is first-match-wins: if two reactions are registered for the
+  /// same `(I, O)` pair, only the first one registered ever fires; a later
+  /// duplicate is silently ignored (no diagnostic is emitted). Register at
+  /// most one reaction per type pair when distinct behaviour is expected.
   ZfaReaction<dynamic, dynamic, dynamic>? _find(
     Object intent,
     Object? payload,

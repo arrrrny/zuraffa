@@ -267,4 +267,68 @@ void main() {
       ]);
     });
   });
+
+  group('ZfaReactionBus runner failure channel', () {
+    test(
+      'cancellation thrown by the runner is returned as a Result.failure',
+      () async {
+        final bus = ZfaReactionBus();
+        final root = ZfaContext.root();
+
+        Future<Result<Object?, AppFailure>> runner(
+          Object intent,
+          ZfaContext ctx,
+        ) async {
+          root.cancellation.cancel('halt');
+          ctx.throwIfCancelled(); // idiomatic cancellation point
+          return Result.success('unreachable');
+        }
+
+        final result = await bus.run(
+          const ImportOrderIntent('order-1'),
+          runner: runner,
+          context: root,
+        );
+
+        expect(
+          result.isFailure,
+          isTrue,
+          reason: 'a cancelled cascade must not throw out of run()',
+        );
+        expect(result.getFailureOrNull(), isA<CancellationFailure>());
+      },
+    );
+
+    test('rolls each hop cost up into the root ledger', () async {
+      final bus = ZfaReactionBus();
+      bus.onSuccess<ImportOrderIntent, Order, CheckPriceIntent>(
+        reactionId: 'order.import -> price.check',
+        toIntent: (_, order) => CheckPriceIntent(order.productId),
+      );
+
+      Future<Result<Object?, AppFailure>> runner(
+        Object intent,
+        ZfaContext ctx,
+      ) async {
+        ctx.cost.record(inputTokens: 10, outputTokens: 5, cost: 0.25);
+        if (intent is ImportOrderIntent) {
+          return Result.success(Order(intent.orderId, 'product-1'));
+        }
+        return Result.success(const PriceCheck('product-1', 1.0));
+      }
+
+      final root = ZfaContext.root();
+      await bus.run(
+        const ImportOrderIntent('order-1'),
+        runner: runner,
+        context: root,
+      );
+
+      // Two hops, each spending (10 in / 5 out / 0.25), rolled into the root.
+      expect(root.cost.inputTokens, 20);
+      expect(root.cost.outputTokens, 10);
+      expect(root.cost.totalTokens, 30);
+      expect(root.cost.cost, closeTo(0.5, 1e-9));
+    });
+  });
 }
