@@ -395,6 +395,13 @@ export 'src/core/usecase/zuraffa_usecase.dart';
 /// ZuraffaContext — lightweight correlation context carrier.
 export 'src/core/context/zuraffa_context.dart';
 
+/// ZfaContext — v8 chord-runtime context (cancellation, telemetry, cost,
+/// cascade depth, deadline).
+export 'src/core/context/zfa_context.dart';
+export 'src/core/context/cancellation_token.dart';
+export 'src/core/context/telemetry_span.dart';
+export 'src/core/context/zfa_cost_ledger.dart';
+
 /// TelemetryMesh — global trace/span coordinator and auto-instrumentation.
 export 'src/core/otel_log_exporter.dart' show OtelLogExporter;
 export 'src/core/trace_observer.dart' show TraceObserver;
