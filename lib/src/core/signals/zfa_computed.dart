@@ -1,9 +1,11 @@
 import 'zfa_signal.dart';
 
 /// A lazy, cached derived value over explicitly declared [ZfaReadonlySignal] dependencies.
-class ZfaComputed<T> implements ZfaReadonlySignal<T> {
-  ZfaComputed(List<ZfaReadonlySignal<dynamic>> dependencies, T Function() compute)
-    : _dependencies = List.of(dependencies),
+class ZfaComputed<T> implements ZfaReadonlySignal<T>, ZfaPropagationNode {
+  ZfaComputed(
+    List<ZfaReadonlySignal<dynamic>> dependencies,
+    T Function() compute,
+  ) : _dependencies = List.of(dependencies),
       _compute = compute {
     for (final dep in _dependencies) {
       try {
@@ -38,10 +40,37 @@ class ZfaComputed<T> implements ZfaReadonlySignal<T> {
   @override
   T get value {
     _assertNotDisposed();
-    if (_dirty || !_hasValue) {
+    // `_dirty` alone is not enough inside a `batch`: the dependency callbacks
+    // have not run yet, so the flag is still false. Validate captured versions
+    // on every read so a read mid-batch recomputes from fresh dependencies.
+    if (_dirty || !_hasValue || _isStale()) {
       _recompute();
     }
     return _value as T;
+  }
+
+  /// True when any dependency changed since the last compute. A dependency that
+  /// is itself a [ZfaComputed] is validated recursively: its own version may
+  /// still match while its cache is stale deeper in the graph.
+  ///
+  /// [seen] memoises nodes already visited in this pass so a shared dependency
+  /// reached down two branches is validated once, not once per path.
+  bool _isStale({Set<ZfaComputed<dynamic>>? seen}) {
+    if (!_hasValue || _dependencies.isEmpty) return false;
+    if (_depVersions.length != _dependencies.length) return true;
+    final visited = seen ?? <ZfaComputed<dynamic>>{};
+    if (!visited.add(this)) return false;
+    for (var i = 0; i < _dependencies.length; i++) {
+      final dep = _dependencies[i];
+      final captured = _depVersions[i];
+      if (dep is ZfaSignal) {
+        if (dep.version != captured) return true;
+      } else if (dep is ZfaComputed) {
+        if (dep._version != captured) return true;
+        if (dep._isStale(seen: visited)) return true;
+      }
+    }
+    return false;
   }
 
   @override
@@ -69,7 +98,10 @@ class ZfaComputed<T> implements ZfaReadonlySignal<T> {
   }
 
   @override
-  ZfaSignal<R> map<R>(R Function(T value) transform, {bool autoDispose = true}) {
+  ZfaSignal<R> map<R>(
+    R Function(T value) transform, {
+    bool autoDispose = true,
+  }) {
     final derived = ZfaSignal<R>(transform(value));
     final sub = listen((v) {
       final next = transform(v);
@@ -94,7 +126,7 @@ class ZfaComputed<T> implements ZfaReadonlySignal<T> {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
-    final hooks = List.of(_disposeHooks);
+    final hooks = List<void Function()>.from(_disposeHooks);
     _disposeHooks.clear();
     _listeners.clear();
     _listenerEpoch++;
@@ -102,9 +134,7 @@ class ZfaComputed<T> implements ZfaReadonlySignal<T> {
       sub.cancel();
     }
     _subscriptions.clear();
-    for (final hook in hooks) {
-      hook();
-    }
+    zfaRunDisposeHooks(hooks);
   }
 
   bool get isDisposed => _disposed;
@@ -115,7 +145,9 @@ class ZfaComputed<T> implements ZfaReadonlySignal<T> {
 
   void _recompute() {
     if (_computing) {
-      throw StateError('ZfaComputed value was read inside its own compute callback.');
+      throw StateError(
+        'ZfaComputed value was read inside its own compute callback.',
+      );
     }
     _computing = true;
     try {
@@ -140,15 +172,24 @@ class ZfaComputed<T> implements ZfaReadonlySignal<T> {
 
   void _markDirty() {
     if (_disposed) return;
-    if (_listeners.isEmpty) {
-      _dirty = true;
-      return;
-    }
     _dirty = true;
+    // Lazy mode: nobody is reading, so invalidation is enough. In push mode
+    // schedule delivery — the propagation scope flushes only after every
+    // sibling dependency has been invalidated (diamond coherence).
+    if (_listeners.isNotEmpty) {
+      zfaScheduleComputed(this);
+    }
+  }
+
+  @override
+  void deliverPendingZfa() {
+    if (_disposed || _listeners.isEmpty) return;
+    _dirty = true; // a failed recompute must leave the cache invalid for retry
     final hadValue = _hasDelivered;
     final previous = _lastDelivered;
     _recompute();
-    final changed = !hadValue || !(identical(previous, _value) || previous == _value);
+    final changed =
+        !hadValue || !(identical(previous, _value) || previous == _value);
     if (changed) {
       _lastDelivered = _value;
       _hasDelivered = true;
@@ -157,12 +198,24 @@ class ZfaComputed<T> implements ZfaReadonlySignal<T> {
   }
 
   void _notifyListeners() {
+    if (_disposed) return;
     final snapshot = List.of(_listeners);
     final epoch = _listenerEpoch;
+    Object? firstError;
+    StackTrace? firstStack;
     for (final listener in snapshot) {
-      if (_disposed) return;
+      if (_disposed) break;
       if (epoch != _listenerEpoch && !_listeners.contains(listener)) continue;
-      listener.callback(_value as T);
+      try {
+        listener.callback(_value as T);
+      } catch (e, st) {
+        // Finish the remaining listeners before reporting the first failure.
+        firstError ??= e;
+        firstStack ??= st;
+      }
+    }
+    if (firstError != null) {
+      Error.throwWithStackTrace(firstError, firstStack!);
     }
   }
 
