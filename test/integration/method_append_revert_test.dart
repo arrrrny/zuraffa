@@ -29,14 +29,19 @@ void main() {
     'MethodAppendPlugin revert deletes the service file it created',
     timeout: Timeout(Duration(minutes: 5)),
     () async {
-      // 1. First, generate a service via method_append
+      // 1. First, generate a service via method_append.
+      // The usecase plugin is disabled: this test exercises the MethodAppend
+      // service create + revert path only. A custom usecase (this config has
+      // no entity methods) would bind to `PermissionService`, which the #1799
+      // guard refuses to generate against until the interface declares a
+      // matching method — a different contract, unrelated to method-append
+      // revert.
       final config = GeneratorConfig(
         name: 'CheckPermission',
         domain: 'profile',
         service: 'Permission',
         returnsType: 'PermissionStatus',
         paramsType: 'CheckPermissionParams',
-        generateUseCase: true,
         appendToExisting: true,
         outputDir: outputDir,
       );
@@ -44,6 +49,7 @@ void main() {
       final generator = CodeGenerator(
         config: config,
         outputDir: outputDir,
+        disabledPluginIds: const {'usecase'},
         options: const GeneratorOptions(
           dryRun: false,
           force: true,
@@ -71,6 +77,7 @@ void main() {
       final revertGenerator = CodeGenerator(
         config: revertConfig,
         outputDir: outputDir,
+        disabledPluginIds: const {'usecase'},
         options: GeneratorOptions(
           dryRun: false,
           force: true,
@@ -92,6 +99,21 @@ void main() {
   );
 
   test('UseCasePlugin revert deletes custom usecases', () async {
+    // The #1799 guard refuses to emit a custom usecase against a service that
+    // declares no matching method, so establish the `PermissionService`
+    // interface first (the single declared method is trusted when no
+    // --params/--returns are supplied). Without it the usecase generation
+    // fails closed and there is nothing to revert.
+    final serviceDir = Directory(path.join(outputDir, 'domain', 'services'));
+    serviceDir.createSync(recursive: true);
+    File(
+      path.join(serviceDir.path, 'permission_service.dart'),
+    ).writeAsStringSync(
+      'abstract class PermissionService {\n'
+      '  Future<void> checkPermission(NoParams params);\n'
+      '}',
+    );
+
     // 1. Generate custom usecase
     final config = GeneratorConfig(
       name: 'CheckPermission',
@@ -206,7 +228,10 @@ void main() {
     final serviceFile = File(servicePath);
     if (serviceFile.existsSync()) {
       final serviceContent = serviceFile.readAsStringSync();
-      expect(serviceContent, contains("domain/entities/enums/index.dart"));
+      // The writer emits a RELATIVE import from the service's own location
+      // (`../entities/enums/index.dart`), not a domain-rooted absolute path
+      // (issue #395 Bug B). Pin the relative form it actually produces.
+      expect(serviceContent, contains("../entities/enums/index.dart"));
     } else {
       fail('Service file was not created');
     }
@@ -224,7 +249,11 @@ void main() {
       reason: 'Mock data should be generated for enums',
     );
     final mockDataContent = File(mockDataPath).readAsStringSync();
-    expect(mockDataContent, contains("domain/entities/enums/index.dart"));
+    // The mock data imports the enum from the enums directory — the specific
+    // enum file when it exists (`.../enums/permission_status.dart`), else the
+    // `index.dart` barrel — never the old nested
+    // `permission_status/permission_status.dart` path (issue #395 Bug B).
+    expect(mockDataContent, contains("domain/entities/enums/"));
     expect(
       mockDataContent,
       isNot(
