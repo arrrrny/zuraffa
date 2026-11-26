@@ -385,7 +385,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return [];
     }
 
-    // #420: views are Flutter widgets (import `package:flutter/material.dart`
+    // #420: views are Flutter widgets (import `package:material_ui/material_ui.dart`
     // and zuraffa_flutter). In a pure-Dart target package (pubspec.yaml without
     // a `flutter:` dependency) emitting this code violates Constitution VII
     // (Engine Purity) and breaks `dart analyze`. Skip with a clear warning.
@@ -988,7 +988,9 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     bool useDi,
   ) {
     final relativePath = '../../';
-    final imports = <String>['package:flutter/material.dart'];
+    // Flutter 3.47 deprecates `package:flutter/material.dart` in favour of the
+    // published `material_ui` package (`package:material_ui/material_ui.dart`).
+    final imports = <String>['package:material_ui/material_ui.dart'];
 
     final isCustom =
         !config.generateVpcs &&
@@ -1011,7 +1013,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         ? config.name
         : null;
     if (hideSymbol != null) {
-      imports[0] = 'package:flutter/material.dart hide $hideSymbol';
+      imports[0] = 'package:material_ui/material_ui.dart hide $hideSymbol';
     }
 
     if (!isCustom) {

@@ -180,7 +180,7 @@ $deps''');
         );
         expect(files, isNotEmpty);
         final content = files.first.content ?? '';
-        expect(content, contains('package:flutter/material.dart'));
+        expect(content, contains('package:material_ui/material_ui.dart'));
       });
     });
 

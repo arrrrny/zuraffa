@@ -120,6 +120,10 @@ dependencies:
   flutter:
     sdk: flutter
   zuraffa_flutter: ^6.1.0
+  # Generated views import `package:material_ui/material_ui.dart` (Flutter
+  # 3.47 deprecates `package:flutter/material.dart`), so the fixture app —
+  # like any generated Flutter app — declares it directly.
+  material_ui: ^1.11.0
 # The Flutter SDK pins `meta` (1.17.0 at 3.41.x) while zuraffa 6.1.0's exact
 # `analyzer: 14.1.0` pin requires `meta ^1.18.3`. Overriding `meta` here is
 # the documented workaround for consuming zuraffa inside a Flutter app and
