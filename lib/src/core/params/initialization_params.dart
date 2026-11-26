@@ -6,7 +6,6 @@ import 'params.dart';
 
 part '../../../_br_/src/core/params/initialization_params.part.dart';
 
-
 /// Parameters for initializing a repository or data source.
 @ZorphyValue()
 abstract class $InitializationParams implements $$Params {
