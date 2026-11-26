@@ -105,9 +105,14 @@ void main() {
     );
     expect(remoteFile.existsSync(), isTrue);
     final remoteContent = remoteFile.readAsStringSync();
+    // The v3 type string is longer than v2's, so the formatter wraps the
+    // parameter onto its own line with a trailing comma — pin wrap-invariant
+    // substrings instead of a single literal signature line.
+    final normalizedRemote = remoteContent.replaceAll(RegExp(r'\s+'), '');
+    expect(normalizedRemote.contains('Future<Todo>toggle('), isTrue);
     expect(
-      remoteContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, ZorphyField<Todo, Object?>> params) async',
+      normalizedRemote.contains(
+        'ToggleParams<String,ZorphyField<Todo,Object?>>params',
       ),
       isTrue,
     );
@@ -124,9 +129,12 @@ void main() {
     );
     expect(localFile.existsSync(), isTrue);
     final localContent = localFile.readAsStringSync();
+    // Wrap-invariant pins for the same reason as the remote checks above.
+    final normalizedLocal = localContent.replaceAll(RegExp(r'\s+'), '');
+    expect(normalizedLocal.contains('Future<Todo>toggle('), isTrue);
     expect(
-      localContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, ZorphyField<Todo, Object?>> params) async',
+      normalizedLocal.contains(
+        'ToggleParams<String,ZorphyField<Todo,Object?>>params',
       ),
       isTrue,
     );
