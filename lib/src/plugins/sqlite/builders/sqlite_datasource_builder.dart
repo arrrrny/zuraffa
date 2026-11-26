@@ -294,7 +294,7 @@ class SqliteDataSourceBuilder {
                           .statement,
                       Code(
                         'if (existing == null) { '
-                        "throw notFoundFailure('$entityName not found in $table'); }",
+                        "throw AppFailure.notFound(message: '$entityName not found in $table'); }",
                       ),
                     ],
                     declareFinal('updated')
@@ -344,7 +344,7 @@ class SqliteDataSourceBuilder {
                         .statement,
                     Code(
                       'if (existing == null) { '
-                      "throw notFoundFailure('$entityName not found in $table'); }",
+                      "throw AppFailure.notFound(message: '$entityName not found in $table'); }",
                     ),
                     declareFinal('updated')
                         .assign(

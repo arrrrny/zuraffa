@@ -11,7 +11,7 @@ part '../../../_br_/src/core/params/create_params.part.dart';
 @Deprecated(
   'Replaced in v8 by ZfaQuery<T> and concrete @ZorphyIntent classes in ZFA-008/ZFA-017',
 )
-abstract class $CreateParams<T> implements $$Params {
+abstract class $CreateParams<T> implements Params {
   const $CreateParams();
 
   /// The entity data to create.

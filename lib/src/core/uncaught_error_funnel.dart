@@ -64,7 +64,7 @@ class UncaughtErrorFunnel {
 
     if (reportAsFailure && _reportUncaughtAsFailure) {
       FailureReporterRegistry.instance.reportFailure(
-        appFailureFrom(error, stackTrace),
+        AppFailure.from(error, stackTrace),
         stackTrace: stackTrace,
       );
     }

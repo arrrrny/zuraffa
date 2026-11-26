@@ -11,13 +11,13 @@ final class _ZorphyCopyWithSentinel {
 const Object _sentinel = _ZorphyCopyWithSentinel();
 
 final class InitializationParams implements ZorphyValueBase {
-  const InitializationParams.fromTrusted({
+  InitializationParams.fromTrusted({
     required this.timeout,
     this.forceRefresh,
     this.credentials,
     this.settings,
-    this.params,
-  });
+    Map<String, dynamic>? params,
+  }) : params = params == null ? null : Map<String, dynamic>.of(params);
 
   final Duration timeout;
 
@@ -63,16 +63,60 @@ final class InitializationParams implements ZorphyValueBase {
         this.forceRefresh == other.forceRefresh &&
         this.credentials == other.credentials &&
         this.settings == other.settings &&
-        this.params == other.params;
+        InitializationParams._zorphyCollectionEquals(this.params, other.params);
   }
 
   @override
-  int get hashCode =>
-      Object.hashAll([timeout, forceRefresh, credentials, settings, params]);
+  int get hashCode => Object.hashAll([
+    timeout,
+    forceRefresh,
+    credentials,
+    settings,
+    InitializationParams._zorphyCollectionHash(params),
+  ]);
 
   @override
   String toString() =>
       'InitializationParams(timeout: $timeout, forceRefresh: $forceRefresh, credentials: $credentials, settings: $settings, params: $params)';
+
+  static bool _zorphyCollectionEquals(Object? a, Object? b) {
+    if (identical(a, b)) return true;
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) return false;
+      }
+      return true;
+    }
+    if (a is Set && b is Set) {
+      if (a.length != b.length) return false;
+      return a.every(b.contains);
+    }
+    if (a is Map && b is Map) {
+      if (a.length != b.length) return false;
+      for (final entry in a.entries) {
+        if (!b.containsKey(entry.key) || b[entry.key] != entry.value) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  static int _zorphyCollectionHash(Object? value) {
+    if (value is List) return Object.hashAll(value);
+    if (value is Set) {
+      return value.fold<int>(0, (hash, element) => hash + element.hashCode);
+    }
+    if (value is Map) {
+      return value.entries.fold<int>(
+        0,
+        (hash, entry) => hash + Object.hash(entry.key, entry.value),
+      );
+    }
+    return value.hashCode;
+  }
 
   static ZorphyBoundaryResult<InitializationParams> fromWire(
     Map<String, Object?> raw,
@@ -93,16 +137,39 @@ final class InitializationParams implements ZorphyValueBase {
     final Object? raw_credentials = raw['credentials'];
     Credentials? _credentials;
     if (raw_credentials != null) {
-      _credentials = _boundaryAs<Credentials>(
+      final map_credentials = _boundaryObject(
         raw_credentials,
         '/credentials',
         violations,
       );
+      if (map_credentials != null) {
+        Credentials.fromWire(map_credentials).fold(
+          (value) {
+            _credentials = value;
+          },
+          (error) => violations.addAll(
+            _boundaryPrefix(error.violations, '/credentials'),
+          ),
+        );
+      }
     }
     final Object? raw_settings = raw['settings'];
     Settings? _settings;
     if (raw_settings != null) {
-      _settings = _boundaryAs<Settings>(raw_settings, '/settings', violations);
+      final map_settings = _boundaryObject(
+        raw_settings,
+        '/settings',
+        violations,
+      );
+      if (map_settings != null) {
+        Settings.fromWire(map_settings).fold(
+          (value) {
+            _settings = value;
+          },
+          (error) =>
+              violations.addAll(_boundaryPrefix(error.violations, '/settings')),
+        );
+      }
     }
     final Object? raw_params = raw['params'];
     Map<String, dynamic>? _params;
@@ -154,11 +221,11 @@ final class InitializationParams implements ZorphyValueBase {
     }
     final _credentials = this.credentials;
     if (_credentials != null) {
-      map['credentials'] = _credentials;
+      map['credentials'] = _credentials.toWire();
     }
     final _settings = this.settings;
     if (_settings != null) {
-      map['settings'] = _settings;
+      map['settings'] = _settings.toWire();
     }
     final _params = this.params;
     if (_params != null) {
@@ -215,6 +282,7 @@ class InitializationParamsMockData {
     return InitializationParams.fromTrusted(
       timeout: Duration(hours: seed + 945),
       forceRefresh: (seed + 176) % 2 == 0,
+      params: {},
     );
   }
 
@@ -231,6 +299,21 @@ String _boundaryDescribe(Object? value) {
   final text = value.toString();
   final clipped = text.length > 60 ? '${text.substring(0, 60)}…' : text;
   return '${value.runtimeType} ("$clipped")';
+}
+
+List<FieldViolation> _boundaryPrefix(
+  List<FieldViolation> violations,
+  String path,
+) {
+  return violations
+      .map(
+        (violation) => FieldViolation(
+          path: path + violation.path,
+          expected: violation.expected,
+          actual: violation.actual,
+        ),
+      )
+      .toList();
 }
 
 T? _boundaryAs<T>(Object? value, String path, List<FieldViolation> violations) {
@@ -331,6 +414,105 @@ final class InitializationParamsLenses {
         get: _getParams,
         set: _setParams,
       );
+
+  static Map<String, dynamic>? _getParams(InitializationParams root) =>
+      root.params;
+
+  static InitializationParams _setParams(
+    InitializationParams root,
+    Map<String, dynamic>? value,
+  ) => root.copyWith(params: value);
+}
+
+/// Typed field descriptors over [InitializationParams] — one
+/// `ZorphyField` per payload field, inherited fields
+/// included (issue #247).
+///
+/// Query with the predicate methods, sort with `asc` /
+/// `desc`, resolve wire pointers through
+/// `InitializationParamsFields.all`.
+abstract final class InitializationParamsFields {
+  static const ZorphyField<InitializationParams, Duration> timeout =
+      ZorphyField<InitializationParams, Duration>(
+        name: 'timeout',
+        jsonKey: 'timeout',
+        pointer: '/timeout',
+        get: _getTimeout,
+        set: _setTimeout,
+      );
+
+  static const ZorphyField<InitializationParams, bool?> forceRefresh =
+      ZorphyField<InitializationParams, bool?>(
+        name: 'forceRefresh',
+        jsonKey: 'forceRefresh',
+        pointer: '/forceRefresh',
+        get: _getForceRefresh,
+        set: _setForceRefresh,
+      );
+
+  static const ZorphyField<InitializationParams, Credentials?> credentials =
+      ZorphyField<InitializationParams, Credentials?>(
+        name: 'credentials',
+        jsonKey: 'credentials',
+        pointer: '/credentials',
+        get: _getCredentials,
+        set: _setCredentials,
+      );
+
+  static const ZorphyField<InitializationParams, Settings?> settings =
+      ZorphyField<InitializationParams, Settings?>(
+        name: 'settings',
+        jsonKey: 'settings',
+        pointer: '/settings',
+        get: _getSettings,
+        set: _setSettings,
+      );
+
+  static const ZorphyField<InitializationParams, Map<String, dynamic>?> params =
+      ZorphyField<InitializationParams, Map<String, dynamic>?>(
+        name: 'params',
+        jsonKey: 'params',
+        pointer: '/params',
+        get: _getParams,
+        set: _setParams,
+      );
+
+  static const List<ZorphyField<InitializationParams, Object?>> all = [
+    timeout,
+    forceRefresh,
+    credentials,
+    settings,
+    params,
+  ];
+
+  static Duration _getTimeout(InitializationParams root) => root.timeout;
+
+  static InitializationParams _setTimeout(
+    InitializationParams root,
+    Duration value,
+  ) => root.copyWith(timeout: value);
+
+  static bool? _getForceRefresh(InitializationParams root) => root.forceRefresh;
+
+  static InitializationParams _setForceRefresh(
+    InitializationParams root,
+    bool? value,
+  ) => root.copyWith(forceRefresh: value);
+
+  static Credentials? _getCredentials(InitializationParams root) =>
+      root.credentials;
+
+  static InitializationParams _setCredentials(
+    InitializationParams root,
+    Credentials? value,
+  ) => root.copyWith(credentials: value);
+
+  static Settings? _getSettings(InitializationParams root) => root.settings;
+
+  static InitializationParams _setSettings(
+    InitializationParams root,
+    Settings? value,
+  ) => root.copyWith(settings: value);
 
   static Map<String, dynamic>? _getParams(InitializationParams root) =>
       root.params;

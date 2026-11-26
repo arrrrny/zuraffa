@@ -14,7 +14,7 @@ part '../../../_br_/src/core/params/toggle_params.part.dart';
 @Deprecated(
   'Replaced in v8 by ZfaQuery<T> and concrete @ZorphyIntent classes in ZFA-008/ZFA-017',
 )
-abstract class $ToggleParams<I extends Object, F> implements $$Params {
+abstract class $ToggleParams<I extends Object, F> implements Params {
   const $ToggleParams();
 
   /// The ID of the entity to update (strongly typed).

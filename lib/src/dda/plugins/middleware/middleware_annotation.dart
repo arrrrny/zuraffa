@@ -67,7 +67,7 @@ enum BackoffStrategy {
 ///
 /// The DDA pipeline generates a security interceptor that checks the
 /// user's role(s) before allowing execution. Unauthorized calls emit
-/// `AppFailure.session` without executing the UseCase.
+/// `AppFailure.policyDenied(reason: 'unauthenticated')` without executing the UseCase.
 class RequiresAuth {
   /// A single required role. Shorthand for `roles: [role]` with `mode: all`.
   final Role? role;

@@ -11,7 +11,8 @@ final class _ZorphyCopyWithSentinel {
 const Object _sentinel = _ZorphyCopyWithSentinel();
 
 final class Settings implements ZorphyValueBase {
-  const Settings.fromTrusted({this.params});
+  Settings.fromTrusted({Map<String, dynamic>? params})
+    : params = params == null ? null : Map<String, dynamic>.of(params);
 
   final Map<String, dynamic>? params;
 
@@ -28,14 +29,54 @@ final class Settings implements ZorphyValueBase {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is Settings && this.params == other.params;
+    return other is Settings &&
+        Settings._zorphyCollectionEquals(this.params, other.params);
   }
 
   @override
-  int get hashCode => Object.hashAll([params]);
+  int get hashCode => Object.hashAll([Settings._zorphyCollectionHash(params)]);
 
   @override
   String toString() => 'Settings(params: $params)';
+
+  static bool _zorphyCollectionEquals(Object? a, Object? b) {
+    if (identical(a, b)) return true;
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) return false;
+      }
+      return true;
+    }
+    if (a is Set && b is Set) {
+      if (a.length != b.length) return false;
+      return a.every(b.contains);
+    }
+    if (a is Map && b is Map) {
+      if (a.length != b.length) return false;
+      for (final entry in a.entries) {
+        if (!b.containsKey(entry.key) || b[entry.key] != entry.value) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  static int _zorphyCollectionHash(Object? value) {
+    if (value is List) return Object.hashAll(value);
+    if (value is Set) {
+      return value.fold<int>(0, (hash, element) => hash + element.hashCode);
+    }
+    if (value is Map) {
+      return value.entries.fold<int>(
+        0,
+        (hash, entry) => hash + Object.hash(entry.key, entry.value),
+      );
+    }
+    return value.hashCode;
+  }
 
   static ZorphyBoundaryResult<Settings> fromWire(Map<String, Object?> raw) {
     final violations = <FieldViolation>[];
@@ -104,7 +145,7 @@ class SettingsMockData {
   SettingsMockData._();
 
   static Settings single({int seed = 0}) {
-    return Settings.fromTrusted();
+    return Settings.fromTrusted(params: {});
   }
 
   static List<Settings> list({int count = 10}) {
@@ -160,6 +201,31 @@ final class SettingsLenses {
         get: _getParams,
         set: _setParams,
       );
+
+  static Map<String, dynamic>? _getParams(Settings root) => root.params;
+
+  static Settings _setParams(Settings root, Map<String, dynamic>? value) =>
+      root.copyWith(params: value);
+}
+
+/// Typed field descriptors over [Settings] — one
+/// `ZorphyField` per payload field, inherited fields
+/// included (issue #247).
+///
+/// Query with the predicate methods, sort with `asc` /
+/// `desc`, resolve wire pointers through
+/// `SettingsFields.all`.
+abstract final class SettingsFields {
+  static const ZorphyField<Settings, Map<String, dynamic>?> params =
+      ZorphyField<Settings, Map<String, dynamic>?>(
+        name: 'params',
+        jsonKey: 'params',
+        pointer: '/params',
+        get: _getParams,
+        set: _setParams,
+      );
+
+  static const List<ZorphyField<Settings, Object?>> all = [params];
 
   static Map<String, dynamic>? _getParams(Settings root) => root.params;
 

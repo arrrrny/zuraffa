@@ -10,8 +10,232 @@ final class _ZorphyCopyWithSentinel {
 
 const Object _sentinel = _ZorphyCopyWithSentinel();
 
-sealed class AppFailure implements ZorphyValueBase {
+sealed class AppFailure implements ZorphyUnionBase {
   const AppFailure();
+
+  factory AppFailure.network({
+    required String message,
+    String? traceId,
+    bool isRetryable = false,
+    String? code,
+    int? statusCode,
+  }) => NetworkFailure.fromTrusted(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+    statusCode: statusCode,
+  );
+
+  factory AppFailure.timeout({
+    required String message,
+    String? traceId,
+    bool isRetryable = true,
+    String? code,
+    Duration? timeout,
+  }) => TimeoutFailure.fromTrusted(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+    timeout: timeout,
+  );
+
+  factory AppFailure.boundaryViolation({
+    required String message,
+    String? traceId,
+    bool isRetryable = false,
+    String? code,
+    List<FieldViolation> violations = const [],
+  }) => BoundaryViolationFailure.fromTrusted(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+    violations: violations,
+  );
+
+  factory AppFailure.policyDenied({
+    required String message,
+    String? traceId,
+    bool isRetryable = false,
+    String? code,
+    String reason = 'permission',
+  }) => PolicyDeniedFailure.fromTrusted(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+    reason: reason,
+  );
+
+  factory AppFailure.notFound({
+    required String message,
+    String? traceId,
+    bool isRetryable = false,
+    String? code,
+    String? resourceType,
+    String? resourceId,
+  }) => NotFoundFailure.fromTrusted(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+    resourceType: resourceType,
+    resourceId: resourceId,
+  );
+
+  factory AppFailure.conflict({
+    required String message,
+    String? traceId,
+    bool isRetryable = false,
+    String? code,
+    Map<String, Object?>? localPatchWire,
+    Map<String, Object?>? remotePatchWire,
+  }) => ConflictFailure.fromTrusted(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+    localPatchWire: localPatchWire,
+    remotePatchWire: remotePatchWire,
+  );
+
+  factory AppFailure.cancelled({
+    required String message,
+    String? traceId,
+    bool isRetryable = false,
+    String? code,
+  }) => CancelledFailure.fromTrusted(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+  );
+
+  factory AppFailure.interrupted({
+    required String message,
+    String? traceId,
+    bool isRetryable = true,
+    String? code,
+    String? intentDigest,
+  }) => InterruptedFailure.fromTrusted(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+    intentDigest: intentDigest,
+  );
+
+  factory AppFailure.storage({
+    required String message,
+    String? traceId,
+    bool isRetryable = false,
+    String? code,
+    String layer = 'cache',
+  }) => StorageFailure.fromTrusted(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+    layer: layer,
+  );
+
+  factory AppFailure.unexpected({
+    required String message,
+    String? traceId,
+    bool isRetryable = false,
+    String? code,
+    String? cause,
+    String? stackTrace,
+  }) => UnexpectedFailure.fromTrusted(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+    cause: cause,
+    stackTrace: stackTrace,
+  );
+
+  factory AppFailure.from(Object error, [StackTrace? stackTrace]) {
+    if (error is AppFailure) return error;
+    final message = error.toString();
+    final lower = message.toLowerCase();
+    bool hasStatus(int code) => RegExp(
+      r'(?:^|\s|:)'
+      '$code'
+      r'(?:$|\s|:)',
+    ).hasMatch(lower);
+    if (lower.contains('socketexception') ||
+        (lower.contains('connection') &&
+            RegExp(r'refused|reset|closed|timeout|error').hasMatch(lower)) ||
+        lower.contains('network is unreachable') ||
+        lower.contains('no internet') ||
+        lower.contains('failed host lookup') ||
+        lower.contains('no address associated') ||
+        lower.contains('handshakeexception') ||
+        hasStatus(500) ||
+        lower.contains('rate limit')) {
+      return AppFailure.network(message: message);
+    }
+    if (lower.contains('timeout') ||
+        lower.contains('timed out') ||
+        lower.contains('deadline exceeded')) {
+      return AppFailure.timeout(message: message);
+    }
+    if (hasStatus(404) ||
+        (lower.contains('not found') && !lower.contains('exception')) ||
+        lower.contains('does not exist')) {
+      return AppFailure.notFound(message: message);
+    }
+    if (hasStatus(401) ||
+        lower.contains('unauthorized') ||
+        lower.contains('unauthenticated') ||
+        lower.contains('invalid token') ||
+        lower.contains('token expired')) {
+      return AppFailure.policyDenied(
+        message: message,
+        reason: 'unauthenticated',
+      );
+    }
+    if (hasStatus(403) || lower.contains('forbidden')) {
+      return AppFailure.policyDenied(message: message, reason: 'forbidden');
+    }
+    if (lower.contains('formatexception') ||
+        lower.contains('argumenterror') ||
+        lower.contains('rangeerror') ||
+        lower.contains('invalid argument') ||
+        lower.contains('validation failed')) {
+      return AppFailure.boundaryViolation(message: message);
+    }
+    if (hasStatus(409) ||
+        lower.contains('conflict') ||
+        lower.contains('duplicate') ||
+        lower.contains('already exists')) {
+      return AppFailure.conflict(message: message);
+    }
+    if (hasStatus(502) ||
+        hasStatus(503) ||
+        hasStatus(504) ||
+        lower.contains('internal server error') ||
+        lower.contains('bad gateway') ||
+        lower.contains('service unavailable')) {
+      return AppFailure.network(message: message);
+    }
+    if (lower.contains('hiveerror') ||
+        lower.contains('sqflite') ||
+        (lower.contains('database') && lower.contains('exception'))) {
+      return AppFailure.storage(message: message, layer: 'database');
+    }
+    if (lower.contains('cache') && lower.contains('exception')) {
+      return AppFailure.storage(message: message, layer: 'cache');
+    }
+    return AppFailure.unexpected(
+      message: message,
+      cause: error.toString(),
+      stackTrace: stackTrace?.toString(),
+    );
+  }
 
   String get message;
   String? get traceId;
@@ -711,13 +935,13 @@ final class TimeoutFailure extends AppFailure implements ZorphyValueBase {
 
 final class BoundaryViolationFailure extends AppFailure
     implements ZorphyValueBase {
-  const BoundaryViolationFailure.fromTrusted({
+  BoundaryViolationFailure.fromTrusted({
     required this.message,
     this.traceId,
     required this.isRetryable,
     this.code,
-    required this.violations,
-  });
+    required List<FieldViolation> violations,
+  }) : violations = List<FieldViolation>.of(violations);
 
   @override
   final String message;
@@ -762,16 +986,63 @@ final class BoundaryViolationFailure extends AppFailure
         this.traceId == other.traceId &&
         this.isRetryable == other.isRetryable &&
         this.code == other.code &&
-        this.violations == other.violations;
+        BoundaryViolationFailure._zorphyCollectionEquals(
+          this.violations,
+          other.violations,
+        );
   }
 
   @override
-  int get hashCode =>
-      Object.hashAll([message, traceId, isRetryable, code, violations]);
+  int get hashCode => Object.hashAll([
+    message,
+    traceId,
+    isRetryable,
+    code,
+    BoundaryViolationFailure._zorphyCollectionHash(violations),
+  ]);
 
   @override
   String toString() =>
       'BoundaryViolationFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, code: $code, violations: $violations)';
+
+  static bool _zorphyCollectionEquals(Object? a, Object? b) {
+    if (identical(a, b)) return true;
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) return false;
+      }
+      return true;
+    }
+    if (a is Set && b is Set) {
+      if (a.length != b.length) return false;
+      return a.every(b.contains);
+    }
+    if (a is Map && b is Map) {
+      if (a.length != b.length) return false;
+      for (final entry in a.entries) {
+        if (!b.containsKey(entry.key) || b[entry.key] != entry.value) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  static int _zorphyCollectionHash(Object? value) {
+    if (value is List) return Object.hashAll(value);
+    if (value is Set) {
+      return value.fold<int>(0, (hash, element) => hash + element.hashCode);
+    }
+    if (value is Map) {
+      return value.entries.fold<int>(
+        0,
+        (hash, entry) => hash + Object.hash(entry.key, entry.value),
+      );
+    }
+    return value.hashCode;
+  }
 
   static ZorphyBoundaryResult<BoundaryViolationFailure> fromWire(
     Map<String, Object?> raw,
@@ -1258,14 +1529,19 @@ final class NotFoundFailure extends AppFailure implements ZorphyValueBase {
 }
 
 final class ConflictFailure extends AppFailure implements ZorphyValueBase {
-  const ConflictFailure.fromTrusted({
+  ConflictFailure.fromTrusted({
     required this.message,
     this.traceId,
     required this.isRetryable,
     this.code,
-    this.localPatchWire,
-    this.remotePatchWire,
-  });
+    Map<String, Object?>? localPatchWire,
+    Map<String, Object?>? remotePatchWire,
+  }) : localPatchWire = localPatchWire == null
+           ? null
+           : Map<String, Object?>.of(localPatchWire),
+       remotePatchWire = remotePatchWire == null
+           ? null
+           : Map<String, Object?>.of(remotePatchWire);
 
   @override
   final String message;
@@ -1317,8 +1593,14 @@ final class ConflictFailure extends AppFailure implements ZorphyValueBase {
         this.traceId == other.traceId &&
         this.isRetryable == other.isRetryable &&
         this.code == other.code &&
-        this.localPatchWire == other.localPatchWire &&
-        this.remotePatchWire == other.remotePatchWire;
+        ConflictFailure._zorphyCollectionEquals(
+          this.localPatchWire,
+          other.localPatchWire,
+        ) &&
+        ConflictFailure._zorphyCollectionEquals(
+          this.remotePatchWire,
+          other.remotePatchWire,
+        );
   }
 
   @override
@@ -1327,13 +1609,52 @@ final class ConflictFailure extends AppFailure implements ZorphyValueBase {
     traceId,
     isRetryable,
     code,
-    localPatchWire,
-    remotePatchWire,
+    ConflictFailure._zorphyCollectionHash(localPatchWire),
+    ConflictFailure._zorphyCollectionHash(remotePatchWire),
   ]);
 
   @override
   String toString() =>
       'ConflictFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, code: $code, localPatchWire: $localPatchWire, remotePatchWire: $remotePatchWire)';
+
+  static bool _zorphyCollectionEquals(Object? a, Object? b) {
+    if (identical(a, b)) return true;
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) return false;
+      }
+      return true;
+    }
+    if (a is Set && b is Set) {
+      if (a.length != b.length) return false;
+      return a.every(b.contains);
+    }
+    if (a is Map && b is Map) {
+      if (a.length != b.length) return false;
+      for (final entry in a.entries) {
+        if (!b.containsKey(entry.key) || b[entry.key] != entry.value) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  static int _zorphyCollectionHash(Object? value) {
+    if (value is List) return Object.hashAll(value);
+    if (value is Set) {
+      return value.fold<int>(0, (hash, element) => hash + element.hashCode);
+    }
+    if (value is Map) {
+      return value.entries.fold<int>(
+        0,
+        (hash, entry) => hash + Object.hash(entry.key, entry.value),
+      );
+    }
+    return value.hashCode;
+  }
 
   static ZorphyBoundaryResult<ConflictFailure> fromWire(
     Map<String, Object?> raw,
@@ -2231,8 +2552,12 @@ class BoundaryViolationFailureMockData {
   BoundaryViolationFailureMockData._();
 
   static BoundaryViolationFailure single({int seed = 0}) {
-    throw UnsupportedError(
-      'BoundaryViolationFailureMockData has no seedable value: violations is List<FieldViolation>, which this emitter cannot seed',
+    return BoundaryViolationFailure.fromTrusted(
+      message: 'message-${seed}',
+      traceId: 'traceid-${seed}',
+      isRetryable: (seed + 248) % 2 == 0,
+      code: 'code-${seed}',
+      violations: [],
     );
   }
 
@@ -2296,6 +2621,8 @@ class ConflictFailureMockData {
       traceId: 'traceid-${seed}',
       isRetryable: (seed + 248) % 2 == 0,
       code: 'code-${seed}',
+      localPatchWire: {},
+      remotePatchWire: {},
     );
   }
 
@@ -3177,6 +3504,948 @@ final class UnexpectedFailureLenses {
         get: _getStackTrace,
         set: _setStackTrace,
       );
+
+  static String? _getStackTrace(UnexpectedFailure root) => root.stackTrace;
+
+  static UnexpectedFailure _setStackTrace(
+    UnexpectedFailure root,
+    String? value,
+  ) => root.copyWith(stackTrace: value);
+}
+
+/// Typed field descriptors over [NetworkFailure] — one
+/// `ZorphyField` per payload field, inherited fields
+/// included (issue #247).
+///
+/// Query with the predicate methods, sort with `asc` /
+/// `desc`, resolve wire pointers through
+/// `NetworkFailureFields.all`.
+abstract final class NetworkFailureFields {
+  static const ZorphyField<NetworkFailure, String> message =
+      ZorphyField<NetworkFailure, String>(
+        name: 'message',
+        jsonKey: 'message',
+        pointer: '/message',
+        get: _getMessage,
+        set: _setMessage,
+      );
+
+  static const ZorphyField<NetworkFailure, String?> traceId =
+      ZorphyField<NetworkFailure, String?>(
+        name: 'traceId',
+        jsonKey: 'traceId',
+        pointer: '/traceId',
+        get: _getTraceId,
+        set: _setTraceId,
+      );
+
+  static const ZorphyField<NetworkFailure, bool> isRetryable =
+      ZorphyField<NetworkFailure, bool>(
+        name: 'isRetryable',
+        jsonKey: 'isRetryable',
+        pointer: '/isRetryable',
+        get: _getIsRetryable,
+        set: _setIsRetryable,
+      );
+
+  static const ZorphyField<NetworkFailure, String?> code =
+      ZorphyField<NetworkFailure, String?>(
+        name: 'code',
+        jsonKey: 'code',
+        pointer: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static const ZorphyField<NetworkFailure, int?> statusCode =
+      ZorphyField<NetworkFailure, int?>(
+        name: 'statusCode',
+        jsonKey: 'statusCode',
+        pointer: '/statusCode',
+        get: _getStatusCode,
+        set: _setStatusCode,
+      );
+
+  static const List<ZorphyField<NetworkFailure, Object?>> all = [
+    message,
+    traceId,
+    isRetryable,
+    code,
+    statusCode,
+  ];
+
+  static String _getMessage(NetworkFailure root) => root.message;
+
+  static NetworkFailure _setMessage(NetworkFailure root, String value) =>
+      root.copyWith(message: value);
+
+  static String? _getTraceId(NetworkFailure root) => root.traceId;
+
+  static NetworkFailure _setTraceId(NetworkFailure root, String? value) =>
+      root.copyWith(traceId: value);
+
+  static bool _getIsRetryable(NetworkFailure root) => root.isRetryable;
+
+  static NetworkFailure _setIsRetryable(NetworkFailure root, bool value) =>
+      root.copyWith(isRetryable: value);
+
+  static String? _getCode(NetworkFailure root) => root.code;
+
+  static NetworkFailure _setCode(NetworkFailure root, String? value) =>
+      root.copyWith(code: value);
+
+  static int? _getStatusCode(NetworkFailure root) => root.statusCode;
+
+  static NetworkFailure _setStatusCode(NetworkFailure root, int? value) =>
+      root.copyWith(statusCode: value);
+}
+
+/// Typed field descriptors over [TimeoutFailure] — one
+/// `ZorphyField` per payload field, inherited fields
+/// included (issue #247).
+///
+/// Query with the predicate methods, sort with `asc` /
+/// `desc`, resolve wire pointers through
+/// `TimeoutFailureFields.all`.
+abstract final class TimeoutFailureFields {
+  static const ZorphyField<TimeoutFailure, String> message =
+      ZorphyField<TimeoutFailure, String>(
+        name: 'message',
+        jsonKey: 'message',
+        pointer: '/message',
+        get: _getMessage,
+        set: _setMessage,
+      );
+
+  static const ZorphyField<TimeoutFailure, String?> traceId =
+      ZorphyField<TimeoutFailure, String?>(
+        name: 'traceId',
+        jsonKey: 'traceId',
+        pointer: '/traceId',
+        get: _getTraceId,
+        set: _setTraceId,
+      );
+
+  static const ZorphyField<TimeoutFailure, bool> isRetryable =
+      ZorphyField<TimeoutFailure, bool>(
+        name: 'isRetryable',
+        jsonKey: 'isRetryable',
+        pointer: '/isRetryable',
+        get: _getIsRetryable,
+        set: _setIsRetryable,
+      );
+
+  static const ZorphyField<TimeoutFailure, String?> code =
+      ZorphyField<TimeoutFailure, String?>(
+        name: 'code',
+        jsonKey: 'code',
+        pointer: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static const ZorphyField<TimeoutFailure, Duration?> timeout =
+      ZorphyField<TimeoutFailure, Duration?>(
+        name: 'timeout',
+        jsonKey: 'timeout',
+        pointer: '/timeout',
+        get: _getTimeout,
+        set: _setTimeout,
+      );
+
+  static const List<ZorphyField<TimeoutFailure, Object?>> all = [
+    message,
+    traceId,
+    isRetryable,
+    code,
+    timeout,
+  ];
+
+  static String _getMessage(TimeoutFailure root) => root.message;
+
+  static TimeoutFailure _setMessage(TimeoutFailure root, String value) =>
+      root.copyWith(message: value);
+
+  static String? _getTraceId(TimeoutFailure root) => root.traceId;
+
+  static TimeoutFailure _setTraceId(TimeoutFailure root, String? value) =>
+      root.copyWith(traceId: value);
+
+  static bool _getIsRetryable(TimeoutFailure root) => root.isRetryable;
+
+  static TimeoutFailure _setIsRetryable(TimeoutFailure root, bool value) =>
+      root.copyWith(isRetryable: value);
+
+  static String? _getCode(TimeoutFailure root) => root.code;
+
+  static TimeoutFailure _setCode(TimeoutFailure root, String? value) =>
+      root.copyWith(code: value);
+
+  static Duration? _getTimeout(TimeoutFailure root) => root.timeout;
+
+  static TimeoutFailure _setTimeout(TimeoutFailure root, Duration? value) =>
+      root.copyWith(timeout: value);
+}
+
+/// Typed field descriptors over [BoundaryViolationFailure] — one
+/// `ZorphyField` per payload field, inherited fields
+/// included (issue #247).
+///
+/// Query with the predicate methods, sort with `asc` /
+/// `desc`, resolve wire pointers through
+/// `BoundaryViolationFailureFields.all`.
+abstract final class BoundaryViolationFailureFields {
+  static const ZorphyField<BoundaryViolationFailure, String> message =
+      ZorphyField<BoundaryViolationFailure, String>(
+        name: 'message',
+        jsonKey: 'message',
+        pointer: '/message',
+        get: _getMessage,
+        set: _setMessage,
+      );
+
+  static const ZorphyField<BoundaryViolationFailure, String?> traceId =
+      ZorphyField<BoundaryViolationFailure, String?>(
+        name: 'traceId',
+        jsonKey: 'traceId',
+        pointer: '/traceId',
+        get: _getTraceId,
+        set: _setTraceId,
+      );
+
+  static const ZorphyField<BoundaryViolationFailure, bool> isRetryable =
+      ZorphyField<BoundaryViolationFailure, bool>(
+        name: 'isRetryable',
+        jsonKey: 'isRetryable',
+        pointer: '/isRetryable',
+        get: _getIsRetryable,
+        set: _setIsRetryable,
+      );
+
+  static const ZorphyField<BoundaryViolationFailure, String?> code =
+      ZorphyField<BoundaryViolationFailure, String?>(
+        name: 'code',
+        jsonKey: 'code',
+        pointer: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static const ZorphyField<BoundaryViolationFailure, List<FieldViolation>>
+  violations = ZorphyField<BoundaryViolationFailure, List<FieldViolation>>(
+    name: 'violations',
+    jsonKey: 'violations',
+    pointer: '/violations',
+    get: _getViolations,
+    set: _setViolations,
+  );
+
+  static const List<ZorphyField<BoundaryViolationFailure, Object?>> all = [
+    message,
+    traceId,
+    isRetryable,
+    code,
+    violations,
+  ];
+
+  static String _getMessage(BoundaryViolationFailure root) => root.message;
+
+  static BoundaryViolationFailure _setMessage(
+    BoundaryViolationFailure root,
+    String value,
+  ) => root.copyWith(message: value);
+
+  static String? _getTraceId(BoundaryViolationFailure root) => root.traceId;
+
+  static BoundaryViolationFailure _setTraceId(
+    BoundaryViolationFailure root,
+    String? value,
+  ) => root.copyWith(traceId: value);
+
+  static bool _getIsRetryable(BoundaryViolationFailure root) =>
+      root.isRetryable;
+
+  static BoundaryViolationFailure _setIsRetryable(
+    BoundaryViolationFailure root,
+    bool value,
+  ) => root.copyWith(isRetryable: value);
+
+  static String? _getCode(BoundaryViolationFailure root) => root.code;
+
+  static BoundaryViolationFailure _setCode(
+    BoundaryViolationFailure root,
+    String? value,
+  ) => root.copyWith(code: value);
+
+  static List<FieldViolation> _getViolations(BoundaryViolationFailure root) =>
+      root.violations;
+
+  static BoundaryViolationFailure _setViolations(
+    BoundaryViolationFailure root,
+    List<FieldViolation> value,
+  ) => root.copyWith(violations: value);
+}
+
+/// Typed field descriptors over [PolicyDeniedFailure] — one
+/// `ZorphyField` per payload field, inherited fields
+/// included (issue #247).
+///
+/// Query with the predicate methods, sort with `asc` /
+/// `desc`, resolve wire pointers through
+/// `PolicyDeniedFailureFields.all`.
+abstract final class PolicyDeniedFailureFields {
+  static const ZorphyField<PolicyDeniedFailure, String> message =
+      ZorphyField<PolicyDeniedFailure, String>(
+        name: 'message',
+        jsonKey: 'message',
+        pointer: '/message',
+        get: _getMessage,
+        set: _setMessage,
+      );
+
+  static const ZorphyField<PolicyDeniedFailure, String?> traceId =
+      ZorphyField<PolicyDeniedFailure, String?>(
+        name: 'traceId',
+        jsonKey: 'traceId',
+        pointer: '/traceId',
+        get: _getTraceId,
+        set: _setTraceId,
+      );
+
+  static const ZorphyField<PolicyDeniedFailure, bool> isRetryable =
+      ZorphyField<PolicyDeniedFailure, bool>(
+        name: 'isRetryable',
+        jsonKey: 'isRetryable',
+        pointer: '/isRetryable',
+        get: _getIsRetryable,
+        set: _setIsRetryable,
+      );
+
+  static const ZorphyField<PolicyDeniedFailure, String?> code =
+      ZorphyField<PolicyDeniedFailure, String?>(
+        name: 'code',
+        jsonKey: 'code',
+        pointer: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static const ZorphyField<PolicyDeniedFailure, String> reason =
+      ZorphyField<PolicyDeniedFailure, String>(
+        name: 'reason',
+        jsonKey: 'reason',
+        pointer: '/reason',
+        get: _getReason,
+        set: _setReason,
+      );
+
+  static const List<ZorphyField<PolicyDeniedFailure, Object?>> all = [
+    message,
+    traceId,
+    isRetryable,
+    code,
+    reason,
+  ];
+
+  static String _getMessage(PolicyDeniedFailure root) => root.message;
+
+  static PolicyDeniedFailure _setMessage(
+    PolicyDeniedFailure root,
+    String value,
+  ) => root.copyWith(message: value);
+
+  static String? _getTraceId(PolicyDeniedFailure root) => root.traceId;
+
+  static PolicyDeniedFailure _setTraceId(
+    PolicyDeniedFailure root,
+    String? value,
+  ) => root.copyWith(traceId: value);
+
+  static bool _getIsRetryable(PolicyDeniedFailure root) => root.isRetryable;
+
+  static PolicyDeniedFailure _setIsRetryable(
+    PolicyDeniedFailure root,
+    bool value,
+  ) => root.copyWith(isRetryable: value);
+
+  static String? _getCode(PolicyDeniedFailure root) => root.code;
+
+  static PolicyDeniedFailure _setCode(
+    PolicyDeniedFailure root,
+    String? value,
+  ) => root.copyWith(code: value);
+
+  static String _getReason(PolicyDeniedFailure root) => root.reason;
+
+  static PolicyDeniedFailure _setReason(
+    PolicyDeniedFailure root,
+    String value,
+  ) => root.copyWith(reason: value);
+}
+
+/// Typed field descriptors over [NotFoundFailure] — one
+/// `ZorphyField` per payload field, inherited fields
+/// included (issue #247).
+///
+/// Query with the predicate methods, sort with `asc` /
+/// `desc`, resolve wire pointers through
+/// `NotFoundFailureFields.all`.
+abstract final class NotFoundFailureFields {
+  static const ZorphyField<NotFoundFailure, String> message =
+      ZorphyField<NotFoundFailure, String>(
+        name: 'message',
+        jsonKey: 'message',
+        pointer: '/message',
+        get: _getMessage,
+        set: _setMessage,
+      );
+
+  static const ZorphyField<NotFoundFailure, String?> traceId =
+      ZorphyField<NotFoundFailure, String?>(
+        name: 'traceId',
+        jsonKey: 'traceId',
+        pointer: '/traceId',
+        get: _getTraceId,
+        set: _setTraceId,
+      );
+
+  static const ZorphyField<NotFoundFailure, bool> isRetryable =
+      ZorphyField<NotFoundFailure, bool>(
+        name: 'isRetryable',
+        jsonKey: 'isRetryable',
+        pointer: '/isRetryable',
+        get: _getIsRetryable,
+        set: _setIsRetryable,
+      );
+
+  static const ZorphyField<NotFoundFailure, String?> code =
+      ZorphyField<NotFoundFailure, String?>(
+        name: 'code',
+        jsonKey: 'code',
+        pointer: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static const ZorphyField<NotFoundFailure, String?> resourceType =
+      ZorphyField<NotFoundFailure, String?>(
+        name: 'resourceType',
+        jsonKey: 'resourceType',
+        pointer: '/resourceType',
+        get: _getResourceType,
+        set: _setResourceType,
+      );
+
+  static const ZorphyField<NotFoundFailure, String?> resourceId =
+      ZorphyField<NotFoundFailure, String?>(
+        name: 'resourceId',
+        jsonKey: 'resourceId',
+        pointer: '/resourceId',
+        get: _getResourceId,
+        set: _setResourceId,
+      );
+
+  static const List<ZorphyField<NotFoundFailure, Object?>> all = [
+    message,
+    traceId,
+    isRetryable,
+    code,
+    resourceType,
+    resourceId,
+  ];
+
+  static String _getMessage(NotFoundFailure root) => root.message;
+
+  static NotFoundFailure _setMessage(NotFoundFailure root, String value) =>
+      root.copyWith(message: value);
+
+  static String? _getTraceId(NotFoundFailure root) => root.traceId;
+
+  static NotFoundFailure _setTraceId(NotFoundFailure root, String? value) =>
+      root.copyWith(traceId: value);
+
+  static bool _getIsRetryable(NotFoundFailure root) => root.isRetryable;
+
+  static NotFoundFailure _setIsRetryable(NotFoundFailure root, bool value) =>
+      root.copyWith(isRetryable: value);
+
+  static String? _getCode(NotFoundFailure root) => root.code;
+
+  static NotFoundFailure _setCode(NotFoundFailure root, String? value) =>
+      root.copyWith(code: value);
+
+  static String? _getResourceType(NotFoundFailure root) => root.resourceType;
+
+  static NotFoundFailure _setResourceType(
+    NotFoundFailure root,
+    String? value,
+  ) => root.copyWith(resourceType: value);
+
+  static String? _getResourceId(NotFoundFailure root) => root.resourceId;
+
+  static NotFoundFailure _setResourceId(NotFoundFailure root, String? value) =>
+      root.copyWith(resourceId: value);
+}
+
+/// Typed field descriptors over [ConflictFailure] — one
+/// `ZorphyField` per payload field, inherited fields
+/// included (issue #247).
+///
+/// Query with the predicate methods, sort with `asc` /
+/// `desc`, resolve wire pointers through
+/// `ConflictFailureFields.all`.
+abstract final class ConflictFailureFields {
+  static const ZorphyField<ConflictFailure, String> message =
+      ZorphyField<ConflictFailure, String>(
+        name: 'message',
+        jsonKey: 'message',
+        pointer: '/message',
+        get: _getMessage,
+        set: _setMessage,
+      );
+
+  static const ZorphyField<ConflictFailure, String?> traceId =
+      ZorphyField<ConflictFailure, String?>(
+        name: 'traceId',
+        jsonKey: 'traceId',
+        pointer: '/traceId',
+        get: _getTraceId,
+        set: _setTraceId,
+      );
+
+  static const ZorphyField<ConflictFailure, bool> isRetryable =
+      ZorphyField<ConflictFailure, bool>(
+        name: 'isRetryable',
+        jsonKey: 'isRetryable',
+        pointer: '/isRetryable',
+        get: _getIsRetryable,
+        set: _setIsRetryable,
+      );
+
+  static const ZorphyField<ConflictFailure, String?> code =
+      ZorphyField<ConflictFailure, String?>(
+        name: 'code',
+        jsonKey: 'code',
+        pointer: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static const ZorphyField<ConflictFailure, Map<String, Object?>?>
+  localPatchWire = ZorphyField<ConflictFailure, Map<String, Object?>?>(
+    name: 'localPatchWire',
+    jsonKey: 'localPatchWire',
+    pointer: '/localPatchWire',
+    get: _getLocalPatchWire,
+    set: _setLocalPatchWire,
+  );
+
+  static const ZorphyField<ConflictFailure, Map<String, Object?>?>
+  remotePatchWire = ZorphyField<ConflictFailure, Map<String, Object?>?>(
+    name: 'remotePatchWire',
+    jsonKey: 'remotePatchWire',
+    pointer: '/remotePatchWire',
+    get: _getRemotePatchWire,
+    set: _setRemotePatchWire,
+  );
+
+  static const List<ZorphyField<ConflictFailure, Object?>> all = [
+    message,
+    traceId,
+    isRetryable,
+    code,
+    localPatchWire,
+    remotePatchWire,
+  ];
+
+  static String _getMessage(ConflictFailure root) => root.message;
+
+  static ConflictFailure _setMessage(ConflictFailure root, String value) =>
+      root.copyWith(message: value);
+
+  static String? _getTraceId(ConflictFailure root) => root.traceId;
+
+  static ConflictFailure _setTraceId(ConflictFailure root, String? value) =>
+      root.copyWith(traceId: value);
+
+  static bool _getIsRetryable(ConflictFailure root) => root.isRetryable;
+
+  static ConflictFailure _setIsRetryable(ConflictFailure root, bool value) =>
+      root.copyWith(isRetryable: value);
+
+  static String? _getCode(ConflictFailure root) => root.code;
+
+  static ConflictFailure _setCode(ConflictFailure root, String? value) =>
+      root.copyWith(code: value);
+
+  static Map<String, Object?>? _getLocalPatchWire(ConflictFailure root) =>
+      root.localPatchWire;
+
+  static ConflictFailure _setLocalPatchWire(
+    ConflictFailure root,
+    Map<String, Object?>? value,
+  ) => root.copyWith(localPatchWire: value);
+
+  static Map<String, Object?>? _getRemotePatchWire(ConflictFailure root) =>
+      root.remotePatchWire;
+
+  static ConflictFailure _setRemotePatchWire(
+    ConflictFailure root,
+    Map<String, Object?>? value,
+  ) => root.copyWith(remotePatchWire: value);
+}
+
+/// Typed field descriptors over [CancelledFailure] — one
+/// `ZorphyField` per payload field, inherited fields
+/// included (issue #247).
+///
+/// Query with the predicate methods, sort with `asc` /
+/// `desc`, resolve wire pointers through
+/// `CancelledFailureFields.all`.
+abstract final class CancelledFailureFields {
+  static const ZorphyField<CancelledFailure, String> message =
+      ZorphyField<CancelledFailure, String>(
+        name: 'message',
+        jsonKey: 'message',
+        pointer: '/message',
+        get: _getMessage,
+        set: _setMessage,
+      );
+
+  static const ZorphyField<CancelledFailure, String?> traceId =
+      ZorphyField<CancelledFailure, String?>(
+        name: 'traceId',
+        jsonKey: 'traceId',
+        pointer: '/traceId',
+        get: _getTraceId,
+        set: _setTraceId,
+      );
+
+  static const ZorphyField<CancelledFailure, bool> isRetryable =
+      ZorphyField<CancelledFailure, bool>(
+        name: 'isRetryable',
+        jsonKey: 'isRetryable',
+        pointer: '/isRetryable',
+        get: _getIsRetryable,
+        set: _setIsRetryable,
+      );
+
+  static const ZorphyField<CancelledFailure, String?> code =
+      ZorphyField<CancelledFailure, String?>(
+        name: 'code',
+        jsonKey: 'code',
+        pointer: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static const List<ZorphyField<CancelledFailure, Object?>> all = [
+    message,
+    traceId,
+    isRetryable,
+    code,
+  ];
+
+  static String _getMessage(CancelledFailure root) => root.message;
+
+  static CancelledFailure _setMessage(CancelledFailure root, String value) =>
+      root.copyWith(message: value);
+
+  static String? _getTraceId(CancelledFailure root) => root.traceId;
+
+  static CancelledFailure _setTraceId(CancelledFailure root, String? value) =>
+      root.copyWith(traceId: value);
+
+  static bool _getIsRetryable(CancelledFailure root) => root.isRetryable;
+
+  static CancelledFailure _setIsRetryable(CancelledFailure root, bool value) =>
+      root.copyWith(isRetryable: value);
+
+  static String? _getCode(CancelledFailure root) => root.code;
+
+  static CancelledFailure _setCode(CancelledFailure root, String? value) =>
+      root.copyWith(code: value);
+}
+
+/// Typed field descriptors over [InterruptedFailure] — one
+/// `ZorphyField` per payload field, inherited fields
+/// included (issue #247).
+///
+/// Query with the predicate methods, sort with `asc` /
+/// `desc`, resolve wire pointers through
+/// `InterruptedFailureFields.all`.
+abstract final class InterruptedFailureFields {
+  static const ZorphyField<InterruptedFailure, String> message =
+      ZorphyField<InterruptedFailure, String>(
+        name: 'message',
+        jsonKey: 'message',
+        pointer: '/message',
+        get: _getMessage,
+        set: _setMessage,
+      );
+
+  static const ZorphyField<InterruptedFailure, String?> traceId =
+      ZorphyField<InterruptedFailure, String?>(
+        name: 'traceId',
+        jsonKey: 'traceId',
+        pointer: '/traceId',
+        get: _getTraceId,
+        set: _setTraceId,
+      );
+
+  static const ZorphyField<InterruptedFailure, bool> isRetryable =
+      ZorphyField<InterruptedFailure, bool>(
+        name: 'isRetryable',
+        jsonKey: 'isRetryable',
+        pointer: '/isRetryable',
+        get: _getIsRetryable,
+        set: _setIsRetryable,
+      );
+
+  static const ZorphyField<InterruptedFailure, String?> code =
+      ZorphyField<InterruptedFailure, String?>(
+        name: 'code',
+        jsonKey: 'code',
+        pointer: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static const ZorphyField<InterruptedFailure, String?> intentDigest =
+      ZorphyField<InterruptedFailure, String?>(
+        name: 'intentDigest',
+        jsonKey: 'intentDigest',
+        pointer: '/intentDigest',
+        get: _getIntentDigest,
+        set: _setIntentDigest,
+      );
+
+  static const List<ZorphyField<InterruptedFailure, Object?>> all = [
+    message,
+    traceId,
+    isRetryable,
+    code,
+    intentDigest,
+  ];
+
+  static String _getMessage(InterruptedFailure root) => root.message;
+
+  static InterruptedFailure _setMessage(
+    InterruptedFailure root,
+    String value,
+  ) => root.copyWith(message: value);
+
+  static String? _getTraceId(InterruptedFailure root) => root.traceId;
+
+  static InterruptedFailure _setTraceId(
+    InterruptedFailure root,
+    String? value,
+  ) => root.copyWith(traceId: value);
+
+  static bool _getIsRetryable(InterruptedFailure root) => root.isRetryable;
+
+  static InterruptedFailure _setIsRetryable(
+    InterruptedFailure root,
+    bool value,
+  ) => root.copyWith(isRetryable: value);
+
+  static String? _getCode(InterruptedFailure root) => root.code;
+
+  static InterruptedFailure _setCode(InterruptedFailure root, String? value) =>
+      root.copyWith(code: value);
+
+  static String? _getIntentDigest(InterruptedFailure root) => root.intentDigest;
+
+  static InterruptedFailure _setIntentDigest(
+    InterruptedFailure root,
+    String? value,
+  ) => root.copyWith(intentDigest: value);
+}
+
+/// Typed field descriptors over [StorageFailure] — one
+/// `ZorphyField` per payload field, inherited fields
+/// included (issue #247).
+///
+/// Query with the predicate methods, sort with `asc` /
+/// `desc`, resolve wire pointers through
+/// `StorageFailureFields.all`.
+abstract final class StorageFailureFields {
+  static const ZorphyField<StorageFailure, String> message =
+      ZorphyField<StorageFailure, String>(
+        name: 'message',
+        jsonKey: 'message',
+        pointer: '/message',
+        get: _getMessage,
+        set: _setMessage,
+      );
+
+  static const ZorphyField<StorageFailure, String?> traceId =
+      ZorphyField<StorageFailure, String?>(
+        name: 'traceId',
+        jsonKey: 'traceId',
+        pointer: '/traceId',
+        get: _getTraceId,
+        set: _setTraceId,
+      );
+
+  static const ZorphyField<StorageFailure, bool> isRetryable =
+      ZorphyField<StorageFailure, bool>(
+        name: 'isRetryable',
+        jsonKey: 'isRetryable',
+        pointer: '/isRetryable',
+        get: _getIsRetryable,
+        set: _setIsRetryable,
+      );
+
+  static const ZorphyField<StorageFailure, String?> code =
+      ZorphyField<StorageFailure, String?>(
+        name: 'code',
+        jsonKey: 'code',
+        pointer: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static const ZorphyField<StorageFailure, String> layer =
+      ZorphyField<StorageFailure, String>(
+        name: 'layer',
+        jsonKey: 'layer',
+        pointer: '/layer',
+        get: _getLayer,
+        set: _setLayer,
+      );
+
+  static const List<ZorphyField<StorageFailure, Object?>> all = [
+    message,
+    traceId,
+    isRetryable,
+    code,
+    layer,
+  ];
+
+  static String _getMessage(StorageFailure root) => root.message;
+
+  static StorageFailure _setMessage(StorageFailure root, String value) =>
+      root.copyWith(message: value);
+
+  static String? _getTraceId(StorageFailure root) => root.traceId;
+
+  static StorageFailure _setTraceId(StorageFailure root, String? value) =>
+      root.copyWith(traceId: value);
+
+  static bool _getIsRetryable(StorageFailure root) => root.isRetryable;
+
+  static StorageFailure _setIsRetryable(StorageFailure root, bool value) =>
+      root.copyWith(isRetryable: value);
+
+  static String? _getCode(StorageFailure root) => root.code;
+
+  static StorageFailure _setCode(StorageFailure root, String? value) =>
+      root.copyWith(code: value);
+
+  static String _getLayer(StorageFailure root) => root.layer;
+
+  static StorageFailure _setLayer(StorageFailure root, String value) =>
+      root.copyWith(layer: value);
+}
+
+/// Typed field descriptors over [UnexpectedFailure] — one
+/// `ZorphyField` per payload field, inherited fields
+/// included (issue #247).
+///
+/// Query with the predicate methods, sort with `asc` /
+/// `desc`, resolve wire pointers through
+/// `UnexpectedFailureFields.all`.
+abstract final class UnexpectedFailureFields {
+  static const ZorphyField<UnexpectedFailure, String> message =
+      ZorphyField<UnexpectedFailure, String>(
+        name: 'message',
+        jsonKey: 'message',
+        pointer: '/message',
+        get: _getMessage,
+        set: _setMessage,
+      );
+
+  static const ZorphyField<UnexpectedFailure, String?> traceId =
+      ZorphyField<UnexpectedFailure, String?>(
+        name: 'traceId',
+        jsonKey: 'traceId',
+        pointer: '/traceId',
+        get: _getTraceId,
+        set: _setTraceId,
+      );
+
+  static const ZorphyField<UnexpectedFailure, bool> isRetryable =
+      ZorphyField<UnexpectedFailure, bool>(
+        name: 'isRetryable',
+        jsonKey: 'isRetryable',
+        pointer: '/isRetryable',
+        get: _getIsRetryable,
+        set: _setIsRetryable,
+      );
+
+  static const ZorphyField<UnexpectedFailure, String?> code =
+      ZorphyField<UnexpectedFailure, String?>(
+        name: 'code',
+        jsonKey: 'code',
+        pointer: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static const ZorphyField<UnexpectedFailure, String?> cause =
+      ZorphyField<UnexpectedFailure, String?>(
+        name: 'cause',
+        jsonKey: 'cause',
+        pointer: '/cause',
+        get: _getCause,
+        set: _setCause,
+      );
+
+  static const ZorphyField<UnexpectedFailure, String?> stackTrace =
+      ZorphyField<UnexpectedFailure, String?>(
+        name: 'stackTrace',
+        jsonKey: 'stackTrace',
+        pointer: '/stackTrace',
+        get: _getStackTrace,
+        set: _setStackTrace,
+      );
+
+  static const List<ZorphyField<UnexpectedFailure, Object?>> all = [
+    message,
+    traceId,
+    isRetryable,
+    code,
+    cause,
+    stackTrace,
+  ];
+
+  static String _getMessage(UnexpectedFailure root) => root.message;
+
+  static UnexpectedFailure _setMessage(UnexpectedFailure root, String value) =>
+      root.copyWith(message: value);
+
+  static String? _getTraceId(UnexpectedFailure root) => root.traceId;
+
+  static UnexpectedFailure _setTraceId(UnexpectedFailure root, String? value) =>
+      root.copyWith(traceId: value);
+
+  static bool _getIsRetryable(UnexpectedFailure root) => root.isRetryable;
+
+  static UnexpectedFailure _setIsRetryable(
+    UnexpectedFailure root,
+    bool value,
+  ) => root.copyWith(isRetryable: value);
+
+  static String? _getCode(UnexpectedFailure root) => root.code;
+
+  static UnexpectedFailure _setCode(UnexpectedFailure root, String? value) =>
+      root.copyWith(code: value);
+
+  static String? _getCause(UnexpectedFailure root) => root.cause;
+
+  static UnexpectedFailure _setCause(UnexpectedFailure root, String? value) =>
+      root.copyWith(cause: value);
 
   static String? _getStackTrace(UnexpectedFailure root) => root.stackTrace;
 

@@ -11,7 +11,8 @@ final class _ZorphyCopyWithSentinel {
 const Object _sentinel = _ZorphyCopyWithSentinel();
 
 final class Credentials implements ZorphyValueBase {
-  const Credentials.fromTrusted({this.params});
+  Credentials.fromTrusted({Map<String, dynamic>? params})
+    : params = params == null ? null : Map<String, dynamic>.of(params);
 
   final Map<String, dynamic>? params;
 
@@ -28,14 +29,55 @@ final class Credentials implements ZorphyValueBase {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is Credentials && this.params == other.params;
+    return other is Credentials &&
+        Credentials._zorphyCollectionEquals(this.params, other.params);
   }
 
   @override
-  int get hashCode => Object.hashAll([params]);
+  int get hashCode =>
+      Object.hashAll([Credentials._zorphyCollectionHash(params)]);
 
   @override
   String toString() => 'Credentials(params: $params)';
+
+  static bool _zorphyCollectionEquals(Object? a, Object? b) {
+    if (identical(a, b)) return true;
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) return false;
+      }
+      return true;
+    }
+    if (a is Set && b is Set) {
+      if (a.length != b.length) return false;
+      return a.every(b.contains);
+    }
+    if (a is Map && b is Map) {
+      if (a.length != b.length) return false;
+      for (final entry in a.entries) {
+        if (!b.containsKey(entry.key) || b[entry.key] != entry.value) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  static int _zorphyCollectionHash(Object? value) {
+    if (value is List) return Object.hashAll(value);
+    if (value is Set) {
+      return value.fold<int>(0, (hash, element) => hash + element.hashCode);
+    }
+    if (value is Map) {
+      return value.entries.fold<int>(
+        0,
+        (hash, entry) => hash + Object.hash(entry.key, entry.value),
+      );
+    }
+    return value.hashCode;
+  }
 
   static ZorphyBoundaryResult<Credentials> fromWire(Map<String, Object?> raw) {
     final violations = <FieldViolation>[];
@@ -104,7 +146,7 @@ class CredentialsMockData {
   CredentialsMockData._();
 
   static Credentials single({int seed = 0}) {
-    return Credentials.fromTrusted();
+    return Credentials.fromTrusted(params: {});
   }
 
   static List<Credentials> list({int count = 10}) {
@@ -160,6 +202,33 @@ final class CredentialsLenses {
         get: _getParams,
         set: _setParams,
       );
+
+  static Map<String, dynamic>? _getParams(Credentials root) => root.params;
+
+  static Credentials _setParams(
+    Credentials root,
+    Map<String, dynamic>? value,
+  ) => root.copyWith(params: value);
+}
+
+/// Typed field descriptors over [Credentials] — one
+/// `ZorphyField` per payload field, inherited fields
+/// included (issue #247).
+///
+/// Query with the predicate methods, sort with `asc` /
+/// `desc`, resolve wire pointers through
+/// `CredentialsFields.all`.
+abstract final class CredentialsFields {
+  static const ZorphyField<Credentials, Map<String, dynamic>?> params =
+      ZorphyField<Credentials, Map<String, dynamic>?>(
+        name: 'params',
+        jsonKey: 'params',
+        pointer: '/params',
+        get: _getParams,
+        set: _setParams,
+      );
+
+  static const List<ZorphyField<Credentials, Object?>> all = [params];
 
   static Map<String, dynamic>? _getParams(Credentials root) => root.params;
 

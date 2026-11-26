@@ -149,11 +149,11 @@ class FailingMockProviderBuilder {
     String method,
   ) {
     final idType = config.idFieldType;
-    final failure = refer('networkFailure').call([
-      literalString(
+    final failure = refer('AppFailure.network').call([], {
+      'message': literalString(
         '$entityName mock failure (spec 1110 --fail preset): method $method',
       ),
-    ]);
+    });
 
     Method build({
       required String returns,

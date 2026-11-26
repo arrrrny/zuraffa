@@ -11,7 +11,7 @@ part '../../../_br_/src/core/params/delete_params.part.dart';
 @Deprecated(
   'Replaced in v8 by ZfaQuery<T> and concrete @ZorphyIntent classes in ZFA-008/ZFA-017',
 )
-abstract class $DeleteParams<I extends Object> implements $$Params {
+abstract class $DeleteParams<I extends Object> implements Params {
   const $DeleteParams();
 
   /// The ID of the entity to delete (strongly typed).

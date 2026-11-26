@@ -74,7 +74,7 @@ abstract class UseCase<T, Params> with Loggable {
       return Result.success(value);
     } on CancelledException catch (e) {
       logger.info('$runtimeType was cancelled: ${e.message}');
-      return Result.failure(cancelledFailure(e.message));
+      return Result.failure(AppFailure.cancelled(message: e.message));
     } on AppFailure catch (e, stackTrace) {
       logger.warning(
         '$runtimeType failed with AppFailure: '
@@ -89,7 +89,7 @@ abstract class UseCase<T, Params> with Loggable {
       return Result.failure(e);
     } catch (e, stackTrace) {
       logger.severe('$runtimeType failed unexpectedly: $e', e, stackTrace);
-      final failure = appFailureFrom(e, stackTrace);
+      final failure = AppFailure.from(e, stackTrace);
       FailureReporterRegistry.instance.reportFailure(
         failure,
         stackTrace: stackTrace,

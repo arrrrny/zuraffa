@@ -16,7 +16,7 @@ part '../../../_br_/src/core/params/query_params.part.dart';
 @Deprecated(
   'Replaced in v8 by ZfaQuery<T> and concrete @ZorphyIntent classes in ZFA-008/ZFA-017',
 )
-abstract class $QueryParams<T> implements $$Params {
+abstract class $QueryParams<T> implements Params {
   const $QueryParams();
 
   /// Type-safe filter to identify the entity.
@@ -73,7 +73,7 @@ extension QueryParamsExtension<T> on Iterable<T> {
 
   /// Throws the [NotFoundFailure] for a query that matched nothing, naming what
   /// was searched so a miss is easy to triage from the log line alone.
-  Never _throwNotFound(String reason) => throw notFoundFailure('No $T $reason');
+  Never _throwNotFound(String reason) => throw AppFailure.notFound(message: 'No $T $reason');
 }
 
 /// The JSON view of [item] when it exposes one, or null when it cannot be

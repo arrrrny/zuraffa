@@ -7,7 +7,7 @@ void main() {
   // ═══════════════════════════════════════════════════════════════
   group('Golden: @RequiresAuth DDA Plugin', () {
     test('AC1: @RequiresAuth(Role.admin) generates security interceptor '
-        'that emits AppFailure.session for unauthorized', () {
+        'that emits AppFailure.policyDenied for unauthorized', () {
       final gen = AuthGenerator();
       gen.addAuthEntry(
         className: 'DeleteUserUseCase',
@@ -24,7 +24,8 @@ void main() {
 
       expect(output, contains('ZfaAuthGuard'));
       expect(output, contains('requireRole'));
-      expect(output, contains('AppFailure.session'));
+      expect(output, contains('AppFailure.policyDenied('));
+      expect(output, contains("reason: 'unauthenticated'"));
       expect(output, contains('DeleteUserUseCase'));
       expect(output, contains('Role.admin'));
       expect(output, contains('Unauthorized'));
@@ -306,7 +307,8 @@ void main() {
         );
         final authOutput = authGen.generate();
         expect(authOutput, contains('ZfaAuthGuard'));
-        expect(authOutput, contains('AppFailure.session'));
+        expect(authOutput, contains('AppFailure.policyDenied('));
+        expect(authOutput, contains("reason: 'unauthenticated'"));
 
         // Retry
         final retryGen = RetryGenerator();

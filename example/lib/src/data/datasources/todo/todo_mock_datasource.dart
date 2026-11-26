@@ -56,7 +56,7 @@ class TodoMockDataSource
     await Future<void>.delayed(_delay);
     final existing = TodoMockData.todos.firstWhere(
       (item) => item.id == params.id,
-      orElse: () => throw notFoundFailure('Todo not found in mock data'),
+      orElse: () => throw AppFailure.notFound(message: 'Todo not found in mock data'),
     );
     final updated = params.data.apply(existing);
     final index = TodoMockData.todos.indexOf(existing);
@@ -71,7 +71,7 @@ class TodoMockDataSource
     await Future<void>.delayed(_delay);
     final existing = TodoMockData.todos.firstWhere(
       (item) => item.id == params.id,
-      orElse: () => throw notFoundFailure('Todo not found in mock data'),
+      orElse: () => throw AppFailure.notFound(message: 'Todo not found in mock data'),
     );
     TodoMockData.todos.remove(existing);
     logger.info('Successfully deleted Todo');

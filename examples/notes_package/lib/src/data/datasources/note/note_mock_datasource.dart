@@ -32,7 +32,7 @@ class NoteMockDataSource
     await Future<void>.delayed(_delay);
     final existing = NoteMockData.notes.firstWhere(
       (item) => item.id == params.id,
-      orElse: () => throw notFoundFailure('Note not found in mock data'),
+      orElse: () => throw AppFailure.notFound(message: 'Note not found in mock data'),
     );
     final updated = params.data.apply(existing);
     final index = NoteMockData.notes.indexOf(existing);
@@ -47,7 +47,7 @@ class NoteMockDataSource
     await Future<void>.delayed(_delay);
     final existing = NoteMockData.notes.firstWhere(
       (item) => item.id == params.id,
-      orElse: () => throw notFoundFailure('Note not found in mock data'),
+      orElse: () => throw AppFailure.notFound(message: 'Note not found in mock data'),
     );
     // v3 entities have no `copyWithField`; route the typed field through the
     // immutable `copyWith` API (the only mutable field on Note is `body`).

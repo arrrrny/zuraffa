@@ -5,7 +5,7 @@ import 'params.dart';
 part '../../../_br_/src/core/params/settings.part.dart';
 
 @ZorphyValue()
-abstract class $Settings implements $$Params {
+abstract class $Settings implements Params {
   const $Settings();
 
   /// v3 codegen does not merge base fields; declare [params] explicitly so

@@ -11,15 +11,19 @@ final class _ZorphyCopyWithSentinel {
 const Object _sentinel = _ZorphyCopyWithSentinel();
 
 final class FeatureContract implements ZorphyEntityBase<String> {
-  const FeatureContract.fromTrusted({
+  FeatureContract.fromTrusted({
     required this.id,
     required this.displayName,
-    this.entities,
+    List<String>? entities,
     this.boundary,
-    this.routes,
+    Set<String>? routes,
     this.xrayLayer,
-    this.argSchema,
-  });
+    Map<String, dynamic>? argSchema,
+  }) : entities = entities == null ? null : List<String>.of(entities),
+       routes = routes == null ? null : Set<String>.of(routes),
+       argSchema = argSchema == null
+           ? null
+           : Map<String, dynamic>.of(argSchema);
 
   final String id;
 
@@ -76,27 +80,72 @@ final class FeatureContract implements ZorphyEntityBase<String> {
     return other is FeatureContract &&
         this.id == other.id &&
         this.displayName == other.displayName &&
-        this.entities == other.entities &&
+        FeatureContract._zorphyCollectionEquals(
+          this.entities,
+          other.entities,
+        ) &&
         this.boundary == other.boundary &&
-        this.routes == other.routes &&
+        FeatureContract._zorphyCollectionEquals(this.routes, other.routes) &&
         this.xrayLayer == other.xrayLayer &&
-        this.argSchema == other.argSchema;
+        FeatureContract._zorphyCollectionEquals(
+          this.argSchema,
+          other.argSchema,
+        );
   }
 
   @override
   int get hashCode => Object.hashAll([
     id,
     displayName,
-    entities,
+    FeatureContract._zorphyCollectionHash(entities),
     boundary,
-    routes,
+    FeatureContract._zorphyCollectionHash(routes),
     xrayLayer,
-    argSchema,
+    FeatureContract._zorphyCollectionHash(argSchema),
   ]);
 
   @override
   String toString() =>
       'FeatureContract(id: $id, displayName: $displayName, entities: $entities, boundary: $boundary, routes: $routes, xrayLayer: $xrayLayer, argSchema: $argSchema)';
+
+  static bool _zorphyCollectionEquals(Object? a, Object? b) {
+    if (identical(a, b)) return true;
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) return false;
+      }
+      return true;
+    }
+    if (a is Set && b is Set) {
+      if (a.length != b.length) return false;
+      return a.every(b.contains);
+    }
+    if (a is Map && b is Map) {
+      if (a.length != b.length) return false;
+      for (final entry in a.entries) {
+        if (!b.containsKey(entry.key) || b[entry.key] != entry.value) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  static int _zorphyCollectionHash(Object? value) {
+    if (value is List) return Object.hashAll(value);
+    if (value is Set) {
+      return value.fold<int>(0, (hash, element) => hash + element.hashCode);
+    }
+    if (value is Map) {
+      return value.entries.fold<int>(
+        0,
+        (hash, entry) => hash + Object.hash(entry.key, entry.value),
+      );
+    }
+    return value.hashCode;
+  }
 
   String get principalKey => id;
 
@@ -173,13 +222,17 @@ final class FeatureContract implements ZorphyEntityBase<String> {
         final decoded_argSchema = <String, dynamic>{};
         for (final entry in map_argSchema.entries) {
           final path_argSchema = '/argSchema' + '/' + entry.key;
-          final element_argSchema = _boundaryAs<dynamic>(
-            map_argSchema[entry.key],
-            path_argSchema,
-            violations,
-          );
-          if (element_argSchema != null) {
-            decoded_argSchema[entry.key] = element_argSchema;
+          if (map_argSchema[entry.key] == null) {
+            decoded_argSchema[entry.key] = null;
+          } else {
+            final element_argSchema = _boundaryAs<dynamic>(
+              map_argSchema[entry.key],
+              path_argSchema,
+              violations,
+            );
+            if (element_argSchema != null) {
+              decoded_argSchema[entry.key] = element_argSchema;
+            }
           }
         }
         _argSchema = decoded_argSchema;
@@ -536,17 +589,18 @@ final class FeatureContractPatch implements ZorphyPatch<FeatureContract> {
   ) {
     final violations = <FieldViolation>[];
     final ops = ZorphyPatchWire.opsOf(raw, '', violations);
+    final prefix = ZorphyPatchWire.opsPathOf(raw);
     PatchValue<String>? idValue;
     if (ops != null && ops.containsKey('id')) {
       final Object? rawValue = ZorphyPatchWire.fieldValue(
         ops['id'],
-        '/id',
+        '$prefix/id',
         violations,
       );
       idValue = (() {
         final idDecoded = ZorphyPatchWire.as<String>(
           rawValue,
-          '/id',
+          '$prefix/id',
           violations,
         );
         return idDecoded == null ? null : PatchValue<String>.set(idDecoded);
@@ -556,13 +610,13 @@ final class FeatureContractPatch implements ZorphyPatch<FeatureContract> {
     if (ops != null && ops.containsKey('displayName')) {
       final Object? rawValue = ZorphyPatchWire.fieldValue(
         ops['displayName'],
-        '/displayName',
+        '$prefix/displayName',
         violations,
       );
       displayNameValue = (() {
         final displayNameDecoded = ZorphyPatchWire.as<String>(
           rawValue,
-          '/displayName',
+          '$prefix/displayName',
           violations,
         );
         return displayNameDecoded == null
@@ -574,14 +628,14 @@ final class FeatureContractPatch implements ZorphyPatch<FeatureContract> {
     if (ops != null && ops.containsKey('entities')) {
       final Object? rawValue = ZorphyPatchWire.fieldValue(
         ops['entities'],
-        '/entities',
+        '$prefix/entities',
         violations,
       );
       entitiesValue = (() {
         if (rawValue == null) return PatchValue<List<String>?>.set(null);
         final entitiesDecoded = ZorphyPatchWire.as<List<String>?>(
           rawValue,
-          '/entities',
+          '$prefix/entities',
           violations,
         );
         return entitiesDecoded == null
@@ -593,14 +647,14 @@ final class FeatureContractPatch implements ZorphyPatch<FeatureContract> {
     if (ops != null && ops.containsKey('boundary')) {
       final Object? rawValue = ZorphyPatchWire.fieldValue(
         ops['boundary'],
-        '/boundary',
+        '$prefix/boundary',
         violations,
       );
       boundaryValue = (() {
         if (rawValue == null) return PatchValue<SliceBoundary?>.set(null);
         final boundaryDecoded = ZorphyPatchWire.as<SliceBoundary?>(
           rawValue,
-          '/boundary',
+          '$prefix/boundary',
           violations,
         );
         return boundaryDecoded == null
@@ -612,14 +666,14 @@ final class FeatureContractPatch implements ZorphyPatch<FeatureContract> {
     if (ops != null && ops.containsKey('routes')) {
       final Object? rawValue = ZorphyPatchWire.fieldValue(
         ops['routes'],
-        '/routes',
+        '$prefix/routes',
         violations,
       );
       routesValue = (() {
         if (rawValue == null) return PatchValue<Set<String>?>.set(null);
         final routesDecoded = ZorphyPatchWire.as<Set<String>?>(
           rawValue,
-          '/routes',
+          '$prefix/routes',
           violations,
         );
         return routesDecoded == null
@@ -631,14 +685,14 @@ final class FeatureContractPatch implements ZorphyPatch<FeatureContract> {
     if (ops != null && ops.containsKey('xrayLayer')) {
       final Object? rawValue = ZorphyPatchWire.fieldValue(
         ops['xrayLayer'],
-        '/xrayLayer',
+        '$prefix/xrayLayer',
         violations,
       );
       xrayLayerValue = (() {
         if (rawValue == null) return PatchValue<XRayLayer?>.set(null);
         final xrayLayerDecoded = ZorphyPatchWire.as<XRayLayer?>(
           rawValue,
-          '/xrayLayer',
+          '$prefix/xrayLayer',
           violations,
         );
         return xrayLayerDecoded == null
@@ -650,7 +704,7 @@ final class FeatureContractPatch implements ZorphyPatch<FeatureContract> {
     if (ops != null && ops.containsKey('argSchema')) {
       final Object? rawValue = ZorphyPatchWire.fieldValue(
         ops['argSchema'],
-        '/argSchema',
+        '$prefix/argSchema',
         violations,
       );
       argSchemaValue = (() {
@@ -658,7 +712,7 @@ final class FeatureContractPatch implements ZorphyPatch<FeatureContract> {
           return PatchValue<Map<String, dynamic>?>.set(null);
         final argSchemaDecoded = ZorphyPatchWire.as<Map<String, dynamic>?>(
           rawValue,
-          '/argSchema',
+          '$prefix/argSchema',
           violations,
         );
         return argSchemaDecoded == null
@@ -697,6 +751,7 @@ class FeatureContractMockData {
       displayName: 'displayname-${seed}',
       entities: ['entities-${seed}'],
       routes: {'routes-${seed}'},
+      argSchema: {},
     );
   }
 
@@ -713,6 +768,7 @@ class FeatureContractMockData {
     patch = patch.withDisplayName('displayname-${0}');
     patch = patch.withEntities(['entities-${0}']);
     patch = patch.withRoutes({'routes-${0}'});
+    patch = patch.withArgSchema({});
     return patch;
   }
 }
@@ -881,6 +937,132 @@ final class FeatureContractLenses {
         get: _getArgSchema,
         set: _setArgSchema,
       );
+
+  static Map<String, dynamic>? _getArgSchema(FeatureContract root) =>
+      root.argSchema;
+
+  static FeatureContract _setArgSchema(
+    FeatureContract root,
+    Map<String, dynamic>? value,
+  ) => root.copyWith(argSchema: value);
+}
+
+/// Typed field descriptors over [FeatureContract] — one
+/// `ZorphyField` per payload field, inherited fields
+/// included (issue #247).
+///
+/// Query with the predicate methods, sort with `asc` /
+/// `desc`, resolve wire pointers through
+/// `FeatureContractFields.all`.
+abstract final class FeatureContractFields {
+  static const ZorphyField<FeatureContract, String> id =
+      ZorphyField<FeatureContract, String>(
+        name: 'id',
+        jsonKey: 'id',
+        pointer: '/id',
+        get: _getId,
+        set: _setId,
+      );
+
+  static const ZorphyField<FeatureContract, String> displayName =
+      ZorphyField<FeatureContract, String>(
+        name: 'displayName',
+        jsonKey: 'displayName',
+        pointer: '/displayName',
+        get: _getDisplayName,
+        set: _setDisplayName,
+      );
+
+  static const ZorphyField<FeatureContract, List<String>?> entities =
+      ZorphyField<FeatureContract, List<String>?>(
+        name: 'entities',
+        jsonKey: 'entities',
+        pointer: '/entities',
+        get: _getEntities,
+        set: _setEntities,
+      );
+
+  static const ZorphyField<FeatureContract, SliceBoundary?> boundary =
+      ZorphyField<FeatureContract, SliceBoundary?>(
+        name: 'boundary',
+        jsonKey: 'boundary',
+        pointer: '/boundary',
+        get: _getBoundary,
+        set: _setBoundary,
+      );
+
+  static const ZorphyField<FeatureContract, Set<String>?> routes =
+      ZorphyField<FeatureContract, Set<String>?>(
+        name: 'routes',
+        jsonKey: 'routes',
+        pointer: '/routes',
+        get: _getRoutes,
+        set: _setRoutes,
+      );
+
+  static const ZorphyField<FeatureContract, XRayLayer?> xrayLayer =
+      ZorphyField<FeatureContract, XRayLayer?>(
+        name: 'xrayLayer',
+        jsonKey: 'xrayLayer',
+        pointer: '/xrayLayer',
+        get: _getXrayLayer,
+        set: _setXrayLayer,
+      );
+
+  static const ZorphyField<FeatureContract, Map<String, dynamic>?> argSchema =
+      ZorphyField<FeatureContract, Map<String, dynamic>?>(
+        name: 'argSchema',
+        jsonKey: 'argSchema',
+        pointer: '/argSchema',
+        get: _getArgSchema,
+        set: _setArgSchema,
+      );
+
+  static const List<ZorphyField<FeatureContract, Object?>> all = [
+    id,
+    displayName,
+    entities,
+    boundary,
+    routes,
+    xrayLayer,
+    argSchema,
+  ];
+
+  static String _getId(FeatureContract root) => root.id;
+
+  static FeatureContract _setId(FeatureContract root, String value) =>
+      root.copyWith(id: value);
+
+  static String _getDisplayName(FeatureContract root) => root.displayName;
+
+  static FeatureContract _setDisplayName(FeatureContract root, String value) =>
+      root.copyWith(displayName: value);
+
+  static List<String>? _getEntities(FeatureContract root) => root.entities;
+
+  static FeatureContract _setEntities(
+    FeatureContract root,
+    List<String>? value,
+  ) => root.copyWith(entities: value);
+
+  static SliceBoundary? _getBoundary(FeatureContract root) => root.boundary;
+
+  static FeatureContract _setBoundary(
+    FeatureContract root,
+    SliceBoundary? value,
+  ) => root.copyWith(boundary: value);
+
+  static Set<String>? _getRoutes(FeatureContract root) => root.routes;
+
+  static FeatureContract _setRoutes(FeatureContract root, Set<String>? value) =>
+      root.copyWith(routes: value);
+
+  static XRayLayer? _getXrayLayer(FeatureContract root) => root.xrayLayer;
+
+  static FeatureContract _setXrayLayer(
+    FeatureContract root,
+    XRayLayer? value,
+  ) => root.copyWith(xrayLayer: value);
 
   static Map<String, dynamic>? _getArgSchema(FeatureContract root) =>
       root.argSchema;

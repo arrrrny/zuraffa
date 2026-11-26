@@ -77,12 +77,12 @@ class StreamToSignalResultAdapter<T> {
     final sub = stream.listen(
       (result) => sr.emit(result),
       onError: (Object e, StackTrace st) {
-        sr.emitFailure(appFailureFrom(e, st));
+        sr.emitFailure(AppFailure.from(e, st));
         wrapper?.dispose();
       },
       onDone: () {
         if (!sr.isSuccess && !sr.isFailure) {
-          sr.emitFailure(unexpectedFailure('Stream completed without result'));
+          sr.emitFailure(AppFailure.unexpected(message: 'Stream completed without result'));
         }
         wrapper?.dispose();
       },

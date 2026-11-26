@@ -53,7 +53,7 @@ class SignalResult<T> {
         sr._signal.value = Success<T, AppFailure>(v);
       },
       onError: (e, st) {
-        sr._signal.value = Failure<T, AppFailure>(appFailureFrom(e, st));
+        sr._signal.value = Failure<T, AppFailure>(AppFailure.from(e, st));
       },
     );
     return sr;

@@ -16,7 +16,7 @@ import 'auth_generator.dart';
 /// - `@RequiresAuth(roles: [Role.admin, Role.manager], mode: AuthorizationMode.any)`
 ///
 /// The generated interceptor checks user roles before UseCase execution.
-/// Unauthorized calls emit `AppFailure.session` without executing the UseCase.
+/// Unauthorized calls emit `AppFailure.policyDenied(reason: 'unauthenticated')` without executing the UseCase.
 class AuthDDAPlugin extends ZorphyDecoratorPlugin {
   AuthDDAPlugin({this.packageName = 'zuraffa'});
 

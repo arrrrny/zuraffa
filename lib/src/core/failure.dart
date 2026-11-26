@@ -5,14 +5,14 @@ part '../../_br_/src/core/failure.part.dart';
 /// Polymorphic application failure taxonomy (v8, ZFA-001).
 ///
 /// A closed `@ZorphyUnion` of ten sibling variants. Every variant exposes
-/// [message], [traceId] and [isRetryable]; the union root supplies the
-/// trust-boundary `fromWire`/`toWire` codec and discriminator dispatch.
+/// [message], [traceId], [isRetryable] and [code]; the union root supplies the
+/// trust-boundary [AppFailure.fromWire]/[toWire] codec with discriminator
+/// dispatch, one const redirecting factory per variant (`AppFailure.network`,
+/// `AppFailure.timeout`, … — also reachable through Dart 3 dot-shorthand as
+/// `.network(...)`), and the [AppFailure.from] classifier.
 ///
-/// The v2 taxonomy's seventeen concrete classes were folded into these ten
-/// variants (see the migration table on issue #2149). Construct a variant
-/// through its top-level helper (`networkFailure(...)`, `timeoutFailure(...)`,
-/// …) — the v3 union emitter does not carry static factories onto the
-/// generated root — or decode one with [AppFailure.fromWire].
+/// Construct a variant through its root factory (`AppFailure.network(...)`) or
+/// the variant's own `fromTrusted`; decode one with [AppFailure.fromWire].
 @ZorphyUnion()
 abstract class $AppFailure {
   /// Human-readable error message.
@@ -25,8 +25,182 @@ abstract class $AppFailure {
   @ZorphyDomainBool()
   bool get isRetryable;
 
-  /// Machine-readable code, e.g. a GraphQL error type name (v2 parity).
+  /// Machine-readable code, e.g. a GraphQL error type name.
   String? get code;
+
+  factory $AppFailure.network({
+    required String message,
+    String? traceId,
+    bool isRetryable = false,
+    String? code,
+    int? statusCode,
+  }) => $NetworkFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code, statusCode: statusCode);
+
+  factory $AppFailure.timeout({
+    required String message,
+    String? traceId,
+    bool isRetryable = true,
+    String? code,
+    Duration? timeout,
+  }) => $TimeoutFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code, timeout: timeout);
+
+  factory $AppFailure.boundaryViolation({
+    required String message,
+    String? traceId,
+    bool isRetryable = false,
+    String? code,
+    List<FieldViolation> violations = const [],
+  }) => $BoundaryViolationFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code, violations: violations);
+
+  factory $AppFailure.policyDenied({
+    required String message,
+    String? traceId,
+    bool isRetryable = false,
+    String? code,
+    String reason = 'permission',
+  }) => $PolicyDeniedFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code, reason: reason);
+
+  factory $AppFailure.notFound({
+    required String message,
+    String? traceId,
+    bool isRetryable = false,
+    String? code,
+    String? resourceType,
+    String? resourceId,
+  }) => $NotFoundFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code, resourceType: resourceType, resourceId: resourceId);
+
+  factory $AppFailure.conflict({
+    required String message,
+    String? traceId,
+    bool isRetryable = false,
+    String? code,
+    Map<String, Object?>? localPatchWire,
+    Map<String, Object?>? remotePatchWire,
+  }) => $ConflictFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code, localPatchWire: localPatchWire, remotePatchWire: remotePatchWire);
+
+  factory $AppFailure.cancelled({
+    required String message,
+    String? traceId,
+    bool isRetryable = false,
+    String? code,
+  }) => $CancelledFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code);
+
+  factory $AppFailure.interrupted({
+    required String message,
+    String? traceId,
+    bool isRetryable = true,
+    String? code,
+    String? intentDigest,
+  }) => $InterruptedFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code, intentDigest: intentDigest);
+
+  factory $AppFailure.storage({
+    required String message,
+    String? traceId,
+    bool isRetryable = false,
+    String? code,
+    String layer = 'cache',
+  }) => $StorageFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code, layer: layer);
+
+  factory $AppFailure.unexpected({
+    required String message,
+    String? traceId,
+    bool isRetryable = false,
+    String? code,
+    String? cause,
+    String? stackTrace,
+  }) => $UnexpectedFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code, cause: cause, stackTrace: stackTrace);
+
+  /// Classify an arbitrary [error] into the most specific [AppFailure] variant.
+  ///
+  /// An [AppFailure] passes through unchanged. Detection order: network, then
+  /// timeout, then not-found, then auth/policy (an input matching both
+  /// "403 forbidden" and "validation failed" stays an authorization failure so
+  /// its callers keep seeing the policy-denied case), then validation, then
+  /// conflict, then server/storage, then the unexpected fallback.
+  factory $AppFailure.from(Object error, [StackTrace? stackTrace]) {
+    if (error is $AppFailure) return error;
+    final message = error.toString();
+    final lower = message.toLowerCase();
+
+    bool hasStatus(int code) => RegExp(
+      r'(?:^|\s|:)' '$code' r'(?:$|\s|:)',
+    ).hasMatch(lower);
+
+    if (lower.contains('socketexception') ||
+        (lower.contains('connection') &&
+            RegExp(r'refused|reset|closed|timeout|error').hasMatch(lower)) ||
+        lower.contains('network is unreachable') ||
+        lower.contains('no internet') ||
+        lower.contains('failed host lookup') ||
+        lower.contains('no address associated') ||
+        lower.contains('handshakeexception') ||
+        hasStatus(500) ||
+        lower.contains('rate limit')) {
+      return $AppFailure.network(message: message);
+    }
+
+    if (lower.contains('timeout') ||
+        lower.contains('timed out') ||
+        lower.contains('deadline exceeded')) {
+      return $AppFailure.timeout(message: message);
+    }
+
+    if (hasStatus(404) ||
+        (lower.contains('not found') && !lower.contains('exception')) ||
+        lower.contains('does not exist')) {
+      return $AppFailure.notFound(message: message);
+    }
+
+    if (hasStatus(401) ||
+        lower.contains('unauthorized') ||
+        lower.contains('unauthenticated') ||
+        lower.contains('invalid token') ||
+        lower.contains('token expired')) {
+      return $AppFailure.policyDenied(message: message, reason: 'unauthenticated');
+    }
+    if (hasStatus(403) || lower.contains('forbidden')) {
+      return $AppFailure.policyDenied(message: message, reason: 'forbidden');
+    }
+
+    if (lower.contains('formatexception') ||
+        lower.contains('argumenterror') ||
+        lower.contains('rangeerror') ||
+        lower.contains('invalid argument') ||
+        lower.contains('validation failed')) {
+      return $AppFailure.boundaryViolation(message: message);
+    }
+
+    if (hasStatus(409) ||
+        lower.contains('conflict') ||
+        lower.contains('duplicate') ||
+        lower.contains('already exists')) {
+      return $AppFailure.conflict(message: message);
+    }
+
+    if (hasStatus(502) ||
+        hasStatus(503) ||
+        hasStatus(504) ||
+        lower.contains('internal server error') ||
+        lower.contains('bad gateway') ||
+        lower.contains('service unavailable')) {
+      return $AppFailure.network(message: message);
+    }
+
+    if (lower.contains('hiveerror') ||
+        lower.contains('sqflite') ||
+        (lower.contains('database') && lower.contains('exception'))) {
+      return $AppFailure.storage(message: message, layer: 'database');
+    }
+    if (lower.contains('cache') && lower.contains('exception')) {
+      return $AppFailure.storage(message: message, layer: 'cache');
+    }
+
+    return $AppFailure.unexpected(
+      message: message,
+      cause: error.toString(),
+      stackTrace: stackTrace?.toString(),
+    );
+  }
 }
 
 @ZorphyValue()
@@ -41,7 +215,7 @@ class $NetworkFailure implements $AppFailure {
   @override
   final String? code;
 
-  /// HTTP status code carried over from the v2 `ServerFailure.statusCode`.
+  /// HTTP status code when the failure originates from an HTTP transport.
   final int? statusCode;
 
   const $NetworkFailure({
@@ -86,6 +260,8 @@ class $BoundaryViolationFailure implements $AppFailure {
   final bool isRetryable;
   @override
   final String? code;
+
+  /// Every violated field, each tagged with a JSON Pointer path.
   final List<FieldViolation> violations;
 
   const $BoundaryViolationFailure({
@@ -108,6 +284,9 @@ class $PolicyDeniedFailure implements $AppFailure {
   final bool isRetryable;
   @override
   final String? code;
+
+  /// Why the policy denied the operation (`permission`, `unauthenticated`,
+  /// `forbidden`, a rule name, …).
   final String reason;
 
   const $PolicyDeniedFailure({
@@ -220,6 +399,8 @@ class $StorageFailure implements $AppFailure {
   final bool isRetryable;
   @override
   final String? code;
+
+  /// The storage layer that failed (`cache`, `database`, …).
   final String layer;
 
   const $StorageFailure({
@@ -243,10 +424,10 @@ class $UnexpectedFailure implements $AppFailure {
   @override
   final String? code;
 
-  /// Stringified originating error/cause carried over from v2 (diagnostic).
+  /// Stringified originating error (diagnostic).
   final String? cause;
 
-  /// Stringified stack trace carried over from v2 (diagnostic).
+  /// Stringified stack trace of the originating error (diagnostic).
   final String? stackTrace;
 
   const $UnexpectedFailure({
@@ -259,314 +440,10 @@ class $UnexpectedFailure implements $AppFailure {
   });
 }
 
-/// Positional-message constructors for the ten [AppFailure] variants.
-///
-/// These exist so the v2 call sites (`ServerFailure(...)`, `AppFailure.network(...)`,
-/// …) migrate by a pure prefix rename: each helper's named-parameter set is a
-/// SUPERSET of the old constructor/factory arguments, so legacy arguments
-/// (`statusCode`, `stackTrace`, `cause`, `code`, `conflictType`, …) are
-/// accepted and ignored rather than rewritten. The generated `@ZorphyUnion`
-/// root cannot carry static factories, so these top-level helpers are the
-/// construction API.
-NetworkFailure networkFailure(
-  String message, {
-  int? statusCode,
-  StackTrace? stackTrace,
-  Object? cause,
-  String? code,
-  String? traceId,
-  bool isRetryable = false,
-  dynamic details,
-}) => NetworkFailure.fromTrusted(
-  code: code,
-  message: message,
-  traceId: traceId,
-  isRetryable: isRetryable,
-  statusCode: statusCode,
-);
-
-/// See [networkFailure].
-TimeoutFailure timeoutFailure(
-  String message, {
-  Duration? timeout,
-  StackTrace? stackTrace,
-  Object? cause,
-  String? code,
-  String? traceId,
-  bool isRetryable = true,
-}) => TimeoutFailure.fromTrusted(
-  code: code,
-  message: message,
-  traceId: traceId,
-  isRetryable: isRetryable,
-  timeout: timeout,
-);
-
-/// See [networkFailure].
-///
-/// Legacy `fieldErrors` are deliberately mapped to `expected: 'string'` with
-/// the message as `actual`: v2 carried only a single message per field, so
-/// there is no expected value to forward. This lossy shape is a conscious
-/// v2-compat choice for the wire format, not an overlooked mapping.
-BoundaryViolationFailure boundaryViolationFailure(
-  String message, {
-  Map<String, List<String>>? fieldErrors,
-  List<FieldViolation> violations = const [],
-  StackTrace? stackTrace,
-  Object? cause,
-  String? code,
-  String? traceId,
-  bool isRetryable = false,
-}) => BoundaryViolationFailure.fromTrusted(
-  code: code,
-  message: message,
-  traceId: traceId,
-  isRetryable: isRetryable,
-  violations: fieldErrors == null
-      ? violations
-      : [
-          for (final entry in fieldErrors.entries)
-            for (final msg in entry.value)
-              FieldViolation(
-                // A field name is ONE JSON Pointer token: names containing
-                // '/' or '~' must be escaped or they decode as extra path
-                // segments and collide with other fields (#review-2179).
-                path: '/${ZorphyPatchWire.pointerToken(entry.key)}',
-                expected: 'string',
-                actual: msg,
-              ),
-        ],
-);
-
-/// See [networkFailure].
-///
-/// Reason precedence: an explicit [reason] wins; otherwise a cascade-shaped
-/// [policyRule] maps to `cascadeDepth`; otherwise [policyRule] itself is used;
-/// `permission` is the final fallback for legacy callers that supply neither.
-PolicyDeniedFailure policyDeniedFailure(
-  String message, {
-  String? requiredPermission,
-  String? policyRule,
-  String? reason,
-  StackTrace? stackTrace,
-  Object? cause,
-  String? code,
-  String? traceId,
-  bool isRetryable = false,
-}) => PolicyDeniedFailure.fromTrusted(
-  code: code,
-  message: message,
-  traceId: traceId,
-  isRetryable: isRetryable,
-  reason: reason ?? _policyDeniedReason(policyRule),
-);
-
-String _policyDeniedReason(String? policyRule) {
-  if (policyRule == null || policyRule.isEmpty) return 'permission';
-  return policyRule.toLowerCase().contains('cascade')
-      ? 'cascadeDepth'
-      : policyRule;
-}
-
-/// See [networkFailure].
-NotFoundFailure notFoundFailure(
-  String message, {
-  String? resourceType,
-  String? resourceId,
-  StackTrace? stackTrace,
-  Object? cause,
-  String? code,
-  String? traceId,
-  bool isRetryable = false,
-}) => NotFoundFailure.fromTrusted(
-  code: code,
-  message: message,
-  traceId: traceId,
-  isRetryable: isRetryable,
-  resourceType: resourceType,
-  resourceId: resourceId,
-);
-
-/// See [networkFailure].
-ConflictFailure conflictFailure(
-  String message, {
-  String? conflictType,
-  Map<String, Object?>? localPatchWire,
-  Map<String, Object?>? remotePatchWire,
-  StackTrace? stackTrace,
-  Object? cause,
-  String? code,
-  String? traceId,
-  bool isRetryable = false,
-}) => ConflictFailure.fromTrusted(
-  code: code,
-  message: message,
-  traceId: traceId,
-  isRetryable: isRetryable,
-  localPatchWire: localPatchWire,
-  remotePatchWire: remotePatchWire,
-);
-
-/// See [networkFailure].
-CancelledFailure cancelledFailure([
-  String message = 'Operation was cancelled',
-]) => CancelledFailure.fromTrusted(message: message, isRetryable: false);
-
-/// See [networkFailure].
-InterruptedFailure interruptedFailure(
-  String message, {
-  String? intentDigest,
-  StackTrace? stackTrace,
-  Object? cause,
-  String? code,
-  String? traceId,
-  bool isRetryable = true,
-}) => InterruptedFailure.fromTrusted(
-  code: code,
-  message: message,
-  traceId: traceId,
-  isRetryable: isRetryable,
-  intentDigest: intentDigest,
-);
-
-/// See [networkFailure].
-StorageFailure storageFailure(
-  String message, {
-  String layer = 'cache',
-  StackTrace? stackTrace,
-  Object? cause,
-  String? code,
-  String? traceId,
-  bool isRetryable = false,
-}) => StorageFailure.fromTrusted(
-  code: code,
-  message: message,
-  traceId: traceId,
-  isRetryable: isRetryable,
-  layer: layer,
-);
-
-/// See [networkFailure].
-UnexpectedFailure unexpectedFailure(
-  String message, {
-  StackTrace? stackTrace,
-  Object? cause,
-  String? code,
-  dynamic details,
-  String? traceId,
-  bool isRetryable = false,
-}) => UnexpectedFailure.fromTrusted(
-  code: code,
-  message: message,
-  traceId: traceId,
-  isRetryable: isRetryable,
-  cause: cause?.toString(),
-  stackTrace: stackTrace?.toString(),
-);
-
-/// Classify an arbitrary [error] into the most specific [AppFailure] variant.
-///
-/// Replaces the v2 `AppFailure.from` body-factory (a body-logic factory cannot
-/// live on a generated union root). Detection order mirrors the v2 classifier.
-AppFailure appFailureFrom(Object error, [StackTrace? stackTrace]) {
-  if (error is AppFailure) return error;
-  final message = error.toString();
-  final lower = message.toLowerCase();
-
-  bool hasStatus(int code) => RegExp(
-    '(?:^|\\s|:)'
-    '$code'
-    r'(?:$|\s|:)',
-  ).hasMatch(lower);
-
-  // Network / server / service-unavailable / rate-limit → network.
-  if (lower.contains('socketexception') ||
-      (lower.contains('connection') &&
-          RegExp(r'refused|reset|closed|timeout|error').hasMatch(lower)) ||
-      lower.contains('network is unreachable') ||
-      lower.contains('no internet') ||
-      lower.contains('failed host lookup') ||
-      lower.contains('no address associated') ||
-      lower.contains('handshakeexception') ||
-      hasStatus(500) ||
-      lower.contains('rate limit')) {
-    return networkFailure(message);
-  }
-
-  // Timeout.
-  if (lower.contains('timeout') ||
-      lower.contains('timed out') ||
-      lower.contains('deadline exceeded')) {
-    return timeoutFailure(message);
-  }
-
-  // Not found, then auth, then validation — the v2 `AppFailure.from`
-  // precedence. An input matching both "403 forbidden" and "validation
-  // failed" must stay an authorization failure so its callers keep seeing
-  // the policy-denied case.
-  if (hasStatus(404) ||
-      (lower.contains('not found') && !lower.contains('exception')) ||
-      lower.contains('does not exist')) {
-    return notFoundFailure(message);
-  }
-
-  // Policy denied (auth / forbidden).
-  if (hasStatus(401) ||
-      lower.contains('unauthorized') ||
-      lower.contains('unauthenticated') ||
-      lower.contains('invalid token') ||
-      lower.contains('token expired')) {
-    return policyDeniedFailure(message, reason: 'unauthenticated');
-  }
-  if (hasStatus(403) || lower.contains('forbidden')) {
-    return policyDeniedFailure(message, reason: 'forbidden');
-  }
-
-  // Validation / boundary violation.
-  if (lower.contains('formatexception') ||
-      lower.contains('argumenterror') ||
-      lower.contains('rangeerror') ||
-      lower.contains('invalid argument') ||
-      lower.contains('validation failed')) {
-    return boundaryViolationFailure(message);
-  }
-
-  // Conflict.
-  if (hasStatus(409) ||
-      lower.contains('conflict') ||
-      lower.contains('duplicate') ||
-      lower.contains('already exists')) {
-    return conflictFailure(message);
-  }
-
-  // Server errors, checked after conflict as in the v2 chain.
-  if (hasStatus(502) ||
-      hasStatus(503) ||
-      hasStatus(504) ||
-      lower.contains('internal server error') ||
-      lower.contains('bad gateway') ||
-      lower.contains('service unavailable')) {
-    return networkFailure(message);
-  }
-
-  // Storage (cache / database).
-  if (lower.contains('hiveerror') ||
-      lower.contains('sqflite') ||
-      (lower.contains('database') && lower.contains('exception'))) {
-    return storageFailure(message, layer: 'database');
-  }
-  if (lower.contains('cache') && lower.contains('exception')) {
-    return storageFailure(message, layer: 'cache');
-  }
-
-  // Fallback.
-  return unexpectedFailure(message, cause: error, stackTrace: stackTrace);
-}
-
 /// The stack trace to attach when reporting [failure].
 ///
 /// An [UnexpectedFailure] carries the original throw site in its string
-/// `stackTrace`; that is more useful to a reporter than the stack captured
+/// [stackTrace]; that is more useful to a reporter than the stack captured
 /// where the already-built failure was caught and rethrown. Other variants
 /// have no stored trace, so the caught trace is used unchanged.
 StackTrace? reportedFailureStackTrace(AppFailure failure, StackTrace? caught) {
@@ -580,12 +457,12 @@ StackTrace? reportedFailureStackTrace(AppFailure failure, StackTrace? caught) {
 extension ExceptionToFailure on Exception {
   /// Convert this exception to an [AppFailure].
   AppFailure toFailure([StackTrace? stackTrace]) =>
-      appFailureFrom(this, stackTrace);
+      AppFailure.from(this, stackTrace);
 }
 
 /// Extension to convert errors to failures.
 extension ErrorToFailure on Error {
   /// Convert this error to an [AppFailure].
   AppFailure toFailure([StackTrace? stackTrace]) =>
-      appFailureFrom(this, stackTrace ?? this.stackTrace);
+      AppFailure.from(this, stackTrace ?? this.stackTrace);
 }
