@@ -249,11 +249,16 @@ void main() {
       reason: 'Mock data should be generated for enums',
     );
     final mockDataContent = File(mockDataPath).readAsStringSync();
-    // The mock data imports the enum from the enums directory — the specific
-    // enum file when it exists (`.../enums/permission_status.dart`), else the
-    // `index.dart` barrel — never the old nested
-    // `permission_status/permission_status.dart` path (issue #395 Bug B).
-    expect(mockDataContent, contains("domain/entities/enums/"));
+    // The mock data imports the enum from the file that DECLARES it — here the
+    // specific `enums/permission_status.dart`, not the barrel — and never a
+    // different enum in the same directory (e.g. `permission_type.dart`) nor
+    // the old nested `permission_status/permission_status.dart` path
+    // (issues #1735, #395 Bug B). Pin the complete import so a wrong enum in
+    // `enums/` cannot satisfy this assertion.
+    expect(
+      mockDataContent,
+      contains("../../domain/entities/enums/permission_status.dart"),
+    );
     expect(
       mockDataContent,
       isNot(
