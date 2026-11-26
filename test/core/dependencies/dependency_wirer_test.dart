@@ -20,6 +20,7 @@ void main() {
         expect(names, contains('json_annotation'));
         expect(names, contains('json_serializable'));
         expect(names, contains('flutter_lints'));
+        expect(names, contains('material_ui'));
         expect(names, contains('analyzer'));
       });
 
@@ -37,6 +38,7 @@ void main() {
           expect(names, contains('json_serializable'));
           expect(names, contains('test'));
           expect(names, isNot(contains('flutter_lints')));
+          expect(names, isNot(contains('material_ui')));
           expect(names, contains('analyzer'));
         },
       );
@@ -184,6 +186,7 @@ dependencies:
       path: zuraffa_flutter
       ref: development
   zuraffa_ui: ^0.1.0
+  material_ui: ^1.11.0
   zorphy_annotation:
     git:
       url: https://github.com/arrrrny/zorphy
@@ -216,6 +219,7 @@ dependencies:
   flutter:
     sdk: flutter
   zuraffa_ui: ^0.1.0
+  material_ui: ^1.11.0
   zorphy_annotation:
     git:
       url: https://github.com/arrrrny/zorphy
@@ -252,6 +256,7 @@ dependencies:
       url: https://github.com/arrrrny/zuraffa
       path: zuraffa_flutter
   zuraffa_ui: ^0.1.0
+  material_ui: ^1.11.0
   zorphy_annotation:
     git:
       url: https://github.com/arrrrny/zorphy
@@ -288,6 +293,7 @@ dependencies:
       url: https://github.com/arrrrny/zuraffa
       path: zuraffa_flutter
   zuraffa_ui: ^0.1.0
+  material_ui: ^1.11.0
   zorphy_annotation:
     git:
       url: https://github.com/arrrrny/zorphy
@@ -382,6 +388,7 @@ dependencies:
       url: https://github.com/arrrrny/zuraffa
       path: zuraffa_flutter
   zuraffa_ui: ^0.1.0
+  material_ui: ^1.11.0
   zorphy_annotation:
     git:
       url: https://github.com/arrrrny/zorphy

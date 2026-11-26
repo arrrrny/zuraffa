@@ -70,8 +70,8 @@ dependencies:
     // Class name + base type.
     expect(view, contains('class ProductView extends CleanView {'));
 
-    // Imports: Flutter material + zuraffa_flutter + relative layers.
-    expect(view, contains("import 'package:flutter/material.dart';"));
+    // Imports: Flutter material (material_ui) + zuraffa_flutter + relative layers.
+    expect(view, contains("import 'package:material_ui/material_ui.dart';"));
     expect(
       view,
       contains("import 'package:zuraffa_flutter/zuraffa_flutter.dart';"),

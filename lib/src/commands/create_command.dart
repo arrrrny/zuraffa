@@ -14,7 +14,14 @@ import '../core/project/project_root.dart';
 ///
 /// Kept as a string constant (never a real import) so this pure-Dart core
 /// command file has no `package:flutter/` dependency. See issue #495.
-const String _flutterMaterialImport = "import 'package:flutter/material.dart';";
+///
+/// Flutter 3.47 deprecates `package:flutter/material.dart` in favour of
+/// `package:material_ui/material_ui.dart`. Views generated through
+/// `createPage` must emit the same import as the view plugin
+/// (`view_plugin.dart`) and the regression baselines, which this PR already
+/// migrated. See review finding on `issue_512_pure_dart_flutter_import_guard_test.dart`.
+const String _flutterMaterialImport =
+    "import 'package:material_ui/material_ui.dart';";
 
 class CreateCommand {
   Future<void> execute(List<String> args) async {
