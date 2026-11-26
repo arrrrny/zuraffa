@@ -7,7 +7,7 @@ library;
 // three positional parameters:
 //
 //   1. `<idType> <config.idField>`  (the id)
-//   2. `Field<Entity, dynamic> field`  (the field to toggle)
+//   2. `ZorphyField<Entity, Object?> field`  (the field to toggle)
 //   3. `bool value`  (the new toggle value)
 //
 // The third parameter was hardcoded to the name `value`. When the entity
@@ -19,7 +19,7 @@ library;
 //
 //   Future<void> toggleBarcode(
 //     String value,                       // <-- id param named `value`
-//     Field<Barcode, dynamic> field,
+//     ZorphyField<Barcode, Object?> field,
 //     bool value, [                       // <-- toggle-value param ALSO `value`
 //     CancelToken? cancelToken,
 //   ]) ...

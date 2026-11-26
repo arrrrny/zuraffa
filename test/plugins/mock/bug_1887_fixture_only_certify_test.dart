@@ -38,7 +38,7 @@ import 'mock_cli_guard.dart';
 const _enumSource = 'enum SubscriptionTier { free, pro, enterprise }\n';
 
 /// A hand-written DTO (the #1747 shape): named fields, no `id`, no
-/// `copyWithField`, no `<Type>Patch` — no CRUD surface.
+/// `copyWith`, no `<Type>Patch` / `<Type>Fields` — no CRUD surface.
 const _dtoSource = '''
 class LoginResponse {
   final String userId;

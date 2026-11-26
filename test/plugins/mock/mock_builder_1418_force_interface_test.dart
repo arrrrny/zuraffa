@@ -17,17 +17,27 @@ import 'package:zuraffa/src/plugins/mock/services/mock_staleness_detector.dart';
 import 'package:zuraffa/src/utils/method_extractor.dart';
 
 // Issue #1747: the CRUD surface `zfa mock create` requires before it emits
-// the datasource/provider pair (a Zorphy entity's `id`, `copyWithField`,
+// the datasource/provider pair (a Zorphy entity's `id`, `copyWith`,
 // and `<Type>Patch` companion) — declared inline.
 const _entityFileContent = '''
 class Deal {
   final String id;
   const Deal(this.id);
 
-  Deal copyWithField(Object field, Object? value) => this;
+  Deal copyWith({Object? id}) => this;
 }
 
 class DealPatch {}
+
+/// v3 field registry the toggle writes through (`<E>Fields.<f>.set`).
+class DealFields {
+  static const Object id = _IdField();
+}
+
+class _IdField {
+  const _IdField();
+  Deal set(Deal existing, Object? value) => existing;
+}
 ''';
 
 // The stale interface the issue reproduces: written by run 1

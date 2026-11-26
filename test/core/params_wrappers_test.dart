@@ -55,9 +55,24 @@ void main() {
     });
   });
 
+  group('v3 field registry', () {
+    test('a predicate built through the erased `all` registry matches like '
+        'the typed one (zorphy#301)', () {
+      final field = _TestEntityFields.all.byPointer('/name');
+      expect(field, isNotNull);
+      final viaAll = field!.equals('Bob');
+      final typed = _TestEntityFields.name.equals('Bob');
+      const bob = _TestEntity(name: 'Bob');
+      const alice = _TestEntity(name: 'Alice');
+      expect(viaAll.matches(bob), isTrue);
+      expect(viaAll.matches(alice), isFalse);
+      expect(viaAll.toWire(), typed.toWire());
+    });
+  });
+
   group('QueryParams', () {
     test('should store filter and optional params', () {
-      const filter = Eq<_TestEntity, String>(_TestEntityFields.name, 'test');
+      final filter = _TestEntityFields.name.equals('test');
       const params = {'key': 'value'};
       final queryParams = QueryParams<_TestEntity>.fromTrusted(
         filter: filter,
@@ -69,7 +84,7 @@ void main() {
     });
 
     test('toJson serializes correctly', () {
-      const filter = Eq<_TestEntity, String>(_TestEntityFields.name, 'test');
+      final filter = _TestEntityFields.name.equals('test');
       final queryParams = QueryParams<_TestEntity>.fromTrusted(
         filter: filter,
         params: {'includeDeleted': true},
@@ -86,7 +101,7 @@ void main() {
     });
 
     test('copyWith should allow partial updates', () {
-      const filter = Eq<_TestEntity, String>(_TestEntityFields.name, 'test');
+      final filter = _TestEntityFields.name.equals('test');
       final q = QueryParams<_TestEntity>.fromTrusted(
         filter: filter,
         params: {'key': 'value'},
@@ -100,14 +115,21 @@ void main() {
       expect(updated.params?['new'], 'value');
     });
 
-    test('equality should work correctly', () {
-      const filter1 = Eq<_TestEntity, String>(_TestEntityFields.name, 'test');
-      const filter2 = Eq<_TestEntity, String>(_TestEntityFields.name, 'test');
-      final q1 = QueryParams<_TestEntity>.fromTrusted(filter: filter1);
-      final q2 = QueryParams<_TestEntity>.fromTrusted(filter: filter2);
+    test('equality: same predicate instance, and params compared by value', () {
+      // v3 predicates carry no value equality (neither did v2 — two `const Eq`
+      // compared equal only through const canonicalization), so QueryParams
+      // equality is by the SAME predicate instance, never by an equal-valued
+      // one built twice.
+      final filter = _TestEntityFields.name.equals('test');
+      final q1 = QueryParams<_TestEntity>.fromTrusted(filter: filter);
+      final q2 = QueryParams<_TestEntity>.fromTrusted(filter: filter);
+      final sameValue = QueryParams<_TestEntity>.fromTrusted(
+        filter: _TestEntityFields.name.equals('test'),
+      );
       final q3 = QueryParams<_TestEntity>.fromTrusted();
 
       expect(q1, equals(q2));
+      expect(q1, isNot(equals(sameValue)));
       expect(q1, isNot(equals(q3)));
     });
 
@@ -119,7 +141,7 @@ void main() {
       ];
 
       final params = QueryParams<_TestEntity>.fromTrusted(
-        filter: Eq(_TestEntityFields.name, 'Bob'),
+        filter: _TestEntityFields.name.equals('Bob'),
       );
 
       final result = entities.query(params);
@@ -178,7 +200,7 @@ void main() {
       const entities = [_TestEntity(name: 'Alice')];
 
       final params = QueryParams<_TestEntity>.fromTrusted(
-        filter: Eq(_TestEntityFields.name, 'Zoe'),
+        filter: _TestEntityFields.name.equals('Zoe'),
       );
 
       expect(() => entities.query(params), throwsA(isA<NotFoundFailure>()));
@@ -206,7 +228,7 @@ void main() {
 
       final result = entities.query(
         QueryParams<_TestEntity>.fromTrusted(
-          filter: Eq(_TestEntityFields.name, 'Alice'),
+          filter: _TestEntityFields.name.equals('Alice'),
         ),
       );
 
@@ -229,8 +251,8 @@ void main() {
       const nameField = _TestEntityFields.name;
       final q = ListQueryParams<_TestEntity>.fromTrusted(
         search: 'test',
-        filter: Eq<_TestEntity, String>(nameField, 'active'),
-        sort: Sort<_TestEntity>.asc(nameField),
+        filter: nameField.equals('active'),
+        sort: nameField.asc(),
         limit: 10,
         offset: 0,
         params: const {'custom': 1},
@@ -271,8 +293,8 @@ void main() {
       const nameField = _TestEntityFields.name;
       final q = ListQueryParams<_TestEntity>.fromTrusted(
         search: 'test',
-        filter: Eq<_TestEntity, String>(nameField, 'active'),
-        sort: Sort<_TestEntity>.desc(nameField),
+        filter: nameField.equals('active'),
+        sort: nameField.desc(),
         limit: 20,
         offset: 5,
         params: {'custom': 'value'},
@@ -281,7 +303,10 @@ void main() {
       final map = listQueryParamsToWire(q);
       expect(map['search'], 'test');
       expect(map['sort'], isA<Map>());
-      expect((map['sort'] as Map)['field'], 'name');
+      // v3 wire contract: a sort names its field by JSON Pointer
+      // (ZorphySort.toWire), which ZorphySort.fromWire resolves through
+      // `<E>Fields.all.byPointer`. (v2 emitted the bare field name.)
+      expect((map['sort'] as Map)['field'], '/name');
       expect((map['sort'] as Map)['descending'], true);
       expect(map['limit'], 20);
       expect(map['offset'], 5);
@@ -460,6 +485,9 @@ class _TestEntity {
   final String tag;
 
   const _TestEntity({required this.name, this.tag = ''});
+
+  _TestEntity copyWith({String? name, String? tag}) =>
+      _TestEntity(name: name ?? this.name, tag: tag ?? this.tag);
 }
 
 class _JsonEntity {
@@ -481,9 +509,20 @@ class _LeanEntity {
   Map<String, dynamic> toJsonLean() => {'id': id};
 }
 
-// Mock Fields class for testing
+// Hand-written mirror of a v3 `<E>Fields` registry: a write-capable
+// ZorphyField per field, with the erased `all` list (zorphy#301).
 class _TestEntityFields {
-  static const name = Field<_TestEntity, String>('name', _getName);
+  static const ZorphyField<_TestEntity, String> name =
+      ZorphyField<_TestEntity, String>(
+        name: 'name',
+        jsonKey: 'name',
+        pointer: '/name',
+        get: _getName,
+        set: _setName,
+      );
+  static final List<ZorphyField<_TestEntity, Object?>> all = [name.asObject];
 
   static String _getName(_TestEntity entity) => entity.name;
+  static _TestEntity _setName(_TestEntity entity, String value) =>
+      entity.copyWith(name: value);
 }

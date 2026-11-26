@@ -54,7 +54,7 @@ void main() {
     final repoContent = repoFile.readAsStringSync();
     expect(
       repoContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, Field<Todo, dynamic>> params)',
+        'Future<Todo> toggle(ToggleParams<String, ZorphyField<Todo, Object?>> params)',
       ),
       isTrue,
     );
@@ -67,7 +67,7 @@ void main() {
     final useCaseContent = useCaseFile.readAsStringSync();
     expect(
       useCaseContent.contains(
-        'extends UseCase<Todo, ToggleParams<String, Field<Todo, dynamic>>>',
+        'extends UseCase<Todo, ToggleParams<String, ZorphyField<Todo, Object?>>>',
       ),
       isTrue,
     );
@@ -80,7 +80,7 @@ void main() {
     final dataRepoContent = dataRepoFile.readAsStringSync();
     expect(
       dataRepoContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, Field<Todo, dynamic>> params)',
+        'Future<Todo> toggle(ToggleParams<String, ZorphyField<Todo, Object?>> params)',
       ),
       isTrue,
     );
@@ -94,7 +94,7 @@ void main() {
     final dataSourceContent = dataSourceFile.readAsStringSync();
     expect(
       dataSourceContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, Field<Todo, dynamic>> params)',
+        'Future<Todo> toggle(ToggleParams<String, ZorphyField<Todo, Object?>> params)',
       ),
       isTrue,
     );
@@ -107,7 +107,7 @@ void main() {
     final remoteContent = remoteFile.readAsStringSync();
     expect(
       remoteContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, Field<Todo, dynamic>> params) async',
+        'Future<Todo> toggle(ToggleParams<String, ZorphyField<Todo, Object?>> params) async',
       ),
       isTrue,
     );
@@ -126,15 +126,14 @@ void main() {
     final localContent = localFile.readAsStringSync();
     expect(
       localContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, Field<Todo, dynamic>> params) async',
+        'Future<Todo> toggle(ToggleParams<String, ZorphyField<Todo, Object?>> params) async',
       ),
       isTrue,
     );
     expect(
-      localContent.contains(
-        'existing.copyWithField(params.field, params.value)',
-      ),
+      localContent.contains('params.field.set(existing, params.value)'),
       isTrue,
+      reason: 'the local toggle writes through the field descriptor (v3)',
     );
 
     // 7. Check State (for isToggling flag)
@@ -242,7 +241,10 @@ void main() {
         reason: 'native mock datasource must be wired into the repository',
       );
       // The params constructor must match the usecase generator's signature.
-      expect(content, contains('ToggleParams<String, Field<Todo, dynamic>>'));
+      expect(
+        content,
+        contains('ToggleParams<String, ZorphyField<Todo, Object?>>'),
+      );
       // The Field constant must come from the entity's Fields class
       // (config.queryField defaults to 'id').
       expect(content, contains('TodoFields.id'));

@@ -2,7 +2,7 @@
 //
 // `zfa make`'s toggle method generator declared three positional parameters:
 //   1. `<idType> <config.idField>`  (the id)
-//   2. `Field<Entity, dynamic> field`  (the field to toggle)
+//   2. `ZorphyField<Entity, Object?> field`  (the field to toggle)
 //   3. `bool value`  (the new toggle value)
 //
 // The third parameter was hardcoded to the name `value`. When the entity has a
@@ -87,7 +87,7 @@ void main() {
       expect(
         content,
         contains(
-          'ToggleParams<String, Field<Barcode, dynamic>>.fromTrusted(\n'
+          'ToggleParams<String, ZorphyField<Barcode, Object?>>.fromTrusted(\n'
           '        id: value,\n'
           '        field: field,\n'
           '        value: toggleValue,',

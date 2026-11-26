@@ -20,10 +20,20 @@ class Deal {
   final String id;
   const Deal(this.id);
 
-  Deal copyWithField(Object field, Object? value) => this;
+  Deal copyWith({Object? id}) => this;
 }
 
 class DealPatch {}
+
+/// v3 field registry the toggle writes through (`<E>Fields.<f>.set`).
+class DealFields {
+  static const Object id = _IdField();
+}
+
+class _IdField {
+  const _IdField();
+  Deal set(Deal existing, Object? value) => existing;
+}
 ''';
 
 // Hand-maintained interface content the issue reproduces: it carries a

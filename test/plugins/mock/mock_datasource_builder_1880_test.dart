@@ -19,10 +19,20 @@ class ScanSession {
   final String id;
   const ScanSession(this.id);
 
-  ScanSession copyWithField(Object field, Object? value) => this;
+  ScanSession copyWith({Object? id}) => this;
 }
 
 class ScanSessionPatch {}
+
+/// v3 field registry the toggle writes through (`<E>Fields.<f>.set`).
+class ScanSessionFields {
+  static const Object id = _IdField();
+}
+
+class _IdField {
+  const _IdField();
+  ScanSession set(ScanSession existing, Object? value) => existing;
+}
 
 class Credentials {}
 ''';

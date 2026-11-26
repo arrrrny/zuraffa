@@ -56,7 +56,7 @@ class SubscriptionTierMockData {
 }
 ''';
 
-// A real CRUD entity (identity + copyWithField + Patch): the shape the
+// A real CRUD entity (identity + copyWith + Patch + Fields): the shape the
 // #1894 refusal must KEEP guarding.
 const _productSource = '''
 class Product {
@@ -64,10 +64,20 @@ class Product {
   final String name;
   const Product({required this.id, required this.name});
 
-  Product copyWithField(Object field, Object? value) => this;
+  Product copyWith({Object? id}) => this;
 }
 
 class ProductPatch {}
+
+/// v3 field registry the toggle writes through (`<E>Fields.<f>.set`).
+class ProductFields {
+  static const Object id = _IdField();
+}
+
+class _IdField {
+  const _IdField();
+  Product set(Product existing, Object? value) => existing;
+}
 ''';
 
 void main() {

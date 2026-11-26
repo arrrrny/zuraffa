@@ -4,7 +4,7 @@ import 'package:zuraffa/zuraffa.dart';
 void main() {
   group('QueryParams', () {
     test('QueryParams initialization', () {
-      const filter = Eq<_TestEntity, String>(_TestEntityFields.name, 'test');
+      final filter = _TestEntityFields.name.equals('test');
       // Use Map directly instead of Params wrapper
       const params1 = {'a': 1};
 
@@ -24,15 +24,15 @@ void main() {
     });
 
     test('should work with only filter', () {
-      final filter = AlwaysMatch<String>();
+      final filter = alwaysMatch<String>();
       final queryParams = QueryParams<String>.fromTrusted(filter: filter);
       expect(queryParams.filter, filter);
       expect(queryParams.params, isNull);
     });
 
     test('copyWith should update fields correctly', () {
-      final filter1 = AlwaysMatch<String>();
-      final filter2 = AlwaysMatch<String>();
+      final filter1 = alwaysMatch<String>();
+      final filter2 = alwaysMatch<String>();
       final queryParams = QueryParams<String>.fromTrusted(filter: filter1);
       const newParams = {'filter': 'active'};
 
@@ -43,7 +43,7 @@ void main() {
     });
 
     test('copyWith should clear fields when requested', () {
-      final filter = AlwaysMatch<String>();
+      final filter = alwaysMatch<String>();
       const params = {'key': 'value'};
 
       // copyWith doesn't support clearing, so we create new instances to simulate clearing
@@ -63,8 +63,8 @@ void main() {
     });
 
     test('equality should work correctly', () {
-      final filter1a = AlwaysMatch<String>();
-      final filter2 = AlwaysMatch<String>();
+      final filter1a = alwaysMatch<String>();
+      final filter2 = alwaysMatch<String>();
       const params1 = {'a': 1};
       const params2 = {'b': 2};
 
@@ -91,7 +91,7 @@ void main() {
     });
 
     test('hashCode should be consistent for same instance', () {
-      final filter = AlwaysMatch<String>();
+      final filter = alwaysMatch<String>();
       const params = {'a': 1};
 
       final q1 = QueryParams<String>.fromTrusted(
@@ -107,13 +107,13 @@ void main() {
     });
 
     test('toString should be descriptive', () {
-      final filter = AlwaysMatch<String>();
+      final filter = alwaysMatch<String>();
       final queryParams = QueryParams<String>.fromTrusted(filter: filter);
       expect(queryParams.toString(), contains('QueryParams(filter: '));
     });
 
     test('toQueryMap should serialize filter and params', () {
-      const filter = Eq<_TestEntity, String>(_TestEntityFields.name, 'test');
+      final filter = _TestEntityFields.name.equals('test');
       const params = {'includeDeleted': true};
       final queryParams = QueryParams<_TestEntity>.fromTrusted(
         filter: filter,
@@ -132,11 +132,22 @@ void main() {
 class _TestEntity {
   final String name;
   const _TestEntity({required this.name});
+  _TestEntity copyWith({String? name}) => _TestEntity(name: name ?? this.name);
 }
 
-// Mock Fields class for testing
+// Hand-written mirror of a v3 `<E>Fields` registry: a write-capable
+// ZorphyField per field, with the erased `all` list (zorphy#301).
 class _TestEntityFields {
-  static const name = Field<_TestEntity, String>('name', _getName);
+  static const ZorphyField<_TestEntity, String> name =
+      ZorphyField<_TestEntity, String>(
+        name: 'name',
+        jsonKey: 'name',
+        pointer: '/name',
+        get: _getName,
+        set: _setName,
+      );
 
   static String _getName(_TestEntity entity) => entity.name;
+  static _TestEntity _setName(_TestEntity entity, String value) =>
+      entity.copyWith(name: value);
 }

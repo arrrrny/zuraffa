@@ -1,7 +1,7 @@
 // Issue #1747: `zfa mock create <Type>` classified ANY non-enum named type
 // as a CRUD entity and emitted a CRUD datasource/provider pair whose body
 // calls members a plain DTO / value class does not have (`id`,
-// `copyWithField`, a `<Type>Patch` companion). The emitted pair did not
+// `copyWith`, a `<Type>Patch` + `<Type>Fields` companion). The emitted pair did not
 // compile, and the mock certification still reported `(conforms)` — the
 // non-compiling output was never flagged.
 //
@@ -30,7 +30,7 @@ Future<List<String>> _capturePrints(Future<void> Function() body) async {
 }
 
 /// A hand-written DTO (the `LoginResponse` shape from the issue): named
-/// fields, no `id`, no `copyWithField`, no `<Type>Patch`.
+/// fields, no `id`, no `copyWith`, no `<Type>Patch` / `<Type>Fields`.
 const _loginResponseEntity = '''
 class LoginResponse {
   final String userId;
@@ -45,15 +45,16 @@ class LoginResponse {
 }
 ''';
 
-/// A realistic Zorphy entity: the abstract `\$<Type>` source file plus the
-/// generated `.zorphy.dart` part that carries the concrete class, its
-/// `copyWithField`, and the `<Type>Patch` companion.
+/// A realistic Zorphy v3 entity: the abstract `\$<Type>` source file plus the
+/// generated shared part that carries the concrete class, its `copyWith`, and
+/// the `<Type>Patch` + `<Type>Fields` companions (the surface `zfa make`
+/// reads to classify a type as CRUD-able).
 const _todoEntity = '''
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 
-part 'todo.zorphy.dart';
+part 'todo.part.dart';
 
-@Zorphy(generateJson: true)
+@ZorphyEntity(principalKey: #id)
 abstract class \$Todo {
   String get id;
   String get title;
@@ -63,28 +64,34 @@ abstract class \$Todo {
 const _todoZorphyPart = '''
 part of 'todo.dart';
 
-class Todo {
-  Todo({required String this.id, required String this.title});
+final class Todo {
+  const Todo.fromTrusted({required this.id, required this.title});
 
   final String id;
   final String title;
 
   Todo copyWith({String? id, String? title}) {
-    return Todo(id: id ?? this.id, title: title ?? this.title);
-  }
-
-  Todo copyWithField<T>(Field<Todo, T> field, T value) {
-    switch (field.name) {
-      case 'id':
-        return copyWith(id: value as String);
-      default:
-        return this;
-    }
+    return Todo.fromTrusted(id: id ?? this.id, title: title ?? this.title);
   }
 }
 
-class TodoPatch extends PatchBase<Todo, Todo\$> {
-  TodoPatch({Todo\$? changes});
+abstract final class TodoFields {
+  static const ZorphyField<Todo, String> id = ZorphyField<Todo, String>(
+    name: 'id', jsonKey: 'id', pointer: '/id', get: _getId, set: _setId,
+  );
+  static final List<ZorphyField<Todo, Object?>> all = [id.asObject];
+  static String _getId(Todo root) => root.id;
+  static Todo _setId(Todo root, String value) => root.copyWith(id: value);
+}
+
+final class TodoPatch implements ZorphyPatch<Todo> {
+  const TodoPatch({this.id = const PatchValue.unchanged()});
+  final PatchValue<String> id;
+  bool get isEmpty => id.isUnchanged;
+  bool get isNotEmpty => !isEmpty;
+  Todo apply(covariant Todo target) => target.copyWith(
+    id: id.isUnchanged ? target.id : id.valueOrNull,
+  );
 }
 ''';
 
@@ -284,7 +291,7 @@ class ShellNavItem {
     await entityDir.create(recursive: true);
     await File('${entityDir.path}/todo.dart').writeAsString(_todoEntity);
     await File(
-      '${entityDir.path}/todo.zorphy.dart',
+      '${entityDir.path}/todo.part.dart',
     ).writeAsString(_todoZorphyPart);
 
     final builder = MockBuilder(

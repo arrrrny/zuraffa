@@ -22,7 +22,7 @@ Future<List<String>> _capturePrints(Future<void> Function() body) async {
 
 /// Issue #1747: `zfa mock create` only emits the CRUD datasource/provider
 /// pair for a type that carries the surface that pair's body calls — an
-/// identity, a `copyWithField`, and a `<Type>Patch` companion. A Zorphy
+/// identity, a `copyWith`, and a `<Type>Patch` + `<Type>Fields` companion. A Zorphy
 /// entity gets all three from its `.zorphy.dart` part; this fixture is the
 /// same surface declared inline.
 const _productEntitySource = '''
@@ -30,10 +30,20 @@ class Product {
   final String id;
   const Product(this.id);
 
-  Product copyWithField(Object field, Object? value) => this;
+  Product copyWith({Object? id}) => this;
 }
 
 class ProductPatch {}
+
+/// v3 field registry the toggle writes through (`<E>Fields.<f>.set`).
+class ProductFields {
+  static const Object id = _IdField();
+}
+
+class _IdField {
+  const _IdField();
+  Product set(Product existing, Object? value) => existing;
+}
 ''';
 
 void main() {
@@ -188,12 +198,13 @@ void main() {
     // Check for inherited 'id' and current 'barcode'
     expect(content.contains("barcode: 'barcode 1'"), isTrue);
     expect(content.contains("id: 'id 1'"), isTrue);
-    expect(
-      content.contains(
-        "BarcodeListing(barcode: 'barcode \$seed', id: 'id \$seed')",
-      ),
-      isTrue,
-    );
+    // v3 entities have no unnamed constructor: the mock builds through
+    // `fromTrusted` (hosted dev.3), never `BarcodeListing(...)`. Pinned on
+    // the stable fragments — the emitter wraps long argument lists.
+    expect(content, contains('BarcodeListing.fromTrusted('));
+    expect(content, contains("barcode: 'barcode \$seed'"));
+    expect(content, contains("id: 'id \$seed'"));
+    expect(content, isNot(contains('BarcodeListing(barcode:')));
   });
 
   test('generates stream return type for mock custom usecase', () async {

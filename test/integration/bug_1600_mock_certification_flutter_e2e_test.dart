@@ -61,32 +61,72 @@ void main() {
     );
     await entityDir.create(recursive: true);
     await File(p.join(entityDir.path, 'login.dart')).writeAsString('''
-import 'package:zuraffa/mock.dart';
+import 'package:zorphy_annotation/zorphy_annotation.dart';
 
-class Login {
+final class Login {
+  const Login.fromTrusted({required this.id, required this.username});
+
   final String id;
   final String username;
-  const Login({required this.id, required this.username});
 
-  Login copyWith({String? id, String? username}) => Login(
-        id: id ?? this.id,
-        username: username ?? this.username,
-      );
-
-  Login copyWithField(Field<Login, dynamic> field, dynamic value) {
-    switch (field.name) {
-      case 'id':
-        return copyWith(id: value as String);
-      case 'username':
-        return copyWith(username: value as String);
-      default:
-        throw ArgumentError.value(field.name, 'field');
-    }
-  }
+  Login copyWith({String? id, String? username}) => Login.fromTrusted(
+    id: id ?? this.id,
+    username: username ?? this.username,
+  );
 }
 
-class LoginPatch {
-  Login applyTo(Login entity) => entity;
+abstract final class LoginFields {
+  static const ZorphyField<Login, String> id = ZorphyField<Login, String>(
+    name: 'id', jsonKey: 'id', pointer: '/id', get: _getId, set: _setId,
+  );
+  static const ZorphyField<Login, String> username =
+      ZorphyField<Login, String>(
+        name: 'username', jsonKey: 'username', pointer: '/username',
+        get: _getUsername, set: _setUsername,
+      );
+  static final List<ZorphyField<Login, Object?>> all = [
+    id.asObject,
+    username.asObject,
+  ];
+
+  static String _getId(Login root) => root.id;
+  static Login _setId(Login root, String value) => root.copyWith(id: value);
+  static String _getUsername(Login root) => root.username;
+  static Login _setUsername(Login root, String value) =>
+      root.copyWith(username: value);
+}
+
+final class LoginPatch implements ZorphyPatch<Login> {
+  const LoginPatch({
+    this.id = const PatchValue.unchanged(),
+    this.username = const PatchValue.unchanged(),
+  });
+
+  final PatchValue<String> id;
+  final PatchValue<String> username;
+
+  @override
+  bool get isEmpty => id.isUnchanged && username.isUnchanged;
+  @override
+  bool get isNotEmpty => !isEmpty;
+
+  @override
+  Login apply(covariant Login target) => target.copyWith(
+    id: id.isUnchanged ? target.id : id.valueOrNull,
+    username: username.isUnchanged ? target.username : username.valueOrNull,
+  );
+
+  @override
+  ZorphyPatch<Login> compose(covariant ZorphyPatch<Login> next) => next;
+
+  @override
+  ZorphyPatch<Login> invert(Login before) => LoginPatch(
+    id: PatchValue<String>.set(before.id),
+    username: PatchValue<String>.set(before.username),
+  );
+
+  @override
+  Map<String, Object?> toWire() => const <String, Object?>{};
 }
 ''');
     // The HOST shape under test (#1600): a Flutter project. zuraffa rides

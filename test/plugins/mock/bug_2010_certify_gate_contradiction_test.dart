@@ -205,7 +205,7 @@ void _scaffoldProduct(String root) {
   );
   dir.createSync(recursive: true);
   // The same #1747 surface the sibling gate tests scaffold: identity,
-  // `copyWithField`, and a `<Type>Patch` companion (the CRUD pair's body
+  // `copyWith`, and a `<Type>Patch` + `<Type>Fields` companion (the CRUD pair's body
   // calls all three).
   File(p.join(dir.path, 'product.dart')).writeAsStringSync('''
 class Product {
@@ -213,9 +213,19 @@ class Product {
   final String name;
   const Product({required this.id, required this.name});
 
-  Product copyWithField(Object field, Object? value) => this;
+  Product copyWith({Object? id}) => this;
 }
 
 class ProductPatch {}
+
+/// v3 field registry the toggle writes through (`<E>Fields.<f>.set`).
+class ProductFields {
+  static const Object id = _IdField();
+}
+
+class _IdField {
+  const _IdField();
+  Product set(Product existing, Object? value) => existing;
+}
 ''');
 }

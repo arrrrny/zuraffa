@@ -31,7 +31,7 @@ import '../../../domain/entities/login/login.dart';
 abstract class LoginDataSource with Loggable, FailureHandler {
   Future<Login> get(QueryParams<Login> params);
   Future<Login> update(UpdateParams<String, LoginPatch> params);
-  Future<Login> toggle(ToggleParams<String, Field<Login, dynamic>> params);
+  Future<Login> toggle(ToggleParams<String, ZorphyField<Login, Object?>> params);
   Future<int> count();
 }
 ''');
@@ -121,7 +121,7 @@ abstract class LoginDataSource with Loggable, FailureHandler {
       expect(
         source.contains(
           'final Future<Login> Function('
-          'ToggleParams<String, Field<Login, dynamic>>) toggle\$ =',
+          'ToggleParams<String, ZorphyField<Login, Object?>>) toggle\$ =',
         ),
         isTrue,
       );
@@ -158,11 +158,13 @@ abstract class LoginDataSource with Loggable, FailureHandler {
           ),
           isTrue,
         );
-        // toggle: constructed Field from the id field name + a
-        // type-correct sample value (the repo's toggleSampleValue
-        // convention — copyWithField casts the value).
-        expect(source.contains("const Field<Login, dynamic>('id')"), isTrue);
-        expect(source.contains("value: 'toggled')"), isTrue);
+        // toggle: the registry's own erased descriptor for the id field —
+        // a real write path (`set`), never a fabricated query-only Field
+        // (zorphy#301) — plus a type-correct sample value (the repo's
+        // toggleSampleValue convention; `set` casts the value).
+        expect(source.contains('field: LoginFields.id.asObject'), isTrue);
+        expect(source, isNot(contains("ZorphyField<Login, Object?>('id')")));
+        expect(source.contains("value: 'toggled'"), isTrue);
       },
     );
 

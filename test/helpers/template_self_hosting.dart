@@ -51,10 +51,10 @@ const Map<String, String> kFixtureEntityFields = {
 };
 
 /// The entity stub written into every fixture project. Shape-mirrors the
-/// zorphy-generated entity surface the generators reference (hand-written
-/// because build_runner/zorphy is out of scope for a template fixture):
-/// the entity itself plus the `ProductFields` descriptor class generated
-/// presenters reference (`Eq(ProductFields.id, ...)`).
+/// zorphy v3 entity surface the generators reference (hand-written because
+/// build_runner/zorphy is out of scope for a template fixture): the entity
+/// itself plus the `ProductFields` registry generated presenters reference
+/// (`ProductFields.id.equals(...)`).
 const String fixtureEntitySource = '''
 import 'package:zuraffa/zuraffa.dart';
 
@@ -84,9 +84,24 @@ class Product {
 class ProductFields {
   const ProductFields._();
 
-  static const Field<Product, String> id = Field<Product, String>('id');
-  static const Field<Product, String> name = Field<Product, String>('name');
-  static const Field<Product, double> price = Field<Product, double>('price');
+  static const ZorphyField<Product, String> id = ZorphyField<Product, String>(
+    name: 'id', jsonKey: 'id', pointer: '/id',
+    get: _getId, set: _setId,
+  );
+  static const ZorphyField<Product, String> name = ZorphyField<Product, String>(
+    name: 'name', jsonKey: 'name', pointer: '/name',
+    get: _getName, set: _setName,
+  );
+  static const ZorphyField<Product, double> price = ZorphyField<Product, double>(
+    name: 'price', jsonKey: 'price', pointer: '/price',
+    get: _getPrice, set: _setPrice,
+  );
+  static String _getId(Product p) => p.id;
+  static Product _setId(Product p, String v) => p.copyWith(id: v);
+  static String _getName(Product p) => p.name;
+  static Product _setName(Product p, String v) => p.copyWith(name: v);
+  static double _getPrice(Product p) => p.price;
+  static Product _setPrice(Product p, double v) => p.copyWith(price: v);
 }
 ''';
 

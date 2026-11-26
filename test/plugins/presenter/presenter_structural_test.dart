@@ -107,42 +107,39 @@ dependencies:
     expect(content, contains('final ProductRepository productRepository;'));
   });
 
-  test(
-    'registers the use case and exposes the typed method signature',
-    () async {
-      final files = await buildPlugin().generate(
-        GeneratorConfig(
-          name: 'Product',
-          methods: ['get'],
-          generatePresenter: true,
-          outputDir: outputDir,
-        ),
-      );
+  test('registers the use case and exposes the typed method signature', () async {
+    final files = await buildPlugin().generate(
+      GeneratorConfig(
+        name: 'Product',
+        methods: ['get'],
+        generatePresenter: true,
+        outputDir: outputDir,
+      ),
+    );
 
-      final content = File(files.single.path).readAsStringSync();
+    final content = File(files.single.path).readAsStringSync();
 
-      // Use-case registration stub body.
-      expect(
-        content,
-        contains('registerUseCase(GetProductUseCase(productRepository))'),
-      );
-      expect(content, contains('late final GetProductUseCase _getProduct;'));
+    // Use-case registration stub body.
+    expect(
+      content,
+      contains('registerUseCase(GetProductUseCase(productRepository))'),
+    );
+    expect(content, contains('late final GetProductUseCase _getProduct;'));
 
-      // Typed method signature + query stub body. The formatter wraps long
-      // signatures, so assert on stable fragments.
-      expect(
-        content,
-        contains('Future<Result<Product, AppFailure>> getProduct('),
-      );
-      expect(content, contains('String id,'));
-      expect(content, contains('CancelToken? cancelToken,'));
-      expect(content, contains('_getProduct.call('));
-      expect(
-        content,
-        contains(
-          'QueryParams<Product>.fromTrusted(filter: Eq(ProductFields.id, id))',
-        ),
-      );
-    },
-  );
+    // Typed method signature + query stub body. The formatter wraps long
+    // signatures, so assert on stable fragments.
+    expect(
+      content,
+      contains('Future<Result<Product, AppFailure>> getProduct('),
+    );
+    expect(content, contains('String id,'));
+    expect(content, contains('CancelToken? cancelToken,'));
+    expect(content, contains('_getProduct.call('));
+    expect(
+      content,
+      contains(
+        'QueryParams<Product>.fromTrusted(filter: ProductFields.id.equals(id))',
+      ),
+    );
+  });
 }

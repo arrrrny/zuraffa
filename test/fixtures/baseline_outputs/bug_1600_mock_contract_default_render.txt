@@ -43,11 +43,11 @@ final value = await dataSource.update(UpdateParams<String, LoginPatch>.fromTrust
 
     test('toggle: exists, returns Future<Login>, fake with typed defaults', () async {
       // Signature pin — interface drift breaks this file.
-      final Future<Login> Function(ToggleParams<String, Field<Login, dynamic>>) toggle$ =
+      final Future<Login> Function(ToggleParams<String, ZorphyField<Login, Object?>>) toggle$ =
           dataSource.toggle;
       expect(toggle$, isNotNull);
       // Behavioral: the fake returns typed default data (no throw).
-final value = await dataSource.toggle(ToggleParams<String, Field<Login, dynamic>>.fromTrusted(id: LoginMockData.logins.first.id, field: const Field<Login, dynamic>('id'), value: 'toggled'));
+final value = await dataSource.toggle(ToggleParams<String, ZorphyField<Login, Object?>>.fromTrusted(id: LoginMockData.logins.first.id, field: LoginFields.id.asObject, value: 'toggled'));
       expect(value, isA<Login>());
     });
   });

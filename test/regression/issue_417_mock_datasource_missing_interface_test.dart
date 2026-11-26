@@ -54,13 +54,23 @@ class StopPolicy {
   final int maxTurns;
   const StopPolicy({required this.id, required this.maxTurns});
 
-  StopPolicy copyWithField(Object field, Object? value) => this;
+  StopPolicy copyWith({Object? id}) => this;
 }
 
 class StopPolicyPatch {
   final String? id;
   final int? maxTurns;
   const StopPolicyPatch({this.id, this.maxTurns});
+}
+
+/// v3 field registry the toggle writes through (`<E>Fields.<f>.set`).
+class StopPolicyFields {
+  static const Object id = _IdField();
+}
+
+class _IdField {
+  const _IdField();
+  StopPolicy set(StopPolicy existing, Object? value) => existing;
 }
 ''');
     fs = FileSystem.create(root: workspace.path);

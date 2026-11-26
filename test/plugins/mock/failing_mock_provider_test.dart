@@ -31,16 +31,26 @@ void main() {
     dir.createSync(recursive: true);
     // Issue #1747: the CRUD surface `zfa mock create` requires before it
     // emits the datasource/provider pair (a Zorphy entity's `id`,
-    // `copyWithField`, and `<Type>Patch` companion) — declared inline.
+    // `copyWith`, `<Type>Patch` + `<Type>Fields` companions) — declared
+    // inline.
     File('${dir.path}/${name.toLowerCase()}.dart').writeAsStringSync('''
 class $name {
   final String id;
   const $name(this.id);
 
-  $name copyWithField(Object field, Object? value) => this;
+  $name copyWith({Object? id}) => this;
 }
 
 class ${name}Patch {}
+
+class ${name}Fields {
+  static const Object id = _IdField();
+}
+
+class _IdField {
+  const _IdField();
+  $name set($name existing, Object? value) => existing;
+}
 ''');
   }
 

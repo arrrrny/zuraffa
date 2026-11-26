@@ -78,10 +78,20 @@ class Product {
 
   const Product({required this.id});
 
-  Product copyWithField(Object field, Object? value) => this;
+  Product copyWith({Object? id}) => this;
 }
 
 class ProductPatch {}
+
+/// v3 field registry the toggle writes through (`<E>Fields.<f>.set`).
+class ProductFields {
+  static const Object id = _IdField();
+}
+
+class _IdField {
+  const _IdField();
+  Product set(Product existing, Object? value) => existing;
+}
 ''');
   });
 

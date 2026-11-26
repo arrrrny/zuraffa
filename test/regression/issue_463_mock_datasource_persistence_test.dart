@@ -57,10 +57,20 @@ void main() {
       '\n'
       '  const Task(this.id, this.spec, this.status);\n'
       '\n'
-      '  Task copyWithField(Object field, Object? value) => this;\n'
+      '  Task copyWith({Object? id}) => this;\n'
       '}\n'
       '\n'
-      'class TaskPatch {}\n',
+      'class TaskPatch {}
+
+/// v3 field registry the toggle writes through (`<E>Fields.<f>.set`).
+class TaskFields {
+  static const Object id = _IdField();
+}
+
+class _IdField {
+  const _IdField();
+  Task set(Task existing, Object? value) => existing;
+}\n',
     );
 
     final builder = MockBuilder(
@@ -111,7 +121,7 @@ void main() {
         final content = await generateTaskMockDataSource();
 
         expect(
-          content.contains('params.data.applyTo(existing)'),
+          content.contains('params.data.apply(existing)'),
           isTrue,
           reason: 'update must apply the TaskPatch to the existing entry',
         );
@@ -144,9 +154,10 @@ void main() {
       final content = await generateTaskMockDataSource();
 
       expect(
-        content.contains('copyWithField('),
+        content.contains('params.field.set(existing, params.value)'),
         isTrue,
-        reason: 'toggle must apply the field flip via copyWithField',
+        reason:
+            'toggle must write the field through the descriptor (field.set)',
       );
       expect(
         content.contains('TaskMockData.tasks[index] = updated;'),
@@ -164,7 +175,7 @@ void main() {
         );
 
         expect(
-          content.contains('params.data.applyTo(existing)'),
+          content.contains('params.data.apply(existing)'),
           isTrue,
           reason: 'NoParams update must still apply the patch',
         );

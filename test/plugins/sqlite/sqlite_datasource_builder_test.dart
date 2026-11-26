@@ -134,12 +134,12 @@ void main() {
       );
       expect(
         content,
-        contains('params.data.applyTo(existing)'),
+        contains('params.data.apply(existing)'),
         reason: 'update applies the TaskPatch like the mock datasource',
       );
       expect(
         content,
-        contains('notFoundFailure'),
+        contains('AppFailure.notFound'),
         reason: 'update throws notFoundFailure when the row is missing',
       );
     });
@@ -194,7 +194,14 @@ void main() {
 
       expect(content, contains('Stream<Task> watch('));
       expect(content, contains('Stream<List<Task>> watchList('));
-      expect(content, contains('copyWithField('));
+      // The sqlite builder emits through raw Code strings, so argument
+      // whitespace is not part of the contract — the write path is.
+      expect(
+        content,
+        matches(
+          RegExp(r'params\.field\.set\(\s*existing,\s*params\.value\s*,?\s*\)'),
+        ),
+      );
       expect(content, contains('Stream.periodic'));
     });
 

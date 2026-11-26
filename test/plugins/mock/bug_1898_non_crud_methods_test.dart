@@ -2,7 +2,7 @@
 // for ONLY non-CRUD verbs (`list`, or any verb outside the standard CRUD
 // vocabulary) must still emit the class-shaped datasource/mock-datasource
 // pair, because those verbs do not need the entity's `id` /
-// `copyWithField` / `<Type>Patch` surface. Issue #1747's guard must only
+// `copyWith` / `<Type>Patch` + `<Type>Fields` surface. Issue #1747's guard must only
 // fire when the requested methods actually require that surface.
 import 'dart:async';
 import 'dart:io';

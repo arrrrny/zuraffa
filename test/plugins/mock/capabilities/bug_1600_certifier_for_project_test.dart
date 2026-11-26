@@ -55,11 +55,21 @@ class LoginPatch {
   const LoginPatch();
 }
 
+/// v3 field registry the toggle writes through (`<E>Fields.<f>.set`).
+class LoginFields {
+  static const Object id = _IdField();
+}
+
+class _IdField {
+  const _IdField();
+  Login set(Login existing, Object? value) => existing;
+}
+
 class Login {
   final String id;
   final String username;
   const Login({required this.id, required this.username});
-  Login copyWithField(String field, Object? value) => this;
+  Login copyWith({Object? id}) => this;
 }
 ''');
     final dsDir = Directory(p.join(out, 'data', 'datasources', 'login'));

@@ -182,10 +182,10 @@ Directory _writeZuraffaUiStub(Directory root) {
   return stub;
 }
 
-/// Mirrors the zorphy-generated entity surface the presentation plugins
-/// reference: the entity itself plus the `ProductFields` descriptors used by
-/// `Eq(ProductFields.id, id)` in generated presenters (zorphy emits each
-/// field as a `Field<Entity, TValue>` const for type-safe queries).
+/// Mirrors the zorphy v3 entity surface the presentation plugins reference:
+/// the entity itself plus the `ProductFields` registry of write-capable
+/// `ZorphyField`s whose `.equals(...)` builds the `ZorphyFilter` generated
+/// presenters pass (`ProductFields.id.equals(id)`).
 const String _entityStub = '''
 import 'package:zuraffa_flutter/zuraffa_flutter.dart';
 
@@ -193,10 +193,17 @@ class Product {
   Product({this.id});
 
   final String? id;
+
+  Product copyWith({String? id}) => Product(id: id ?? this.id);
 }
 
 class ProductFields {
-  static const Field<Product, String> id = Field<Product, String>('id');
+  static const ZorphyField<Product, String?> id = ZorphyField<Product, String?>(
+    name: 'id', jsonKey: 'id', pointer: '/id',
+    get: _getId, set: _setId,
+  );
+  static String? _getId(Product p) => p.id;
+  static Product _setId(Product p, String? v) => p.copyWith(id: v);
 }
 ''';
 
