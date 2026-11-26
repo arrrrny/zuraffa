@@ -1,4 +1,4 @@
-@Tags(['e2e'])
+@Tags(['slow', 'e2e'])
 library;
 
 import 'dart:io';
@@ -67,6 +67,19 @@ dev_dependencies:
     name.toLowerCase(),
   );
 
+  String enumOutput(String name) => p.join(
+    workspace.path,
+    'lib',
+    'src',
+    'domain',
+    'entities',
+    'enums',
+    '${name.toLowerCase()}.dart',
+  );
+
+  String entityFile(String name) =>
+      p.join(entityOutput(name), '${name.toLowerCase()}.dart');
+
   group('issue #2185 — entity create rejects unknown flags', () {
     test(
       '--totally-bogus-flag exits 2, names the flag, writes nothing',
@@ -134,6 +147,58 @@ dev_dependencies:
       expect(Directory(entityOutput('Widget')).existsSync(), isFalse);
     });
 
+    test('an unsupported short token (-nn) exits 2, not lying-success', () async {
+      // `_parseArgs` only accepts two-character short options, so `-nn`
+      // used to fall into `rest` (here, before -n) — a spot the guard
+      // exempts — and the command succeeded as if the typo were absent.
+      final result = await runZfaSource([
+        'entity',
+        'create',
+        '-nn',
+        '-n',
+        'User',
+        '--field',
+        'a:String',
+      ], workingDirectory: workspace.path);
+
+      expect(
+        result.exitCode,
+        equals(ExitProtocol.usage),
+        reason:
+            'a dash-prefixed token that is not a valid short option must '
+            'be a usage error.\nstdout=${result.stdout}\nstderr=${result.stderr}',
+      );
+      expect(combinedOutput(result), contains('-nn'));
+      expect(Directory(entityOutput('User')).existsSync(), isFalse);
+    });
+
+    test(
+      'an explicit --rest option is rejected while bare positionals work',
+      () async {
+        // `--rest=ignored` used to be stored under the exempt `rest` key and
+        // silently swallowed; a bare positional still resolves the name.
+        final result = await runZfaSource([
+          'entity',
+          'create',
+          '-n',
+          'User',
+          '--rest=ignored',
+          '--field',
+          'a:String',
+        ], workingDirectory: workspace.path);
+
+        expect(
+          result.exitCode,
+          equals(ExitProtocol.usage),
+          reason:
+              'an explicit --rest option must be rejected as unknown.\n'
+              'stdout=${result.stdout}\nstderr=${result.stderr}',
+        );
+        expect(combinedOutput(result), contains('--rest'));
+        expect(Directory(entityOutput('User')).existsSync(), isFalse);
+      },
+    );
+
     test('a valid create still exits 0 (guard does not over-reject)', () async {
       final result = await runZfaSource([
         'entity',
@@ -180,6 +245,12 @@ dev_dependencies:
             'does.\nstdout=${result.stdout}\nstderr=${result.stderr}',
       );
       expect(combinedOutput(result), contains('--bogus'));
+      // The guard runs before any write: no enum file may be left behind.
+      expect(
+        File(enumOutput('Color')).existsSync(),
+        isFalse,
+        reason: 'a usage error must not write the enum scaffold.',
+      );
     });
 
     test('add-field --nope exits 2', () async {
@@ -193,6 +264,7 @@ dev_dependencies:
         '--field',
         'name:String',
       ], workingDirectory: workspace.path);
+      final seeded = File(entityFile('Person')).readAsStringSync();
 
       final result = await runZfaSource([
         'entity',
@@ -212,6 +284,13 @@ dev_dependencies:
             'stdout=${result.stdout}\nstderr=${result.stderr}',
       );
       expect(combinedOutput(result), contains('--nope'));
+      // Rejection must leave the seeded entity exactly as it was — the
+      // guard has to run before the field is added.
+      expect(
+        File(entityFile('Person')).readAsStringSync(),
+        equals(seeded),
+        reason: 'a usage error must not modify the entity file.',
+      );
     });
   });
 }
