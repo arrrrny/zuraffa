@@ -4,11 +4,9 @@
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 import '../enums/index.dart';
 
-part 'todo.zorphy.dart';
-part 'todo.g.dart';
 
 /// Todo entity
-@Zorphy(generateJson: true, generateCompareTo: true)
+@ZorphyEntity(principalKey: #id)
 abstract class $Todo {
   int get id;
   String get title;

@@ -1,19 +1,17 @@
-import 'package:zorphy/zorphy.dart';
+import 'package:zorphy_annotation/zorphy_annotation.dart';
 
 import '../failure.dart';
 import 'converters/filter_converter.dart';
 import 'list_query_params.dart';
 import 'params.dart';
 
-part 'query_params.zorphy.dart';
-
-part 'query_params.g.dart';
+part '../../../_br_/src/core/params/query_params.part.dart';
 
 /// Parameters for querying a single entity by a field (usually ID or slug).
 ///
 /// The type parameter [T] represents the entity type being queried,
 /// enabling type-safe [Filter] references when the entity has filterable fields.
-@Zorphy(generateJson: true, generateFilter: true)
+@ZorphyValue()
 abstract class $QueryParams<T> implements $$Params {
   const $QueryParams();
 
@@ -25,6 +23,11 @@ abstract class $QueryParams<T> implements $$Params {
     includeToJson: false,
   )
   Filter<T>? get filter;
+
+  /// Optional additional parameters (inherited from the params base in v2;
+  /// declared explicitly under v3, whose codegen does not merge base fields).
+  @override
+  Map<String, dynamic>? get params;
 }
 
 /// Extension to query a single entity from an iterable using QueryParams.
@@ -95,7 +98,7 @@ Map<dynamic, dynamic>? _jsonViewOf(Object? item) {
 extension FilterToQueryExtension<T> on Filter<T> {
   /// Converts this filter to a [QueryParams] object.
   QueryParams<T> toQuery({Map<String, dynamic>? params}) {
-    return QueryParams<T>(filter: this, params: params);
+    return QueryParams<T>.fromTrusted(filter: this, params: params);
   }
 }
 
@@ -108,7 +111,7 @@ extension FilterListToQueryExtension<T> on Iterable<Filter<T>> {
 
   /// Combines multiple filters into a [QueryParams] object using an [And] filter.
   QueryParams<T> toQuery({Map<String, dynamic>? params}) {
-    return QueryParams<T>(filter: toFilter(), params: params);
+    return QueryParams<T>.fromTrusted(filter: toFilter(), params: params);
   }
 }
 

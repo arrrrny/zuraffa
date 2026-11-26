@@ -1,14 +1,14 @@
-import 'package:zorphy/zorphy.dart';
+import 'package:zorphy_annotation/zorphy_annotation.dart';
 import 'package:zuraffa/src/core/params/credentials.dart';
 import 'package:zuraffa/src/core/params/settings.dart';
 
 import 'params.dart';
 
-part 'initialization_params.zorphy.dart';
-part 'initialization_params.g.dart';
+part '../../../_br_/src/core/params/initialization_params.part.dart';
+
 
 /// Parameters for initializing a repository or data source.
-@Zorphy(generateJson: true, generateFilter: true)
+@ZorphyValue()
 abstract class $InitializationParams implements $$Params {
   const $InitializationParams();
 

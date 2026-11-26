@@ -3,11 +3,9 @@
 
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 
-part 'note.zorphy.dart';
-part 'note.g.dart';
 
 /// Note entity
-@Zorphy(generateJson: true, generateCompareTo: true)
+@ZorphyEntity(principalKey: #id)
 abstract class $Note {
   String get id;
   String get body;

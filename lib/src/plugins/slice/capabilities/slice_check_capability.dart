@@ -435,7 +435,7 @@ class SliceCheckCapability {
       boundary = null;
     }
     final xrayLayerValue = decoded['xray_layer'];
-    return FeatureContract(
+    return FeatureContract.fromTrusted(
       id: decoded['id']?.toString() ?? '',
       displayName: decoded['display_name']?.toString() ?? '',
       entities: [

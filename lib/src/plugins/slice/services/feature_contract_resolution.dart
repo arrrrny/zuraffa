@@ -97,7 +97,7 @@ ResolvedFeatureContract? _fromSkinContract(String specMd, String featureId) {
     final declaration = parseSkinContractDeclaration(specMd);
     return ResolvedFeatureContract(
       origin: 'spec.md:skin-contract',
-      contract: FeatureContract(
+      contract: FeatureContract.fromTrusted(
         id: featureId,
         displayName: declaration.name,
         entities: const <String>[],
@@ -125,7 +125,7 @@ ResolvedFeatureContract? _fromLanesCore(String specMd, String featureId) {
   if (!hasCore) return null;
   return ResolvedFeatureContract(
     origin: 'spec.md:lanes-core',
-    contract: FeatureContract(
+    contract: FeatureContract.fromTrusted(
       id: featureId,
       displayName: featureId,
       entities: const <String>[],

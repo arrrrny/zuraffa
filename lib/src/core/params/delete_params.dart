@@ -1,14 +1,14 @@
-import 'package:zorphy/zorphy.dart';
+import 'package:zorphy_annotation/zorphy_annotation.dart';
 
 import 'params.dart';
 
-part 'delete_params.zorphy.dart';
-part 'delete_params.g.dart';
+part '../../../_br_/src/core/params/delete_params.part.dart';
+
 
 /// Parameters for deleting an entity of type [I].
 ///
 /// The type parameter [I] represents the ID type being deleted.
-@Zorphy(generateJson: true, generateFilter: true)
+@ZorphyValue()
 abstract class $DeleteParams<I> implements $$Params {
   const $DeleteParams();
 

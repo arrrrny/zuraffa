@@ -17,14 +17,15 @@
 /// run `dart run build_runner build --delete-conflicting-outputs`.
 library;
 
-import 'package:zorphy/zorphy.dart';
+import 'package:zorphy_annotation/zorphy_annotation.dart';
 
 import '../../../plugins/slice/models/slice_boundary.dart';
 import 'xray_layer.dart';
 
 export 'xray_layer.dart';
 
-part 'feature_contract.zorphy.dart';
+part '../../../../_br_/src/domain/entities/feature_contract/feature_contract.part.dart';
+
 
 /// The typed feature contract (spec 1098).
 ///
@@ -32,7 +33,7 @@ part 'feature_contract.zorphy.dart';
 /// normalize to empty defaults at the read sites (registry parser,
 /// decorators, compose) — construct through [parseFeatureContractYaml] or
 /// pass explicit values.
-@Zorphy()
+@ZorphyEntity(principalKey: #id)
 abstract class $FeatureContract {
   /// Stable kebab-case feature id (e.g. `login`, `login-skin`).
   String get id;

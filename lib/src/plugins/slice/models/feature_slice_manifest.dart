@@ -382,7 +382,7 @@ class FeatureSliceManifest {
       return FeatureSliceManifest(
         schema: schema,
         createdAt: DateTime.parse(createdAt),
-        feature: FeatureContract(
+        feature: FeatureContract.fromTrusted(
           id: featureId,
           displayName: featureNode['display_name'] as String? ?? featureId,
           entities: _stringList(featureNode['entities']),

@@ -1,9 +1,7 @@
-import 'package:zorphy/zorphy.dart';
+import 'package:zorphy_annotation/zorphy_annotation.dart';
 import 'package:zuraffa/src/core/params/index.dart';
 
-part 'list_query_params.zorphy.dart';
-
-part 'list_query_params.g.dart';
+part '../../../_br_/src/core/params/list_query_params.part.dart';
 
 /// Parameters for querying a list of entities.
 ///
@@ -12,7 +10,7 @@ part 'list_query_params.g.dart';
 ///
 /// The type parameter [T] represents the entity type being queried,
 /// enabling type-safe [Filter], [Field], and [Sort] references.
-@Zorphy(generateJson: true, generateFilter: true)
+@ZorphyValue()
 abstract class $ListQueryParams<T> implements $$Params {
   const $ListQueryParams();
 
@@ -42,6 +40,11 @@ abstract class $ListQueryParams<T> implements $$Params {
 
   /// Number of items to skip.
   int? get offset;
+
+  /// Optional additional parameters (inherited from the params base in v2;
+  /// declared explicitly under v3, whose codegen does not merge base fields).
+  @override
+  Map<String, dynamic>? get params;
 }
 
 /// Extension methods for converting [Filter] to [ListQueryParams].
@@ -54,7 +57,7 @@ extension FilterToListQueryExtension<T> on Filter<T> {
     int? offset,
     Map<String, dynamic>? params,
   }) {
-    return ListQueryParams<T>(
+    return ListQueryParams<T>.fromTrusted(
       filter: this,
       search: search,
       sort: sort,
@@ -75,7 +78,7 @@ extension FilterListToListQueryExtension<T> on Iterable<Filter<T>> {
     int? offset,
     Map<String, dynamic>? params,
   }) {
-    return ListQueryParams<T>(
+    return ListQueryParams<T>.fromTrusted(
       filter: And<T>(toList()),
       search: search,
       sort: sort,

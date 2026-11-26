@@ -1,10 +1,10 @@
-import 'package:zorphy/zorphy.dart';
+import 'package:zorphy_annotation/zorphy_annotation.dart';
 
 import 'params.dart';
 
-part 'update_params.zorphy.dart';
+part '../../../_br_/src/core/params/update_params.part.dart';
 
-part 'update_params.g.dart';
+
 
 /// Parameters for updating an entity.
 ///
@@ -14,7 +14,7 @@ part 'update_params.g.dart';
 /// Example: `UpdateParams<int, TodoPatch>(id: 123, data: patch)`
 ///
 /// This allows strongly-typed IDs and patch data instead of using `dynamic`.
-@Zorphy(generateJson: true, generateFilter: true)
+@ZorphyValue()
 abstract class $UpdateParams<I, P> implements $$Params {
   const $UpdateParams();
 

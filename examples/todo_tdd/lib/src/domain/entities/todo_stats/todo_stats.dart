@@ -3,11 +3,9 @@
 
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 
-part 'todo_stats.zorphy.dart';
-part 'todo_stats.g.dart';
 
 /// TodoStats entity
-@Zorphy(generateJson: true, generateCompareTo: true)
+@ZorphyValue()
 abstract class $TodoStats {
   int get total;
   int get active;

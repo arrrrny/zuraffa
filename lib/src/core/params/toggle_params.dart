@@ -1,10 +1,10 @@
-import 'package:zorphy/zorphy.dart';
+import 'package:zorphy_annotation/zorphy_annotation.dart';
 
 import 'params.dart';
 
-part 'toggle_params.zorphy.dart';
+part '../../../_br_/src/core/params/toggle_params.part.dart';
 
-part 'toggle_params.g.dart';
+
 
 /// Parameters for toggling a boolean field of an entity.
 ///
@@ -12,7 +12,7 @@ part 'toggle_params.g.dart';
 /// The type parameter [F] represents the field enum type.
 ///
 /// Example: `ToggleParams<int, TodoFields>(id: 123, field: TodoFields.isCompleted, value: true)`
-@Zorphy(generateJson: true, generateFilter: true)
+@ZorphyValue()
 abstract class $ToggleParams<I, F> implements $$Params {
   const $ToggleParams();
 

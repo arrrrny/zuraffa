@@ -1,7 +1,8 @@
 import 'package:zorphy_annotation/zorphy_annotation.dart';
-part 'params.zorphy.dart';
 
-@Zorphy(nonSealed: true)
+part '../../../_br_/src/core/params/params.part.dart';
+
+@ZorphyValue()
 abstract class $$Params {
   const $$Params();
 
