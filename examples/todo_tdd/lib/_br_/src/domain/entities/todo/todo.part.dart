@@ -241,7 +241,9 @@ final class TodoPatch implements ZorphyPatch<Todo> {
        description = description,
        isCompleted = isCompleted,
        priority = priority,
-       tags = tags,
+       tags = tags.isUnchanged
+           ? tags
+           : PatchValue.set(List<String>.unmodifiable(tags.valueOrNull!)),
        createdAt = createdAt,
        completedAt = completedAt;
 
@@ -610,14 +612,18 @@ final class TodoPatch implements ZorphyPatch<Todo> {
         violations,
       );
       tagsValue = (() {
-        final tagsDecoded = ZorphyPatchWire.as<List<String>>(
-          rawValue,
-          '/tags',
-          violations,
-        );
-        return tagsDecoded == null
-            ? null
-            : PatchValue<List<String>>.set(tagsDecoded);
+        final values = _boundaryList(rawValue, '/tags', violations);
+        if (values == null) return null;
+        final decoded = <String>[];
+        for (var i = 0; i < values.length; i++) {
+          final element = _boundaryAs<String>(
+            values[i],
+            '/tags' + '[$i]',
+            violations,
+          );
+          if (element != null) decoded.add(element);
+        }
+        return PatchValue<List<String>>.set(decoded);
       })();
     }
     PatchValue<DateTime>? createdAtValue;

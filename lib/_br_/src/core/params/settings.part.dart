@@ -47,13 +47,17 @@ final class Settings implements ZorphyValueBase {
         final decoded_params = <String, dynamic>{};
         for (final entry in map_params.entries) {
           final path_params = '/params' + '/' + entry.key;
-          final element_params = _boundaryAs<dynamic>(
-            map_params[entry.key],
-            path_params,
-            violations,
-          );
-          if (element_params != null) {
-            decoded_params[entry.key] = element_params;
+          if (map_params[entry.key] == null) {
+            decoded_params[entry.key] = null;
+          } else {
+            final element_params = _boundaryAs<dynamic>(
+              map_params[entry.key],
+              path_params,
+              violations,
+            );
+            if (element_params != null) {
+              decoded_params[entry.key] = element_params;
+            }
           }
         }
         _params = decoded_params;

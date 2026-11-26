@@ -4,6 +4,14 @@ import 'package:zuraffa/zuraffa.dart';
 import 'package:notes_package/notes_package.dart';
 
 void main() {
+  test('params-only query selects the second Note by its wire ID', () {
+    const first = Note.fromTrusted(id: 'first', body: 'First note');
+    const second = Note.fromTrusted(id: 'second', body: 'Second note');
+    const params = QueryParams<Note>.fromTrusted(params: {'id': 'second'});
+
+    expect([first, second].query(params), same(second));
+  });
+
   test('package exposes a registrable module', () {
     final module = NotesPackageModule();
     expect(module.pluginId, 'notes_package');

@@ -2,6 +2,59 @@ import 'package:test/test.dart';
 import 'package:zuraffa/zuraffa.dart';
 
 void main() {
+  group('Initialization wire params', () {
+    const values = <String, dynamic>{'clear': null, 'enabled': true};
+
+    test('retains null and non-null entries in params and settings', () {
+      const params = Params.fromTrusted(params: values);
+      final decodedParams = Params.fromWire(params.toWire()).fold(
+        (value) => value,
+        (error) => throw StateError('${error.violations}'),
+      );
+      expect(decodedParams.params, values);
+
+      const settings = Settings.fromTrusted(params: values);
+      final decoded = Settings.fromWire(settings.toWire()).fold(
+        (value) => value,
+        (error) => throw StateError('${error.violations}'),
+      );
+      expect(decoded.params, values);
+    });
+
+    test(
+      'retains null and non-null entries in initialization and its settings',
+      () {
+        const initialization = InitializationParams.fromTrusted(
+          timeout: Duration(seconds: 5),
+          params: values,
+          credentials: Credentials.fromTrusted(params: values),
+          settings: Settings.fromTrusted(params: values),
+        );
+        final decoded = InitializationParams.fromWire(initialization.toWire())
+            .fold(
+              (value) => value,
+              (error) => throw StateError('${error.violations}'),
+            );
+        expect(decoded.params, values);
+        expect(decoded.credentials?.params, values);
+        expect(decoded.settings?.params, values);
+      },
+    );
+
+    test('still rejects params maps with non-string keys', () {
+      final paths =
+          Settings.fromWire({
+            'params': {1: null},
+          }).fold(
+            (_) => <String>[],
+            (error) => [
+              for (final violation in error.violations) violation.path,
+            ],
+          );
+      expect(paths, ['/params']);
+    });
+  });
+
   group('QueryParams', () {
     test('should store filter and optional params', () {
       const filter = Eq<_TestEntity, String>(_TestEntityFields.name, 'test');
