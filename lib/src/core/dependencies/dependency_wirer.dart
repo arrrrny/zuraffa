@@ -209,6 +209,17 @@ class DependencyWirer {
           kind: DependencyKind.regular,
           version: '^0.1.0',
         ),
+      // Flutter 3.47 deprecates `package:flutter/material.dart` in favour of
+      // the published `material_ui` package. Generated views import
+      // `package:material_ui/material_ui.dart`, so a Flutter app must declare
+      // it directly (the way zuraffa_flutter is wired) to satisfy
+      // depend_on_referenced_packages. Flutter-only: pure Dart has no UI.
+      if (isFlutter)
+        const DependencySpec(
+          name: 'material_ui',
+          kind: DependencyKind.regular,
+          version: '^1.11.0',
+        ),
       // #281: Wire json_annotation as a direct regular dep so generated entity
       // files (which use @JsonSerializable / JsonKey) satisfy
       // depend_on_referenced_packages and json_serializable stops warning.

@@ -1,9 +1,9 @@
-/// Public Flutter symbols (exported via `package:flutter/material.dart`)
+/// Public Flutter symbols (exported via `package:material_ui/material_ui.dart`)
 /// that generated views never reference but entity class names commonly
 /// collide with.
 ///
-/// When a generated view imports both `package:flutter/material.dart` and the
-/// entity's file, a colliding entity name (e.g. an entity named `Feedback`)
+/// When a generated view imports both `package:material_ui/material_ui.dart` and
+/// the entity's file, a colliding entity name (e.g. an entity named `Feedback`)
 /// makes every unqualified reference ambiguous (`ambiguous_import`). The view
 /// generator hides the colliding symbol from the material import so the
 /// entity always wins (#337).

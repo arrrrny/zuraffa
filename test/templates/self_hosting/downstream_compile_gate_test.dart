@@ -60,6 +60,10 @@ dependencies:
     sdk: flutter
   go_router: ^17.2.3
   zuraffa_flutter: ^6.1.0
+  # Generated views import `package:material_ui/material_ui.dart` (Flutter
+  # 3.47 deprecates `package:flutter/material.dart`), so the fixture app —
+  # like any generated Flutter app — declares it directly.
+  material_ui: ^1.11.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

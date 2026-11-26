@@ -83,7 +83,7 @@ void main() {
         if (src.contains('class ') && !src.startsWith('export')) {
           expect(
             src,
-            contains("import 'package:flutter/material.dart';"),
+            contains("import 'package:material_ui/material_ui.dart';"),
             reason: file.path,
           );
         }

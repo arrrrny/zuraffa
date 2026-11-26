@@ -240,7 +240,7 @@ $deps''');
           expect(presenterFile.existsSync(), isTrue);
 
           final viewSrc = viewFile.readAsStringSync();
-          expect(viewSrc, contains('package:flutter/material.dart'));
+          expect(viewSrc, contains('package:material_ui/material_ui.dart'));
           expect(viewSrc, contains('class UserProfileView extends CleanView'));
         },
       );
