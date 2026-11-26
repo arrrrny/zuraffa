@@ -652,6 +652,14 @@ class PluginManager {
 
     await _validateEntityFirstPreconditions(context, activePlugins);
 
+    // The major floor of the skew contract: a core from another major
+    // cannot carry the API this generator emits, so refuse before the
+    // transaction opens and nothing is written.
+    SkewContract.requireSupportedCore(
+      projectRoot: projectRoot,
+      command: 'zfa make ${context.core.name}',
+    );
+
     final allFiles = <GeneratedFile>[];
     final startedAt = DateTime.now().toUtc();
 

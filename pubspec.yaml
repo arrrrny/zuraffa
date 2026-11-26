@@ -1,6 +1,6 @@
 name: zuraffa
 description: AI first Clean Architecture Framework and CLI with Result types, UseCase patterns, Dependency Injection and MCP server for building type-safe, scalable apps with AI agents.
-version: 7.6.1
+version: 8.0.0-dev.1
 homepage: https://zuraffa.com
 repository: https://github.com/arrrrny/zuraffa
 issue_tracker: https://github.com/arrrrny/zuraffa/issues
@@ -22,8 +22,8 @@ dependencies:
   path: ^1.9.1
   yaml: ^3.1.4
   uuid: ^4.6.0
-  zorphy: ^3.0.0-dev.2
-  zorphy_annotation: ^3.0.0-dev.2
+  zorphy: ^3.0.0-dev.3
+  zorphy_annotation: ^3.0.0-dev.3
 
   json_annotation: ^4.12.0
 

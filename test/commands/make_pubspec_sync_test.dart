@@ -141,7 +141,7 @@ class ProductPatch {}
         final pubspec = File(
           path.join(workspace.path, 'pubspec.yaml'),
         ).readAsStringSync();
-        expect(pubspec, contains('zuraffa: ^6.0.0'));
+        expect(pubspec, contains('zuraffa: ^8.0.0'));
       },
       timeout: const Timeout(Duration(minutes: 3)),
     );
@@ -154,7 +154,7 @@ name: zfa_make_pubsync_test
 environment:
   sdk: ^3.11.0
 dependencies:
-  zuraffa: ^6.0.0
+  zuraffa: ^8.0.0
 dev_dependencies:
   test: any
 ''');

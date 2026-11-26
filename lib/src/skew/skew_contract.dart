@@ -1,41 +1,52 @@
 /// The generator/runtime version-skew contract (issue #1197, part of
 /// #908 P0).
 ///
-/// Observed this cycle: a master generator emitted
-/// `package:zuraffa/skin.dart` (spec 1102) into consumers resolved
-/// against the published 6.1.0 core — a core that predates the skin
-/// barrel — and every such slice died once with `uri_does_not_exist`
-/// (120 manual overrides per corpus walk). This module makes that
-/// failure mode a CONTRACT instead of a surprise:
+/// The supported core range is the generator's OWN major. A v8
+/// generator emits the 8.x core API, so it can only generate against
+/// an 8.x core: from [supportedCoreFloor] (`<major>.0.0`) through the
+/// newest 8.x. Observed before this was a contract: a master generator
+/// emitted `package:zuraffa/skin.dart` (spec 1102) into consumers
+/// resolved against a published core that predated the skin barrel,
+/// and every such slice died once with `uri_does_not_exist` (120
+/// manual overrides per corpus walk). The same surprise one level up
+/// is a generator emitting a new API SHAPE into a core that has every
+/// file but the old contents. This module makes both a CONTRACT:
 ///
-/// 1. **Floors.** Every `package:zuraffa/*` import the generator
-///    emits must either exist across the whole supported core range
-///    (from [supportedCoreFloor], the OLDEST supported tag, through
-///    master) or be registered in [coreApiFloors] and gated at its
-///    emission site. The static half of this contract is pinned by
+/// 1. **Major gate.** The floor is derived from the running
+///    generator's version, so a core from another major is refused at
+///    emission (`zfa make` up front, and every surface-gated site), and
+///    the consumer pubspecs the generator writes declare
+///    [consumerCoreConstraint]: never a literal that can go stale.
+///
+/// 2. **Surface floors.** Within the major, every `package:zuraffa/*`
+///    import the generator emits must either exist across the whole
+///    supported core range (from [supportedCoreFloor] through master)
+///    or be registered in [coreApiFloors] and gated at its emission
+///    site. The static half of this contract is pinned by
 ///    `test/skew/bug_1197_two_end_matrix_test.dart` (the two-end
 ///    matrix, also run as a CI job); the runtime half is
 ///    [SkewContract.requireSurfaces].
 ///
-/// 2. **Availability is authoritative.** Version strings are
-///    advisory: the `v6.1.0` tag shipped `pubspec.yaml` 6.0.1 while
-///    master still says 6.1.0 while carrying `skin.dart`. So the gate
-///    asks the RESOLVED core whether the surface file exists — never
-///    a version comparison.
+/// 3. **Availability is authoritative within the major.** Version
+///    strings cannot arbitrate a minor: the `v6.1.0` tag shipped
+///    pubspec 6.0.1 while master still said 6.1.0 while carrying
+///    `skin.dart`. So surface gates ask the RESOLVED core whether the
+///    surface file exists. The one thing a version string states
+///    truthfully is the major, and only that is compared.
 ///
-/// 3. **Fail-open on unknown, fail-closed on known-bad.** When the
+/// 4. **Fail-open on unknown, fail-closed on known-bad.** When the
 ///    installed core cannot be resolved at all (no package config,
-///    generation into a scaffold) the gate stays out of the way —
-///    the same contract as `ZuraffaBarrelExports` (#942/#1176). When
-///    the core IS resolved and lacks a required surface, emission is
-///    refused with an actionable prescription instead of writing
-///    artifacts that cannot compile.
+///    generation into a scaffold) the gate stays out of the way, the
+///    same contract as `ZuraffaBarrelExports` (#942/#1176). When the
+///    core IS resolved and cannot carry the emission, it is refused
+///    with an actionable prescription instead of writing artifacts
+///    that cannot compile.
 ///
-/// 4. **Stamped.** Receipts carry `min_core_version` (the declared
-///    floor) and `generated_against_core` (what the run resolved),
-///    and `zfa doctor` reports the skew triangle: target pubspec pin
-///    vs installed core vs running generator (#1184's staleness
-///    check feeds this).
+/// 5. **Stamped.** Receipts carry `min_core_version` (the declared
+///    floor) and `generated_against_core` (what the run resolved), and
+///    `zfa doctor` reports the skew triangle: target pubspec pin vs
+///    installed core vs running generator (#1184's staleness check
+///    feeds this).
 library;
 
 import 'dart:convert';
@@ -46,17 +57,41 @@ import 'package:yaml/yaml.dart';
 
 import '../version.dart';
 
-/// The OLDEST supported core — the bottom end of the two-end skew
-/// matrix (`test/skew/bug_1197_two_end_matrix_test.dart` + the
-/// `skew-matrix` CI workflow). Generated slices must compile against
-/// a core at least this old, and against master.
-const String supportedCoreFloor = '6.0.0';
+/// The running generator's major version (`8` for `8.0.0-dev.1`).
+///
+/// A breaking change to the generated API is a major bump of this
+/// package, so this one number is also the major of every core the
+/// generator can generate against: the single source the floor and
+/// the consumer constraint below are derived from.
+final int generatorMajor = int.parse(version.split('.').first);
 
-/// One declared API floor: a `package:zuraffa/*` surface the
-/// generator emits that does NOT exist across the whole supported
-/// core range. [introducedIn] is the core version the surface is
-/// declared available from (advisory — availability wins); it is
-/// stamped into receipts and reported by `zfa doctor`.
+/// The OLDEST supported core: the bottom end of the two-end skew
+/// matrix (`test/skew/bug_1197_two_end_matrix_test.dart` + the
+/// `skew-matrix` CI workflow). Generated slices must compile against a
+/// core at least this old, and against master.
+///
+/// Derived from the running generator on purpose. A hand-kept literal
+/// is a number nobody bumps at a release: the consumer constraint sat
+/// at `^6.0.0` while this package shipped 7.6.1.
+final String supportedCoreFloor = '$generatorMajor.0.0';
+
+/// The constraint the generator declares for the core whenever it
+/// writes a consumer pubspec (scaffold wiring, the pubsync ensure, the
+/// day-zero app deps): the widest range that admits supported cores,
+/// and only those.
+final String consumerCoreConstraint = '^$supportedCoreFloor';
+
+/// The prescription for a core from another major: a caret constraint
+/// never crosses a major, so the pin moves before the upgrade.
+String get coreRepinPrescription =>
+    'pin `zuraffa: $consumerCoreConstraint` in pubspec.yaml, then run '
+    'dart pub upgrade zuraffa';
+
+/// One declared API floor: a `package:zuraffa/*` surface the generator
+/// emits that does NOT exist across the whole supported core range.
+/// [introducedIn] is the core version the surface is declared
+/// available from (advisory: availability wins); it is stamped into
+/// receipts and reported by `zfa doctor`.
 class CoreApiFloor {
   /// Stable identifier (`skin-barrel`).
   final String id;
@@ -85,34 +120,17 @@ class CoreApiFloor {
   };
 }
 
-/// The declared floors. KEEP IN SYNC WITH the two-end matrix test:
-/// any emitted `package:zuraffa/*` URI missing from the oldest
-/// supported core must be registered here (and gated), or the matrix
-/// goes red.
-const List<CoreApiFloor> coreApiFloors = [
-  CoreApiFloor(
-    id: 'skin-barrel',
-    uri: 'skin.dart',
-    introducedIn: '6.2.0',
-    requiredBy: 'view --skin, app shell --skin-audit, zfa skin kit',
-  ),
-  CoreApiFloor(
-    id: 'simulation-barrel',
-    uri: 'simulation.dart',
-    introducedIn: '6.2.0',
-    requiredBy:
-        'zfa di datasource/mock registrations, simulation binding '
-        '(spec 893) — caught by the #1197 two-end matrix',
-  ),
-  CoreApiFloor(
-    id: 'xray-overlay',
-    uri: 'src/plugins/xray/xray_overlay.dart',
-    introducedIn: '6.2.0',
-    requiredBy:
-        'app shell --xray (spec 036) — caught by the #1197 '
-        'two-end matrix',
-  ),
-];
+/// The declared floors. KEEP IN SYNC WITH the two-end matrix test: any
+/// emitted `package:zuraffa/*` URI missing from the oldest supported
+/// core must be registered here (and gated), or the matrix goes red.
+///
+/// Empty while every emitted surface ships in the oldest supported
+/// core (`skin.dart`, `simulation.dart` and the xray overlay all
+/// predate this major). The first surface a later minor of this major
+/// adds to the generator's emission is registered here and gated at
+/// its emission site; that is how the range grows past its floor
+/// without breaking the consumers still sitting on it.
+const List<CoreApiFloor> coreApiFloors = [];
 
 /// The zuraffa core a generation target actually resolves to.
 class InstalledCore {
@@ -147,6 +165,11 @@ class SkewVerdict {
   /// True when no core could be resolved at all (fail-open, unknown).
   final bool unknown;
 
+  /// True when the resolved core is from another major than the
+  /// generator: it cannot carry the emitted API at all, whatever
+  /// surfaces it exposes.
+  final bool unsupportedCore;
+
   final String generatorVersion;
   final String? coreVersion;
   final String? coreRoot;
@@ -160,15 +183,21 @@ class SkewVerdict {
     required this.coreVersion,
     required this.coreRoot,
     required this.missingSurfaces,
+    this.unsupportedCore = false,
     this.floors = coreApiFloors,
   });
 
   /// The actionable remedy, repo prescription style (#911 precedent).
-  String get prescription => 'dart pub upgrade zuraffa';
+  /// A surface gap heals with an upgrade inside the major; a core from
+  /// another major needs the pin moved first, because a caret
+  /// constraint never crosses a major.
+  String get prescription =>
+      unsupportedCore ? coreRepinPrescription : 'dart pub upgrade zuraffa';
 
   Map<String, dynamic> toJson() => {
     'ok': ok,
     'unknown_core': unknown,
+    'unsupported_core': unsupportedCore,
     'generator_version': generatorVersion,
     if (coreVersion != null) 'core_version': coreVersion,
     if (coreRoot != null) 'core_root': coreRoot,
@@ -178,6 +207,12 @@ class SkewVerdict {
 
   /// One-line report for command output.
   String get summary {
+    if (unsupportedCore) {
+      return 'version skew: generator v$generatorVersion emits the '
+          '$generatorMajor.x core API; installed core '
+          '${coreVersion ?? 'unknown'} is not a $generatorMajor.x core '
+          '(--> fix: $prescription)';
+    }
     if (!ok) {
       return 'version skew: generator v$generatorVersion needs '
           '${missingSurfaces.join(', ')} — installed core '
@@ -208,8 +243,13 @@ class VersionSkewException implements Exception {
   String toString() {
     final buf = StringBuffer()
       ..writeln(
-        'version skew: $command refused — the installed zuraffa core '
-        'does not provide the API this emission requires.',
+        verdict.unsupportedCore
+            ? 'version skew: $command refused — generator '
+                  'v${verdict.generatorVersion} emits the $generatorMajor.x '
+                  'core API, but the installed zuraffa core is '
+                  'v${verdict.coreVersion ?? 'unknown'}.'
+            : 'version skew: $command refused — the installed zuraffa '
+                  'core does not provide the API this emission requires.',
       );
     for (final uri in verdict.missingSurfaces) {
       final floor = verdict.floors.where((f) => f.uri == uri).toList();
@@ -238,6 +278,16 @@ abstract final class SkewContract {
   static void seedForTest(InstalledCore? core) => _seeded = core;
 
   static void resetForTest() => _seeded = null;
+
+  /// Whether [core] is inside the supported range: the generator
+  /// major. The generator own checkout is supported by construction
+  /// (it IS the generator API), and a core whose version cannot be
+  /// read is unknown; both fail-open (#942 precedent).
+  static bool supports(InstalledCore core) {
+    if (!core.fromPackageConfig) return true;
+    final parsed = core.version == null ? null : _parse(core.version!);
+    return parsed == null || parsed[0] == generatorMajor;
+  }
 
   /// Resolves the core for [projectRoot]:
   /// 1. the target's `.dart_tool/package_config.json` → the `zuraffa`
@@ -357,15 +407,32 @@ abstract final class SkewContract {
         missingSurfaces: const [],
       );
     }
+    final unsupported = !supports(core);
     final missing = requiredUris.where((uri) => !core.exposes(uri)).toList();
     return SkewVerdict(
-      ok: missing.isEmpty,
+      ok: missing.isEmpty && !unsupported,
+      unsupportedCore: unsupported,
       unknown: false,
       generatorVersion: version,
       coreVersion: core.version,
       coreRoot: core.root,
       missingSurfaces: missing,
     );
+  }
+
+  /// Gates a whole emission: throws [VersionSkewException] when the
+  /// core resolved for [projectRoot] is from another major than the
+  /// generator. A no-op when the core is supported or cannot be
+  /// resolved (fail-open). [requireSurfaces] applies this same
+  /// major check on top of its surface list, so a surface-gated
+  /// site needs only its own call.
+  static void requireSupportedCore({
+    required String projectRoot,
+    required String command,
+  }) {
+    final verdict = evaluate(projectRoot: projectRoot, requiredUris: const []);
+    if (verdict.ok) return;
+    throw VersionSkewException(verdict, command);
   }
 
   /// Gates an emission site: throws [VersionSkewException] when the

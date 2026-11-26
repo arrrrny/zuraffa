@@ -45,7 +45,7 @@ void main() {
 
       expect(
         missing,
-        containsAll(['zuraffa_flutter: ^6.0.0', 'get_it: ^9.2.1']),
+        containsAll(['zuraffa_flutter: ^8.0.0', 'get_it: ^9.2.1']),
         reason:
             'the preview must report the app module\'s runtime deps when '
             'nothing is declared yet',
@@ -71,7 +71,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  zuraffa_flutter: ^6.0.0
+  zuraffa_flutter: ^8.0.0
 ''');
       final before = pubspecFile.readAsStringSync();
 
@@ -99,7 +99,7 @@ dependencies:
   flutter:
     sdk: flutter
   # wired by the DependencyWirer during setup — do not touch
-  zuraffa_flutter: ^6.0.0
+  zuraffa_flutter: ^8.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -248,7 +248,7 @@ dependencies: {flutter: {sdk: flutter}}
         'name: spec1395_inline_complete\n'
         'environment:\n'
         '  sdk: ^3.11.0\n'
-        'dependencies: {zuraffa_flutter: ^6.0.0, get_it: ^9.2.1}\n',
+        'dependencies: {zuraffa_flutter: ^8.0.0, get_it: ^9.2.1}\n',
       );
 
       final missing = await const PubspecAppDependenciesPatcher().ensure(

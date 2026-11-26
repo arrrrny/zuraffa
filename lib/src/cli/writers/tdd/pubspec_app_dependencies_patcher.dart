@@ -27,19 +27,21 @@ import 'dart:io';
 
 import 'package:yaml/yaml.dart';
 
+import '../../../skew/skew_contract.dart' show consumerCoreConstraint;
+
 class PubspecAppDependenciesPatcher {
   const PubspecAppDependenciesPatcher();
 
   /// The runtime dependencies the day-zero Flutter app module
-  /// (`lib/app.dart`) requires. Constraints mirror the codebase's
-  /// canonical wiring (`DependencyWirer.standardSet` pins
-  /// `zuraffa_flutter: ^6.0.0`; the repo itself resolves `get_it
-  /// ^9.2.1`) so a self-healed pubspec stays on the same resolver graph
-  /// the toolchain ships (issue #1349).
-  static const Map<String, String> appDependencies = {
-    'zuraffa_flutter': '^6.0.0',
+  /// (`lib/app.dart`) requires. The core constraint is the generator's
+  /// supported range (the same source `DependencyWirer.standardSet`
+  /// wires); the repo itself resolves `get_it ^9.2.1`, so a self-healed
+  /// pubspec stays on the resolver graph the toolchain ships
+  /// (issue #1349).
+  static final Map<String, String> appDependencies = Map.unmodifiable({
+    'zuraffa_flutter': consumerCoreConstraint,
     'get_it': '^9.2.1',
-  };
+  });
 
   /// The `'$pkg: $constraint'` entries from [existing] that are not yet
   /// declared — the same shape both the dry-run preview and the real pass

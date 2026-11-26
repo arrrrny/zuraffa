@@ -5,14 +5,17 @@ import 'package:path/path.dart' as path;
 import 'package:test/test.dart';
 
 import 'package:zuraffa/src/commands/doctor_checks.dart';
+import 'package:zuraffa/src/skew/skew_contract.dart';
 import 'package:zuraffa/src/version.dart';
 
-/// Issue #1197: `zfa doctor` must REPORT skew — the triangle of
+/// Issue #1197: `zfa doctor` must REPORT skew: the triangle of
 /// (a) the target pubspec's zuraffa pin, (b) the installed core the
-/// package config resolves to, and (c) the running generator version —
-/// and enforce the floors stamped into generation receipts
+/// package config resolves to, and (c) the running generator version
+/// — and enforce the floors stamped into generation receipts
 /// (`min_core_version`), so a stale/downgraded core is diagnosed
-/// before generated slices die on it.
+/// before generated slices die on it. A core from another major is
+/// the hard case: it carries none of the emitted API, so it fails
+/// where the rest of the triangle only warns.
 void main() {
   late Directory temp;
   late Directory coreDir;
@@ -26,7 +29,7 @@ void main() {
     ).writeAsStringSync('export "src/core/result.dart";\n');
     File(
       path.join(coreDir.path, 'pubspec.yaml'),
-    ).writeAsStringSync('name: zuraffa\nversion: 6.0.0\n');
+    ).writeAsStringSync('name: zuraffa\nversion: $generatorMajor.0.0\n');
   });
 
   tearDown(() async {
@@ -66,6 +69,24 @@ dependencies:
     );
   }
 
+  void writeReceipt({
+    required String minCoreVersion,
+    required String generatedAgainstCore,
+  }) {
+    final receipts = Directory(path.join(temp.path, '.zfa', 'receipts'))
+      ..createSync(recursive: true);
+    File(path.join(receipts.path, 'make.json')).writeAsStringSync(
+      jsonEncode({
+        'schema': 'proof.v1',
+        'command': 'make',
+        'target': 'Todo',
+        'generator_version': version,
+        'min_core_version': minCoreVersion,
+        'generated_against_core': generatedAgainstCore,
+      }),
+    );
+  }
+
   Future<DoctorCheckResult> runCheck() async =>
       DoctorChecksRunner(projectDir: temp.path)
           .runAll(fix: false)
@@ -92,9 +113,39 @@ dependencies:
     expect(result.detail, contains('v$version'));
   });
 
+  test('fail when the installed core is from another major', () async {
+    final other = '${generatorMajor - 1}.99.99';
+    writePubspec(pin: '^$other');
+    writePackageConfig(coreVersion: other);
+    final result = await runCheck();
+    expect(result.status, DoctorCheckStatus.fail);
+    expect(result.detail, contains('v$other'));
+    expect(result.detail, contains('not a $generatorMajor.x core'));
+    expect(
+      result.suggestedFix,
+      allOf(contains('zuraffa: $consumerCoreConstraint'), contains('yaml')),
+    );
+  });
+
+  test(
+    'a cross-major core fails even when every receipt floor is satisfied',
+    () async {
+      final other = '${generatorMajor - 1}.99.99';
+      writePubspec(pin: '^$other');
+      writePackageConfig(coreVersion: other);
+      // Receipts stamped by the previous major's generator are all
+      // satisfied by the previous major's core; the skew is the
+      // generator, and only the major check can see it.
+      writeReceipt(minCoreVersion: other, generatedAgainstCore: other);
+      final result = await runCheck();
+      expect(result.status, DoctorCheckStatus.fail);
+      expect(result.detail, contains('not a $generatorMajor.x core'));
+    },
+  );
+
   test('warn when the pubspec pin major is behind the CLI major', () async {
-    writePubspec(pin: '^5.0.0');
-    writePackageConfig(coreVersion: '5.0.0');
+    writePubspec(pin: '^${generatorMajor - 2}.0.0');
+    writePackageConfig(coreVersion: version);
     final result = await runCheck();
     expect(result.status, DoctorCheckStatus.warn);
     expect(result.detail, contains('behind'));
@@ -102,8 +153,8 @@ dependencies:
   });
 
   test('warn when the installed core is older than the pin', () async {
-    writePubspec(pin: '^6.1.0');
-    writePackageConfig(coreVersion: '6.0.0');
+    writePubspec(pin: '^$generatorMajor.1.0');
+    writePackageConfig(coreVersion: '$generatorMajor.0.0');
     final result = await runCheck();
     expect(result.status, DoctorCheckStatus.warn);
     expect(result.detail, contains('older than the pin'));
@@ -112,19 +163,11 @@ dependencies:
   test(
     'fail when a receipt floor (min_core_version) exceeds the installed core',
     () async {
-      writePubspec(pin: '^6.1.0');
-      writePackageConfig(coreVersion: '6.0.0');
-      final receipts = Directory(path.join(temp.path, '.zfa', 'receipts'))
-        ..createSync(recursive: true);
-      File(path.join(receipts.path, 'make.json')).writeAsStringSync(
-        jsonEncode({
-          'schema': 'proof.v1',
-          'command': 'make',
-          'target': 'Todo',
-          'generator_version': '6.1.0',
-          'min_core_version': '6.1.0',
-          'generated_against_core': '6.1.0',
-        }),
+      writePubspec(pin: '^$generatorMajor.1.0');
+      writePackageConfig(coreVersion: '$generatorMajor.0.0');
+      writeReceipt(
+        minCoreVersion: '$generatorMajor.1.0',
+        generatedAgainstCore: '$generatorMajor.1.0',
       );
       final result = await runCheck();
       expect(result.status, DoctorCheckStatus.fail);
@@ -141,17 +184,9 @@ dependencies:
       // triangle reports a stale pin instead of the floor verdict.
       writePubspec(pin: '^$version');
       writePackageConfig(coreVersion: version);
-      final receipts = Directory(path.join(temp.path, '.zfa', 'receipts'))
-        ..createSync(recursive: true);
-      File(path.join(receipts.path, 'make.json')).writeAsStringSync(
-        jsonEncode({
-          'schema': 'proof.v1',
-          'command': 'make',
-          'target': 'Todo',
-          'generator_version': '6.1.0',
-          'min_core_version': '6.0.0',
-          'generated_against_core': '6.1.0',
-        }),
+      writeReceipt(
+        minCoreVersion: supportedCoreFloor,
+        generatedAgainstCore: '$generatorMajor.0.0',
       );
       final result = await runCheck();
       expect(result.status, DoctorCheckStatus.pass);
@@ -159,7 +194,7 @@ dependencies:
   );
 
   test('warn (not fail) when no installed core is resolvable', () async {
-    writePubspec(pin: '^6.1.0');
+    writePubspec(pin: '^$version');
     final result = await runCheck();
     expect(result.status, DoctorCheckStatus.warn);
     expect(result.detail, contains('not resolved'));

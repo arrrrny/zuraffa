@@ -649,6 +649,18 @@ class DoctorChecksRunner {
           ' | pin: ${pin ?? 'none'}',
     ];
 
+    // The major floor: a core from another major cannot carry what this
+    // generator emits — the same verdict `zfa make` refuses on.
+    if (!SkewContract.supports(core)) {
+      return _fail(
+        id,
+        '${notes.single}; installed core v${core.version} is not a '
+        '$generatorMajor.x core, and generator v$version emits the '
+        '$generatorMajor.x API, so generated artifacts will not resolve',
+        coreRepinPrescription,
+      );
+    }
+
     // Advisory triangle drift (warn-only — availability is enforced at
     // the emission sites and via receipt floors below).
     var warn = false;

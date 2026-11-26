@@ -39,7 +39,7 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/cli/writers/tdd/pubspec_app_dependencies_patcher.dart';
 
-const String kFlutterBarrelConstraint = 'zuraffa_flutter: ^6.0.0';
+const String kFlutterBarrelConstraint = 'zuraffa_flutter: ^8.0.0';
 const String kGetItConstraint = 'get_it: ^9.2.1';
 
 void main() {
@@ -54,6 +54,26 @@ void main() {
       if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
     });
 
+    /// `zuraffa_flutter` is overridden to an EMPTY local package. The
+    /// patcher under test declares the core range derived from the
+    /// generator's major, and pub.dev cannot resolve a major that is
+    /// not published yet — `tdd init`'s resolver would fail the run for
+    /// a reason that has nothing to do with the pubspec patching. The
+    /// real consumer resolution is tools/flutter_consumer_smoke.sh's
+    /// job (same device as the flutter cluster fixture's `zuraffa_ui`).
+    String writeFlutterBarrelStub() {
+      final stub = Directory(
+        p.join(tmpDir.path, '.zfa_fixture', 'zuraffa_flutter'),
+      )..createSync(recursive: true);
+      File(
+        p.join(stub.path, 'pubspec.yaml'),
+      ).writeAsStringSync('name: zuraffa_flutter\npublish_to: none\n');
+      File(p.join(stub.path, 'lib', 'zuraffa_flutter.dart'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('');
+      return stub.path;
+    }
+
     Future<void> seedPubspec({required bool flutter}) async {
       final buffer = StringBuffer('''
 name: bug1349_init_fixture
@@ -61,10 +81,15 @@ environment:
   sdk: ^3.11.0
 ''');
       if (flutter) {
+        final stub = writeFlutterBarrelStub();
         buffer.writeln('''
 dependencies:
   flutter:
     sdk: flutter
+
+dependency_overrides:
+  zuraffa_flutter:
+    path: $stub
 ''');
       } else {
         buffer.writeln('dependencies:\n  path: ^1.9.0\n');
@@ -115,8 +140,8 @@ dependencies:
           r'^dev_dependencies:',
           multiLine: true,
         ).firstMatch(pubspec);
-        final barrelIdx = pubspec.indexOf('zuraffa_flutter');
-        final getItIdx = pubspec.indexOf('get_it');
+        final barrelIdx = pubspec.indexOf(kFlutterBarrelConstraint);
+        final getItIdx = pubspec.indexOf(kGetItConstraint);
         expect(barrelIdx, greaterThan(depsMatch.start));
         expect(getItIdx, greaterThan(depsMatch.start));
         if (devMatch != null) {
@@ -158,12 +183,12 @@ dependencies:
       expect(CliRunner.lastDispatchedExitCode, 0, reason: second);
       final pubspec = readPubspec();
       expect(
-        'zuraffa_flutter'.allMatches(pubspec).length,
+        kFlutterBarrelConstraint.allMatches(pubspec).length,
         1,
         reason: 'a re-run must not duplicate the barrel dependency',
       );
       expect(
-        'get_it'.allMatches(pubspec).length,
+        kGetItConstraint.allMatches(pubspec).length,
         1,
         reason: 'a re-run must not duplicate get_it',
       );
@@ -185,7 +210,7 @@ dependencies:
   flutter:
     sdk: flutter
   # pinned by hand, do not touch
-  zuraffa_flutter: ^6.0.0
+  zuraffa_flutter: ^8.0.0
   get_it: ^9.2.1
 dev_dependencies:
   flutter_test:
