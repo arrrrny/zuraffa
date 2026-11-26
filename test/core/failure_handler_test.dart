@@ -183,5 +183,34 @@ void main() {
       expect(failure, isA<UnexpectedFailure>());
       expect(failure.message, 'Exception: Unknown error');
     });
+
+    test('folded StateError keeps its cause and supplied stack trace', () {
+      final stack = StackTrace.fromString('#0 the original throw site');
+      final failure = dataSource.handleError(StateError('bad state'), stack);
+
+      expect(failure, isA<UnexpectedFailure>());
+      final unexpected = failure as UnexpectedFailure;
+      expect(unexpected.cause, contains('Bad state: bad state'));
+      expect(unexpected.stackTrace, contains('original throw site'));
+    });
+
+    test('handler timeout matches the top-level helper retry semantics', () {
+      final failure =
+          dataSource.handleError(
+                TimeoutException('too slow', const Duration(seconds: 1)),
+              )
+              as TimeoutFailure;
+      expect(failure.isRetryable, timeoutFailure('test').isRetryable);
+    });
+
+    test('field names are escaped as single JSON Pointer tokens', () {
+      final failure = dataSource.validationFailure(
+        'Bad input',
+        fieldErrors: const {
+          'a/b': ['bad'],
+        },
+      );
+      expect(failure.violations.single.path, '/a~1b');
+    });
   });
 }

@@ -221,6 +221,76 @@ void main() {
         equals('FutureFailureType'),
       );
     });
+
+    test(
+      'replay preserves status, retryability, trace and diagnostics',
+      () async {
+        final store = FailureReportStore(filePath: filePath);
+        final reports = [
+          FailureReport(
+            failure: networkFailure(
+              'Server error',
+              statusCode: 503,
+              traceId: 'trace-net',
+            ),
+            timestamp: DateTime.utc(2024, 1, 15, 10, 30),
+          ),
+          FailureReport(
+            failure: timeoutFailure(
+              'Slow',
+              timeout: const Duration(seconds: 30),
+              traceId: 'trace-timeout',
+              isRetryable: false,
+            ),
+            timestamp: DateTime.utc(2024, 1, 15, 10, 31),
+          ),
+          FailureReport(
+            failure: unexpectedFailure(
+              'Boom',
+              cause: 'bad state',
+              stackTrace: StackTrace.fromString('#0 original throw site'),
+              traceId: 'trace-unexpected',
+              isRetryable: true,
+            ),
+            timestamp: DateTime.utc(2024, 1, 15, 10, 32),
+          ),
+        ];
+
+        await store.save(reports);
+        final loaded = await store.load();
+
+        final network = loaded[0].failure as NetworkFailure;
+        expect(network.statusCode, 503);
+        expect(network.traceId, 'trace-net');
+
+        final timeout = loaded[1].failure as TimeoutFailure;
+        expect(timeout.isRetryable, isFalse);
+        expect(timeout.traceId, 'trace-timeout');
+
+        final unexpected = loaded[2].failure as UnexpectedFailure;
+        expect(unexpected.isRetryable, isTrue);
+        expect(unexpected.traceId, 'trace-unexpected');
+        expect(unexpected.cause, 'bad state');
+        expect(unexpected.stackTrace, contains('original throw site'));
+      },
+    );
+
+    test(
+      'legacy UnauthorizedFailure reloads as an unauthenticated denial',
+      () async {
+        final store = FailureReportStore(filePath: filePath);
+        final json =
+            '[{"failureType":"UnauthorizedFailure","message":"401","timestamp":"2024-01-15T10:30:00.000Z","failureData":{}}]';
+        await File(filePath).writeAsString(json);
+
+        final loaded = await store.load();
+        expect(loaded.single.failure, isA<PolicyDeniedFailure>());
+        expect(
+          (loaded.single.failure as PolicyDeniedFailure).reason,
+          'unauthenticated',
+        );
+      },
+    );
   });
 
   group('FailureReportQueue with persistence', () {

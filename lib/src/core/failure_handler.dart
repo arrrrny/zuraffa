@@ -65,39 +65,61 @@ mixin FailureHandler on Loggable {
         code: e.code,
         details: e.details,
         cause: error,
+        stackTrace: stackTrace,
       ),
       ZuraffaMissingPluginException e => unsupportedFailure(
         e.message ?? 'Plugin not found',
         cause: error,
+        stackTrace: stackTrace,
       ),
 
       // State Failures
-      StateError e => stateFailure(e.message, cause: error),
+      StateError e => stateFailure(
+        e.message,
+        cause: error,
+        stackTrace: stackTrace,
+      ),
       ConcurrentModificationError() => stateFailure(
         'Concurrent modification detected',
         cause: error,
+        stackTrace: stackTrace,
       ),
-      StackOverflowError() => stateFailure('Stack overflow', cause: error),
-      OutOfMemoryError() => stateFailure('Out of memory', cause: error),
+      StackOverflowError() => stateFailure(
+        'Stack overflow',
+        cause: error,
+        stackTrace: stackTrace,
+      ),
+      OutOfMemoryError() => stateFailure(
+        'Out of memory',
+        cause: error,
+        stackTrace: stackTrace,
+      ),
 
       // Type Failures
-      TypeError() => typeFailure('Type error: $error', cause: error),
+      TypeError() => typeFailure(
+        'Type error: $error',
+        cause: error,
+        stackTrace: stackTrace,
+      ),
       // NoSuchMethodError usually indicates a type/logic issue
       NoSuchMethodError() => typeFailure(
         'No such method: $error',
         cause: error,
+        stackTrace: stackTrace,
       ),
 
       // Unimplemented Failures
       UnimplementedError e => unimplementedFailure(
         e.message ?? 'Feature not implemented',
         cause: error,
+        stackTrace: stackTrace,
       ),
 
       // Unsupported Failures
       UnsupportedError e => unsupportedFailure(
         e.message ?? 'Operation not supported',
         cause: error,
+        stackTrace: stackTrace,
       ),
 
       // Fallback
@@ -148,7 +170,7 @@ mixin FailureHandler on Loggable {
               for (final entry in fieldErrors.entries)
                 for (final msg in entry.value)
                   FieldViolation(
-                    path: '/${entry.key}',
+                    path: '/${ZorphyPatchWire.pointerToken(entry.key)}',
                     expected: 'string',
                     actual: msg,
                   ),
@@ -203,13 +225,17 @@ mixin FailureHandler on Loggable {
   }
 
   /// Create a timeout failure.
+  ///
+  /// [isRetryable] matches the top-level [timeoutFailure] helper (true) so
+  /// both construction sites give the same variant the same retry semantics;
+  /// callers that need a non-retryable timeout pass their own failure.
   TimeoutFailure timeoutFailure(
     String message, {
     Duration? timeout,
     Object? cause,
   }) {
     return TimeoutFailure.fromTrusted(
-      isRetryable: false,
+      isRetryable: true,
       message: message,
       timeout: timeout,
     );
@@ -222,40 +248,59 @@ mixin FailureHandler on Loggable {
     return CancelledFailure.fromTrusted(isRetryable: false, message: message);
   }
 
+  // The legacy "unknown-ish" variants all fold into UnexpectedFailure. Delegate
+  // to the top-level helper so the originating cause and stack trace survive
+  // the fold; constructing fromTrusted here used to drop both.
+
   /// Create a platform failure (v8: folded into [UnexpectedFailure]).
   UnexpectedFailure platformFailure(
     String message, {
     String? code,
     dynamic details,
     Object? cause,
-  }) {
-    return UnexpectedFailure.fromTrusted(isRetryable: false, message: message);
-  }
+    StackTrace? stackTrace,
+  }) => unexpectedFailure(
+    message,
+    code: code,
+    details: details,
+    cause: cause,
+    stackTrace: stackTrace,
+  );
 
   /// Create a state failure (v8: folded into [UnexpectedFailure]).
-  UnexpectedFailure stateFailure(String message, {Object? cause}) {
-    return UnexpectedFailure.fromTrusted(isRetryable: false, message: message);
-  }
+  UnexpectedFailure stateFailure(
+    String message, {
+    Object? cause,
+    StackTrace? stackTrace,
+  }) => unexpectedFailure(message, cause: cause, stackTrace: stackTrace);
 
   /// Create a type failure (v8: folded into [UnexpectedFailure]).
-  UnexpectedFailure typeFailure(String message, {Object? cause}) {
-    return UnexpectedFailure.fromTrusted(isRetryable: false, message: message);
-  }
+  UnexpectedFailure typeFailure(
+    String message, {
+    Object? cause,
+    StackTrace? stackTrace,
+  }) => unexpectedFailure(message, cause: cause, stackTrace: stackTrace);
 
   /// Create an unimplemented failure (v8: folded into [UnexpectedFailure]).
-  UnexpectedFailure unimplementedFailure(String message, {Object? cause}) {
-    return UnexpectedFailure.fromTrusted(isRetryable: false, message: message);
-  }
+  UnexpectedFailure unimplementedFailure(
+    String message, {
+    Object? cause,
+    StackTrace? stackTrace,
+  }) => unexpectedFailure(message, cause: cause, stackTrace: stackTrace);
 
   /// Create an unsupported failure (v8: folded into [UnexpectedFailure]).
-  UnexpectedFailure unsupportedFailure(String message, {Object? cause}) {
-    return UnexpectedFailure.fromTrusted(isRetryable: false, message: message);
-  }
+  UnexpectedFailure unsupportedFailure(
+    String message, {
+    Object? cause,
+    StackTrace? stackTrace,
+  }) => unexpectedFailure(message, cause: cause, stackTrace: stackTrace);
 
   /// Create an unknown failure (v8: folded into [UnexpectedFailure]).
-  UnexpectedFailure unknownFailure(String message, {Object? cause}) {
-    return UnexpectedFailure.fromTrusted(isRetryable: false, message: message);
-  }
+  UnexpectedFailure unknownFailure(
+    String message, {
+    Object? cause,
+    StackTrace? stackTrace,
+  }) => unexpectedFailure(message, cause: cause, stackTrace: stackTrace);
 
   /// Log an error and convert it to a failure
   ///

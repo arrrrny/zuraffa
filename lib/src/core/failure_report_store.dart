@@ -144,29 +144,60 @@ class FailureReportStore {
     return json;
   }
 
+  /// Fields shared by every variant, persisted so replay does not change a
+  /// report's retry semantics or correlation id after a restart.
+  Map<String, dynamic> _sharedFailureData(AppFailure failure) {
+    final data = <String, dynamic>{'isRetryable': failure.isRetryable};
+    final traceId = failure.traceId;
+    if (traceId != null) data['traceId'] = traceId;
+    return data;
+  }
+
   Map<String, dynamic> _failureDataToJson(AppFailure failure) {
     return switch (failure) {
-      NetworkFailure() => {},
-      TimeoutFailure(:final timeout) => {'timeoutMs': timeout?.inMilliseconds},
+      NetworkFailure(:final statusCode) => {
+        ..._sharedFailureData(failure),
+        'statusCode': ?statusCode,
+      },
+      TimeoutFailure(:final timeout) => {
+        ..._sharedFailureData(failure),
+        'timeoutMs': timeout?.inMilliseconds,
+      },
       BoundaryViolationFailure(:final violations) => {
+        ..._sharedFailureData(failure),
         'violations': [
           for (final v in violations)
             {'path': v.path, 'expected': v.expected, 'actual': v.actual},
         ],
       },
-      PolicyDeniedFailure(:final reason) => {'reason': reason},
+      PolicyDeniedFailure(:final reason) => {
+        ..._sharedFailureData(failure),
+        'reason': reason,
+      },
       NotFoundFailure(:final resourceType, :final resourceId) => {
+        ..._sharedFailureData(failure),
         'resourceType': resourceType,
         'resourceId': resourceId,
       },
       ConflictFailure(:final localPatchWire, :final remotePatchWire) => {
+        ..._sharedFailureData(failure),
         'localPatchWire': localPatchWire,
         'remotePatchWire': remotePatchWire,
       },
-      CancelledFailure() => {},
-      InterruptedFailure(:final intentDigest) => {'intentDigest': intentDigest},
-      StorageFailure(:final layer) => {'layer': layer},
-      UnexpectedFailure() => {},
+      CancelledFailure() => _sharedFailureData(failure),
+      InterruptedFailure(:final intentDigest) => {
+        ..._sharedFailureData(failure),
+        'intentDigest': intentDigest,
+      },
+      StorageFailure(:final layer) => {
+        ..._sharedFailureData(failure),
+        'layer': layer,
+      },
+      UnexpectedFailure(:final cause, :final stackTrace) => {
+        ..._sharedFailureData(failure),
+        'cause': ?cause,
+        'stackTrace': ?stackTrace,
+      },
     };
   }
 
@@ -196,6 +227,19 @@ class FailureReportStore {
     );
   }
 
+  // Older records have none of the shared fields; fall back to the variant's
+  // default there so replay matches the original construction semantics.
+  bool _storedRetryable(Map<String, dynamic> data, {required bool fallback}) =>
+      data['isRetryable'] as bool? ?? fallback;
+
+  String? _storedTraceId(Map<String, dynamic> data) =>
+      data['traceId'] as String?;
+
+  StackTrace? _storedStackTrace(Map<String, dynamic> data) {
+    final value = data['stackTrace'] as String?;
+    return value == null ? null : StackTrace.fromString(value);
+  }
+
   /// Reconstruct the most specific AppFailure subtype possible.
   AppFailure _reconstructFailure(
     String type,
@@ -204,25 +248,38 @@ class FailureReportStore {
   ) {
     return switch (type) {
       // v8 variant type names (what the store persists).
-      'NetworkFailure' => networkFailure(message),
+      'NetworkFailure' => networkFailure(
+        message,
+        statusCode: data['statusCode'] as int?,
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
+      ),
       'TimeoutFailure' => timeoutFailure(
         message,
         timeout: data['timeoutMs'] != null
             ? Duration(milliseconds: data['timeoutMs'] as int)
             : null,
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: true),
       ),
       'BoundaryViolationFailure' => boundaryViolationFailure(
         message,
         violations: _reconstructViolations(data['violations']),
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
       ),
       'PolicyDeniedFailure' => policyDeniedFailure(
         message,
         reason: (data['reason'] as String?) ?? 'permission',
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
       ),
       'NotFoundFailure' => notFoundFailure(
         message,
         resourceType: data['resourceType'] as String?,
         resourceId: data['resourceId'] as String?,
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
       ),
       'ConflictFailure' => conflictFailure(
         message,
@@ -230,33 +287,112 @@ class FailureReportStore {
             ?.cast<String, Object?>(),
         remotePatchWire: (data['remotePatchWire'] as Map?)
             ?.cast<String, Object?>(),
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
       ),
-      'CancelledFailure' => cancelledFailure(message),
+      'CancelledFailure' => CancelledFailure.fromTrusted(
+        message: message,
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
+      ),
       'InterruptedFailure' => interruptedFailure(
         message,
         intentDigest: data['intentDigest'] as String?,
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: true),
       ),
       'StorageFailure' => storageFailure(
         message,
         layer: (data['layer'] as String?) ?? 'cache',
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
       ),
-      'UnexpectedFailure' => unexpectedFailure(message),
+      'UnexpectedFailure' => unexpectedFailure(
+        message,
+        cause: data['cause'],
+        stackTrace: _storedStackTrace(data),
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
+      ),
       // Legacy v2 type names (back-compat with already-persisted reports).
-      'ServerFailure' => networkFailure(message),
+      'ServerFailure' => networkFailure(
+        message,
+        statusCode: data['statusCode'] as int?,
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
+      ),
       'ValidationFailure' => boundaryViolationFailure(
         message,
         fieldErrors: _reconstructFieldErrors(data['fieldErrors']),
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
       ),
-      'UnauthorizedFailure' => policyDeniedFailure(message),
-      'ForbiddenFailure' => policyDeniedFailure(message, reason: 'forbidden'),
-      'CacheFailure' => storageFailure(message),
-      'PlatformFailure' => unexpectedFailure(message),
-      'CancellationFailure' => cancelledFailure(message),
-      'StateFailure' => unexpectedFailure(message),
-      'TypeFailure' => unexpectedFailure(message),
-      'UnimplementedFailure' => unexpectedFailure(message),
-      'UnsupportedFailure' => unexpectedFailure(message),
-      'UnknownFailure' => unexpectedFailure(message),
+      // A persisted 401 was an authentication failure in v2; keep that
+      // distinction after reload instead of calling it generic "permission".
+      'UnauthorizedFailure' => policyDeniedFailure(
+        message,
+        reason: 'unauthenticated',
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
+      ),
+      'ForbiddenFailure' => policyDeniedFailure(
+        message,
+        reason: 'forbidden',
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
+      ),
+      'CacheFailure' => storageFailure(
+        message,
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
+      ),
+      'PlatformFailure' => unexpectedFailure(
+        message,
+        cause: data['cause'],
+        stackTrace: _storedStackTrace(data),
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
+      ),
+      'CancellationFailure' => CancelledFailure.fromTrusted(
+        message: message,
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
+      ),
+      'StateFailure' => unexpectedFailure(
+        message,
+        cause: data['cause'],
+        stackTrace: _storedStackTrace(data),
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
+      ),
+      'TypeFailure' => unexpectedFailure(
+        message,
+        cause: data['cause'],
+        stackTrace: _storedStackTrace(data),
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
+      ),
+      'UnimplementedFailure' => unexpectedFailure(
+        message,
+        cause: data['cause'],
+        stackTrace: _storedStackTrace(data),
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
+      ),
+      'UnsupportedFailure' => unexpectedFailure(
+        message,
+        cause: data['cause'],
+        stackTrace: _storedStackTrace(data),
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
+      ),
+      'UnknownFailure' => unexpectedFailure(
+        message,
+        cause: data['cause'],
+        stackTrace: _storedStackTrace(data),
+        traceId: _storedTraceId(data),
+        isRetryable: _storedRetryable(data, fallback: false),
+      ),
       // Fallback — preserves the message even for unknown types
       _ => unexpectedFailure(message),
     };

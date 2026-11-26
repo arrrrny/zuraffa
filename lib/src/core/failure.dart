@@ -268,6 +268,11 @@ TimeoutFailure timeoutFailure(
 );
 
 /// See [networkFailure].
+///
+/// Legacy `fieldErrors` are deliberately mapped to `expected: 'string'` with
+/// the message as `actual`: v2 carried only a single message per field, so
+/// there is no expected value to forward. This lossy shape is a conscious
+/// v2-compat choice for the wire format, not an overlooked mapping.
 BoundaryViolationFailure boundaryViolationFailure(
   String message, {
   Map<String, List<String>>? fieldErrors,
@@ -287,7 +292,10 @@ BoundaryViolationFailure boundaryViolationFailure(
           for (final entry in fieldErrors.entries)
             for (final msg in entry.value)
               FieldViolation(
-                path: '/${entry.key}',
+                // A field name is ONE JSON Pointer token: names containing
+                // '/' or '~' must be escaped or they decode as extra path
+                // segments and collide with other fields (#review-2179).
+                path: '/${ZorphyPatchWire.pointerToken(entry.key)}',
                 expected: 'string',
                 actual: msg,
               ),
@@ -295,11 +303,15 @@ BoundaryViolationFailure boundaryViolationFailure(
 );
 
 /// See [networkFailure].
+///
+/// Reason precedence: an explicit [reason] wins; otherwise a cascade-shaped
+/// [policyRule] maps to `cascadeDepth`; otherwise [policyRule] itself is used;
+/// `permission` is the final fallback for legacy callers that supply neither.
 PolicyDeniedFailure policyDeniedFailure(
   String message, {
   String? requiredPermission,
   String? policyRule,
-  String reason = 'permission',
+  String? reason,
   StackTrace? stackTrace,
   Object? cause,
   String? code,
@@ -309,10 +321,15 @@ PolicyDeniedFailure policyDeniedFailure(
   message: message,
   traceId: traceId,
   isRetryable: isRetryable,
-  reason: policyRule != null && policyRule.toLowerCase().contains('cascade')
-      ? 'cascadeDepth'
-      : reason,
+  reason: reason ?? _policyDeniedReason(policyRule),
 );
+
+String _policyDeniedReason(String? policyRule) {
+  if (policyRule == null || policyRule.isEmpty) return 'permission';
+  return policyRule.toLowerCase().contains('cascade')
+      ? 'cascadeDepth'
+      : policyRule;
+}
 
 /// See [networkFailure].
 NotFoundFailure notFoundFailure(
@@ -427,6 +444,7 @@ AppFailure appFailureFrom(Object error, [StackTrace? stackTrace]) {
       lower.contains('network is unreachable') ||
       lower.contains('no internet') ||
       lower.contains('failed host lookup') ||
+      lower.contains('no address associated') ||
       lower.contains('handshakeexception') ||
       hasStatus(500) ||
       hasStatus(502) ||
@@ -446,13 +464,14 @@ AppFailure appFailureFrom(Object error, [StackTrace? stackTrace]) {
     return timeoutFailure(message);
   }
 
-  // Validation / boundary violation.
-  if (lower.contains('formatexception') ||
-      lower.contains('argumenterror') ||
-      lower.contains('rangeerror') ||
-      lower.contains('invalid argument') ||
-      lower.contains('validation failed')) {
-    return boundaryViolationFailure(message);
+  // Not found, then auth, then validation — the v2 `AppFailure.from`
+  // precedence. An input matching both "403 forbidden" and "validation
+  // failed" must stay an authorization failure so its callers keep seeing
+  // the policy-denied case.
+  if (hasStatus(404) ||
+      (lower.contains('not found') && !lower.contains('exception')) ||
+      lower.contains('does not exist')) {
+    return notFoundFailure(message);
   }
 
   // Policy denied (auth / forbidden).
@@ -467,11 +486,13 @@ AppFailure appFailureFrom(Object error, [StackTrace? stackTrace]) {
     return policyDeniedFailure(message, reason: 'forbidden');
   }
 
-  // Not found.
-  if (hasStatus(404) ||
-      (lower.contains('not found') && !lower.contains('exception')) ||
-      lower.contains('does not exist')) {
-    return notFoundFailure(message);
+  // Validation / boundary violation.
+  if (lower.contains('formatexception') ||
+      lower.contains('argumenterror') ||
+      lower.contains('rangeerror') ||
+      lower.contains('invalid argument') ||
+      lower.contains('validation failed')) {
+    return boundaryViolationFailure(message);
   }
 
   // Conflict.
@@ -494,6 +515,19 @@ AppFailure appFailureFrom(Object error, [StackTrace? stackTrace]) {
 
   // Fallback.
   return unexpectedFailure(message, cause: error, stackTrace: stackTrace);
+}
+
+/// The stack trace to attach when reporting [failure].
+///
+/// An [UnexpectedFailure] carries the original throw site in its string
+/// `stackTrace`; that is more useful to a reporter than the stack captured
+/// where the already-built failure was caught and rethrown. Other variants
+/// have no stored trace, so the caught trace is used unchanged.
+StackTrace? reportedFailureStackTrace(AppFailure failure, StackTrace? caught) {
+  if (failure is UnexpectedFailure && failure.stackTrace != null) {
+    return StackTrace.fromString(failure.stackTrace!);
+  }
+  return caught;
 }
 
 /// Extension to convert exceptions to failures.

@@ -26,6 +26,19 @@ void main() {
         expect(appFailureFrom(error), isA<NetworkFailure>());
       });
 
+      test('creates NetworkFailure for a bare no-address DNS exception', () {
+        final error = Exception('No address associated with hostname');
+        expect(appFailureFrom(error), isA<NetworkFailure>());
+      });
+
+      test('keeps 403 + validation as an authorization failure (v2 order)', () {
+        final failure = appFailureFrom(
+          Exception('HTTP 403 Forbidden: validation failed'),
+        );
+        expect(failure, isA<PolicyDeniedFailure>());
+        expect((failure as PolicyDeniedFailure).reason, 'forbidden');
+      });
+
       test('creates TimeoutFailure for timeout errors', () {
         final error = Exception('Request timed out');
         expect(appFailureFrom(error), isA<TimeoutFailure>());
@@ -136,6 +149,20 @@ void main() {
         expect(failure.toString(), contains('BoundaryViolationFailure'));
         expect(failure.toString(), contains('Validation failed'));
       });
+
+      test('escapes legacy field names as one JSON Pointer token', () {
+        final failure = boundaryViolationFailure(
+          'Validation failed',
+          fieldErrors: const {
+            'a/b': ['bad'],
+            '~1': ['collision'],
+          },
+        );
+        expect(failure.violations.map((v) => v.path).toList(), [
+          '/a~1b',
+          '/~01',
+        ]);
+      });
     });
 
     group('NotFoundFailure', () {
@@ -173,6 +200,26 @@ void main() {
           reason: 'forbidden',
         );
         expect(failure.reason, equals('forbidden'));
+      });
+
+      test('explicit reason beats a policy rule', () {
+        final failure = policyDeniedFailure(
+          'Denied',
+          reason: 'forbidden',
+          policyRule: 'maxCascadeDepth',
+        );
+        expect(failure.reason, equals('forbidden'));
+      });
+
+      test('cascade rules map to cascadeDepth before other rules', () {
+        expect(
+          policyDeniedFailure('Denied', policyRule: 'maxCascadeDepth').reason,
+          'cascadeDepth',
+        );
+        expect(
+          policyDeniedFailure('Denied', policyRule: 'dailyQuota').reason,
+          'dailyQuota',
+        );
       });
     });
 
@@ -296,6 +343,120 @@ void main() {
         final value = (decoded as BoundaryOk<AppFailure>).value;
         expect(value, isA<NotFoundFailure>());
         expect((value as NotFoundFailure).resourceId, equals('123'));
+      });
+
+      // Every variant must survive the trust boundary with its shared fields
+      // (message, traceId, isRetryable) and its variant-specific fields
+      // intact — not just NotFoundFailure (#2179 review finding).
+      test('round-trips all ten variants with variant-specific fields', () {
+        AppFailure roundTrip(AppFailure original) {
+          final decoded = AppFailure.fromWire(original.toWire());
+          expect(
+            decoded,
+            isA<BoundaryOk<AppFailure>>(),
+            reason: '${original.runtimeType} failed to decode',
+          );
+          return (decoded as BoundaryOk<AppFailure>).value;
+        }
+
+        final originals = <AppFailure>[
+          networkFailure(
+            'net',
+            statusCode: 503,
+            traceId: 'trace-network',
+            isRetryable: true,
+          ),
+          timeoutFailure(
+            'slow',
+            timeout: const Duration(seconds: 2),
+            traceId: 'trace-timeout',
+            isRetryable: false,
+          ),
+          boundaryViolationFailure(
+            'bad input',
+            violations: const [
+              FieldViolation(path: '/name', expected: 'string', actual: 'int'),
+            ],
+            traceId: 'trace-boundary',
+            isRetryable: true,
+          ),
+          policyDeniedFailure(
+            'denied',
+            reason: 'forbidden',
+            traceId: 'trace-policy',
+            isRetryable: true,
+          ),
+          notFoundFailure(
+            'missing',
+            resourceType: 'User',
+            resourceId: '42',
+            traceId: 'trace-notfound',
+            isRetryable: true,
+          ),
+          conflictFailure(
+            'clash',
+            localPatchWire: const {'local': 1},
+            remotePatchWire: const {'remote': 2},
+            traceId: 'trace-conflict',
+            isRetryable: true,
+          ),
+          CancelledFailure.fromTrusted(
+            message: 'stopped',
+            traceId: 'trace-cancelled',
+            isRetryable: true,
+          ),
+          interruptedFailure(
+            'halted',
+            intentDigest: 'digest',
+            traceId: 'trace-interrupted',
+            isRetryable: false,
+          ),
+          storageFailure(
+            'cache miss',
+            layer: 'database',
+            traceId: 'trace-storage',
+            isRetryable: true,
+          ),
+          unexpectedFailure(
+            'boom',
+            cause: 'bad state',
+            stackTrace: StackTrace.fromString('#0 boom'),
+            traceId: 'trace-unexpected',
+            isRetryable: true,
+          ),
+        ];
+
+        final decoded = [for (final original in originals) roundTrip(original)];
+        expect(decoded.length, 10);
+        for (var i = 0; i < originals.length; i++) {
+          expect(decoded[i].runtimeType, originals[i].runtimeType);
+          expect(decoded[i].message, originals[i].message);
+          expect(decoded[i].traceId, originals[i].traceId);
+          expect(decoded[i].isRetryable, originals[i].isRetryable);
+        }
+
+        expect((decoded[0] as NetworkFailure).statusCode, 503);
+        expect(
+          (decoded[1] as TimeoutFailure).timeout,
+          const Duration(seconds: 2),
+        );
+        final violation =
+            (decoded[2] as BoundaryViolationFailure).violations.single;
+        expect(violation.path, '/name');
+        expect(violation.expected, 'string');
+        expect(violation.actual, 'int');
+        expect((decoded[3] as PolicyDeniedFailure).reason, 'forbidden');
+        final notFound = decoded[4] as NotFoundFailure;
+        expect(notFound.resourceType, 'User');
+        expect(notFound.resourceId, '42');
+        final conflict = decoded[5] as ConflictFailure;
+        expect(conflict.localPatchWire, {'local': 1});
+        expect(conflict.remotePatchWire, {'remote': 2});
+        expect((decoded[7] as InterruptedFailure).intentDigest, 'digest');
+        expect((decoded[8] as StorageFailure).layer, 'database');
+        final unexpected = decoded[9] as UnexpectedFailure;
+        expect(unexpected.cause, 'bad state');
+        expect(unexpected.stackTrace, contains('boom'));
       });
     });
   });
