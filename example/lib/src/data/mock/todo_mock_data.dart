@@ -6,7 +6,7 @@ import '../../domain/entities/todo/todo.dart';
 /// Mock data for Todo
 class TodoMockData {
   static final List<Todo> todos = [
-    Todo(
+    Todo.fromTrusted(
       id: 1,
       title: 'title 1',
       description: 'description 1',
@@ -16,7 +16,7 @@ class TodoMockData {
       createdAt: DateTime.now().subtract(const Duration(days: 30)),
       completedAt: DateTime.now().subtract(const Duration(days: 30)),
     ),
-    Todo(
+    Todo.fromTrusted(
       id: 2,
       title: 'title 2',
       description: 'description 2',
@@ -26,7 +26,7 @@ class TodoMockData {
       createdAt: DateTime.now().subtract(const Duration(days: 60)),
       completedAt: DateTime.now().subtract(const Duration(days: 60)),
     ),
-    Todo(
+    Todo.fromTrusted(
       id: 3,
       title: 'title 3',
       description: 'description 3',
@@ -48,7 +48,7 @@ class TodoMockData {
       List.generate(100, (index) => _createTodo(index + 1000));
 
   static Todo _createTodo(int seed) {
-    return Todo(
+    return Todo.fromTrusted(
       id: seed * 10,
       title: 'title $seed',
       description: 'description $seed',

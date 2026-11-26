@@ -544,7 +544,7 @@ class ApiBridgeBuilder {
     if (id == null || id.isEmpty) {
       return ZuraffaApiBridge.errorResponse('badRequest', 'id is required');
     }
-    final params = ${uc.paramsType}(filter: ${entityName}Fields.id.eq(id));
+    final params = ${uc.paramsType}.fromTrusted(filter: ${entityName}Fields.id.eq(id));
     final useCase = getIt<${uc.className}>();
     final result = await useCase(params);
     return ZuraffaApiBridge.serializeResult(
@@ -567,7 +567,7 @@ class ApiBridgeBuilder {
     final entityName = _extractEntityFromGeneric(uc.paramsType);
     final tryStmts = <Code>[
       Code("""
-    final params = ListQueryParams<$entityName>();
+    final params = ListQueryParams<$entityName>.fromTrusted();
     final useCase = getIt<${uc.className}>();
     final result = await useCase(params);
     return ZuraffaApiBridge.serializeResult(
@@ -595,7 +595,7 @@ class ApiBridgeBuilder {
       return ZuraffaApiBridge.errorResponse('deserialization', e.toString());
     }
     json.putIfAbsent('id', () => DateTime.now().microsecondsSinceEpoch.toString());
-    final params = ${uc.paramsType}.fromJson(json);
+    final params = ${_paramsFromJsonExpr(uc.paramsType)};
     final useCase = getIt<${uc.className}>();
     final result = await useCase(params);
     return ZuraffaApiBridge.serializeResult(
@@ -632,7 +632,7 @@ class ApiBridgeBuilder {
       return ZuraffaApiBridge.errorResponse('deserialization', e.toString());
     }
     json.putIfAbsent('id', () => DateTime.now().microsecondsSinceEpoch.toString());
-    final params = ${uc.paramsType}.fromJson(json);"""),
+    final params = ${_paramsFromJsonExpr(uc.paramsType)};"""),
       );
     }
 
@@ -713,6 +713,22 @@ class ApiBridgeBuilder {
   bool _isListQueryParams(String paramsType) {
     final base = paramsType.trim().split('<').first.trim();
     return base == 'ListQueryParams' && paramsType.contains('<');
+  }
+
+  /// v3 generated params classes expose only `fromTrusted` and the top-level
+  /// `queryParamsFromWire` / `listQueryParamsFromWire` decoders — the v2
+  /// unnamed constructors and `fromJson` are gone (review #2179).
+  String _paramsFromJsonExpr(String paramsType) {
+    final t = paramsType.trim();
+    if (_isQueryParams(t)) {
+      final e = _extractEntityFromGeneric(t);
+      return 'queryParamsFromWire<$e>(json, (v) => v as $e)';
+    }
+    if (_isListQueryParams(t)) {
+      final e = _extractEntityFromGeneric(t);
+      return 'listQueryParamsFromWire<$e>(json, (v) => v as $e)';
+    }
+    return '$t.fromJson(json)';
   }
 
   /// Extracts the entity type from a generic like `QueryParams<Product>` → `Product`.

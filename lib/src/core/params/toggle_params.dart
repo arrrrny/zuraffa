@@ -40,16 +40,15 @@ abstract class $ToggleParams<I extends Object, F> implements $$Params {
 /// Trust-boundary wire codec for [ToggleParams] (v3 generic value types get no
 /// generated codec).
 extension ToggleParamsWireCodec<I extends Object, F> on ToggleParams<I, F> {
-  /// Serialize to a wire map; [toI] encodes the id, [toF] the field value.
+  /// Serialize to a wire map; [toI] encodes the id, [toF] encodes the field.
+  ///
+  /// [value] is an independent `Object?` (it may be a `bool`, `String`, etc.
+  /// that is not an [F]); applying the field codec to it cast a `bool` to the
+  /// field enum and threw. Only [field] goes through [toF].
   Map<String, dynamic> toWire(
     Object? Function(I value) toI,
     Object? Function(F value) toF,
-  ) => {
-    'params': params,
-    'id': toI(id),
-    'field': field,
-    'value': toF(value as F),
-  };
+  ) => {'params': params, 'id': toI(id), 'field': toF(field), 'value': value};
 }
 
 /// Decode a [ToggleParams] from a wire map.
@@ -62,6 +61,6 @@ ToggleParams<I, F> toggleParamsFromWire<I extends Object, F>(
     params: raw['params'] as Map<String, dynamic>?,
     id: fromI(raw['id']),
     field: fromF(raw['field']),
-    value: fromF(raw['value']),
+    value: raw['value'],
   );
 }

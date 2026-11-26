@@ -3,7 +3,7 @@ import 'package:example/src/data/datasources/todo/todo_datasource.dart';
 import 'package:example/src/data/datasources/todo/todo_mock_datasource.dart';
 import 'package:example/src/data/mock/todo_mock_data.dart';
 import 'package:example/src/data/repositories/data_todo_repository.dart';
-import 'package:example/src/domain/entities/todo/todo.dart';
+import 'package:example/src/domain/entities/todo/todo.dart' hide TodoMockData;
 import 'package:example/src/domain/usecases/todo/delete_todo_usecase.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/mock.dart';
@@ -65,12 +65,12 @@ void main() {
   group('DeleteTodoUseCase', () {
     final tTodo = TodoMockData.sampleTodo;
     test('should call repository.delete and return result', () async {
-      final result = await useCase.call(DeleteParams<int>(id: tTodo.id));
+      final result = await useCase.call(DeleteParams<int>.fromTrusted(id: tTodo.id));
       expect(result.isSuccess, true);
     });
     test('should return Failure when repository throws', () async {
       final result = await throwingUseCase.call(
-        DeleteParams<int>(id: tTodo.id),
+        DeleteParams<int>.fromTrusted(id: tTodo.id),
       );
       expect(result.isFailure, true);
     });

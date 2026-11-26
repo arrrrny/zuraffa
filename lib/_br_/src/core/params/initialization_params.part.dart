@@ -16,6 +16,7 @@ final class InitializationParams implements ZorphyValueBase {
     this.forceRefresh,
     this.credentials,
     this.settings,
+    this.params,
   });
 
   final Duration timeout;
@@ -26,6 +27,8 @@ final class InitializationParams implements ZorphyValueBase {
 
   final Settings? settings;
 
+  final Map<String, dynamic>? params;
+
   static const InitializationParamsLenses lenses = InitializationParamsLenses();
 
   InitializationParams copyWith({
@@ -33,6 +36,7 @@ final class InitializationParams implements ZorphyValueBase {
     Object? forceRefresh = _sentinel,
     Object? credentials = _sentinel,
     Object? settings = _sentinel,
+    Object? params = _sentinel,
   }) {
     return InitializationParams.fromTrusted(
       timeout: timeout ?? this.timeout,
@@ -45,6 +49,9 @@ final class InitializationParams implements ZorphyValueBase {
       settings: identical(settings, _sentinel)
           ? this.settings
           : settings as Settings?,
+      params: identical(params, _sentinel)
+          ? this.params
+          : params as Map<String, dynamic>?,
     );
   }
 
@@ -55,16 +62,17 @@ final class InitializationParams implements ZorphyValueBase {
         this.timeout == other.timeout &&
         this.forceRefresh == other.forceRefresh &&
         this.credentials == other.credentials &&
-        this.settings == other.settings;
+        this.settings == other.settings &&
+        this.params == other.params;
   }
 
   @override
   int get hashCode =>
-      Object.hashAll([timeout, forceRefresh, credentials, settings]);
+      Object.hashAll([timeout, forceRefresh, credentials, settings, params]);
 
   @override
   String toString() =>
-      'InitializationParams(timeout: $timeout, forceRefresh: $forceRefresh, credentials: $credentials, settings: $settings)';
+      'InitializationParams(timeout: $timeout, forceRefresh: $forceRefresh, credentials: $credentials, settings: $settings, params: $params)';
 
   static ZorphyBoundaryResult<InitializationParams> fromWire(
     Map<String, Object?> raw,
@@ -96,6 +104,26 @@ final class InitializationParams implements ZorphyValueBase {
     if (raw_settings != null) {
       _settings = _boundaryAs<Settings>(raw_settings, '/settings', violations);
     }
+    final Object? raw_params = raw['params'];
+    Map<String, dynamic>? _params;
+    if (raw_params != null) {
+      final map_params = _boundaryObject(raw_params, '/params', violations);
+      if (map_params != null) {
+        final decoded_params = <String, dynamic>{};
+        for (final entry in map_params.entries) {
+          final path_params = '/params' + '/' + entry.key;
+          final element_params = _boundaryAs<dynamic>(
+            map_params[entry.key],
+            path_params,
+            violations,
+          );
+          if (element_params != null) {
+            decoded_params[entry.key] = element_params;
+          }
+        }
+        _params = decoded_params;
+      }
+    }
     if (violations.isNotEmpty) {
       return BoundaryErr<InitializationParams>(
         targetType: 'InitializationParams',
@@ -108,6 +136,7 @@ final class InitializationParams implements ZorphyValueBase {
         forceRefresh: _forceRefresh,
         credentials: _credentials,
         settings: _settings,
+        params: _params,
       ),
     );
   }
@@ -126,6 +155,10 @@ final class InitializationParams implements ZorphyValueBase {
     final _settings = this.settings;
     if (_settings != null) {
       map['settings'] = _settings;
+    }
+    final _params = this.params;
+    if (_params != null) {
+      map['params'] = _params;
     }
     return map;
   }
@@ -159,6 +192,12 @@ final class InitializationParams implements ZorphyValueBase {
         path: '/settings',
         get: (root) => root.settings,
         set: (root, value) => root.copyWith(settings: value as Settings?),
+      ),
+      '/params' => ZorphyLens<InitializationParams, Object?>(
+        path: '/params',
+        get: (root) => root.params,
+        set: (root, value) =>
+            root.copyWith(params: value as Map<String, dynamic>?),
       ),
       _ => null,
     };
@@ -196,6 +235,22 @@ T? _boundaryAs<T>(Object? value, String path, List<FieldViolation> violations) {
     FieldViolation(
       path: path,
       expected: '$T',
+      actual: _boundaryDescribe(value),
+    ),
+  );
+  return null;
+}
+
+Map<String, Object?>? _boundaryObject(
+  Object? value,
+  String path,
+  List<FieldViolation> violations,
+) {
+  if (value is Map<String, Object?>) return value;
+  violations.add(
+    FieldViolation(
+      path: path,
+      expected: 'Map<String, Object?>',
       actual: _boundaryDescribe(value),
     ),
   );
@@ -265,5 +320,20 @@ final class InitializationParamsLenses {
     InitializationParams root,
     Settings? value,
   ) => root.copyWith(settings: value);
+
+  ZorphyLens<InitializationParams, Map<String, dynamic>?> get params =>
+      const ZorphyLens<InitializationParams, Map<String, dynamic>?>(
+        path: '/params',
+        get: _getParams,
+        set: _setParams,
+      );
+
+  static Map<String, dynamic>? _getParams(InitializationParams root) =>
+      root.params;
+
+  static InitializationParams _setParams(
+    InitializationParams root,
+    Map<String, dynamic>? value,
+  ) => root.copyWith(params: value);
 }
 

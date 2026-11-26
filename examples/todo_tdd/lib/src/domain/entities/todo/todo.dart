@@ -3,6 +3,7 @@
 
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 
+part '../../../../_br_/src/domain/entities/todo/todo.part.dart';
 
 /// Todo entity
 @ZorphyEntity(principalKey: #id)

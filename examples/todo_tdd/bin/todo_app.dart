@@ -19,7 +19,7 @@ import 'package:todo_tdd/tdd/u6_subject.dart' as u6;
 void main() {
   final now = DateTime.now();
   final todos = <Todo>[
-    Todo(
+    Todo.fromTrusted(
       id: 't-1',
       title: 'Scaffold the app with zfa setup',
       description: 'zfa setup todo_tdd --dart',
@@ -29,7 +29,7 @@ void main() {
       createdAt: now,
       completedAt: now,
     ),
-    Todo(
+    Todo.fromTrusted(
       id: 't-2',
       title: 'Drive 001-todo-app through the tdd cycle',
       description: 'zfa tdd run 001-todo-app',
@@ -39,7 +39,7 @@ void main() {
       createdAt: now,
       completedAt: now,
     ),
-    Todo(
+    Todo.fromTrusted(
       id: 't-3',
       title: 'Verify the app runs green',
       description: 'dart test && dart run bin/todo_app.dart',
@@ -62,7 +62,7 @@ void main() {
   }
 
   // Aggregate stats over the seeded list (TodoStats entity, A2).
-  final stats = TodoStats(
+  final stats = TodoStats.fromTrusted(
     total: todos.length,
     active: todos.where((t) => !t.isCompleted).length,
     completed: todos.where((t) => t.isCompleted).length,

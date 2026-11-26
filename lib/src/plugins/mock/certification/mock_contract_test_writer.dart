@@ -535,10 +535,12 @@ class MockContractTestWriter {
     final t = paramsType.trim();
     if (isZeroArg || t.isEmpty) return '';
     if (t == 'NoParams') return 'const NoParams()';
-    if (t.startsWith('QueryParams<')) return '$t()';
-    if (t.startsWith('ListQueryParams<')) return '$t()';
+    if (t.startsWith('QueryParams<')) return '$t.fromTrusted()';
+    if (t.startsWith('ListQueryParams<')) return '$t.fromTrusted()';
     if (t.startsWith('InitializationParams')) {
-      return 'const InitializationParams(timeout: Duration.zero)';
+      // v3 generated params classes expose only `fromTrusted`; the unnamed
+      // constructor was removed by the zorphy v3 migration (#2179).
+      return 'const InitializationParams.fromTrusted(timeout: Duration.zero)';
     }
     if (t == entityName) {
       // Only synthesize a sample when the mock data fixture exists;

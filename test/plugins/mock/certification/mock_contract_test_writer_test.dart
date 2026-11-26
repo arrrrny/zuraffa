@@ -143,7 +143,9 @@ abstract class LoginDataSource with Loggable, FailureHandler {
 
         // get: QueryParams is parameterless — behavioral call emitted.
         expect(
-          source.contains('await dataSource.get(QueryParams<Login>())'),
+          source.contains(
+            'await dataSource.get(QueryParams<Login>.fromTrusted())',
+          ),
           isTrue,
         );
         // count: zero-arg method — behavioral call with no arguments.

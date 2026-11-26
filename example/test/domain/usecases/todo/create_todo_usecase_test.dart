@@ -3,7 +3,7 @@ import 'package:example/src/data/datasources/todo/todo_datasource.dart';
 import 'package:example/src/data/datasources/todo/todo_mock_datasource.dart';
 import 'package:example/src/data/mock/todo_mock_data.dart';
 import 'package:example/src/data/repositories/data_todo_repository.dart';
-import 'package:example/src/domain/entities/todo/todo.dart';
+import 'package:example/src/domain/entities/todo/todo.dart' hide TodoMockData;
 import 'package:example/src/domain/usecases/todo/create_todo_usecase.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/mock.dart';

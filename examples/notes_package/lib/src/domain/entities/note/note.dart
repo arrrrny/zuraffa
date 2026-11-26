@@ -3,6 +3,7 @@
 
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 
+part '../../../../_br_/src/domain/entities/note/note.part.dart';
 
 /// Note entity
 @ZorphyEntity(principalKey: #id)

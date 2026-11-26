@@ -538,7 +538,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   ) {
     final paramsExpression = config.queryFieldType == 'NoParams'
         ? refer('NoParams').constInstance([])
-        : refer('QueryParams<$entityName>').call([], {
+        : refer('QueryParams<$entityName>').property('fromTrusted').call([], {
             'filter': refer('Eq').call([
               refer('${entityName}Fields').property(config.queryField),
               refer(config.queryField),
@@ -586,7 +586,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
               ..name = 'params'
               ..type = refer('ListQueryParams<$entityName>')
               ..defaultTo = refer(
-                'ListQueryParams<$entityName>',
+                'ListQueryParams<$entityName>.fromTrusted',
               ).constInstance([]).code,
           ),
           _cancelTokenParam(),
@@ -746,7 +746,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   ) {
     final paramsExpression = config.queryFieldType == 'NoParams'
         ? refer('NoParams').constInstance([])
-        : refer('QueryParams<$entityName>').call([], {
+        : refer('QueryParams<$entityName>').property('fromTrusted').call([], {
             'filter': refer('Eq').call([
               refer('${entityName}Fields').property(config.queryField),
               refer(config.queryField),
@@ -794,7 +794,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
               ..name = 'params'
               ..type = refer('ListQueryParams<$entityName>')
               ..defaultTo = refer(
-                'ListQueryParams<$entityName>',
+                'ListQueryParams<$entityName>.fromTrusted',
               ).constInstance([]).code,
           ),
           _cancelTokenParam(),
@@ -812,7 +812,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   ) {
     final paramsExpression = config.queryFieldType == 'NoParams'
         ? refer('NoParams').constInstance([])
-        : refer('QueryParams<$entityName>').call([], {
+        : refer('QueryParams<$entityName>').property('fromTrusted').call([], {
             'filter': refer('Eq').call([
               refer('${entityName}Fields').property(config.queryField),
               refer(config.queryField),

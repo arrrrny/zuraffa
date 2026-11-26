@@ -4,7 +4,7 @@ import 'dart:async';
 
 import 'package:zuraffa/mock.dart';
 
-import '../../../domain/entities/note/note.dart';
+import '../../../domain/entities/note/note.dart' hide NoteMockData;
 import '../../mock/note_mock_data.dart';
 import 'note_datasource.dart';
 
@@ -34,7 +34,7 @@ class NoteMockDataSource
       (item) => item.id == params.id,
       orElse: () => throw notFoundFailure('Note not found in mock data'),
     );
-    final updated = params.data.applyTo(existing);
+    final updated = params.data.apply(existing);
     final index = NoteMockData.notes.indexOf(existing);
     NoteMockData.notes[index] = updated;
     logger.info('Successfully updated Note');
@@ -49,7 +49,12 @@ class NoteMockDataSource
       (item) => item.id == params.id,
       orElse: () => throw notFoundFailure('Note not found in mock data'),
     );
-    final updated = existing.copyWithField(params.field, params.value);
+    // v3 entities have no `copyWithField`; route the typed field through the
+    // immutable `copyWith` API (the only mutable field on Note is `body`).
+    final updated = switch (params.field.name) {
+      'body' => existing.copyWith(body: params.value as String),
+      _ => throw unsupportedFailure('Cannot toggle Note.${params.field.name}'),
+    };
     final index = NoteMockData.notes.indexOf(existing);
     NoteMockData.notes[index] = updated;
     logger.info('Successfully toggled Note');

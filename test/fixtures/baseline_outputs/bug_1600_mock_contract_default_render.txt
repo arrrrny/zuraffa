@@ -27,7 +27,7 @@ void main() {
           dataSource.get;
       expect(get$, isNotNull);
       // Behavioral: the fake returns typed default data (no throw).
-final value = await dataSource.get(QueryParams<Login>());
+final value = await dataSource.get(QueryParams<Login>.fromTrusted());
       expect(value, isA<Login>());
     });
 

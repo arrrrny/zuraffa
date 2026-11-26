@@ -2,6 +2,7 @@ import 'package:zorphy_annotation/zorphy_annotation.dart';
 
 import '../failure.dart';
 import 'converters/filter_converter.dart';
+import 'converters/sort_converter.dart';
 import 'list_query_params.dart';
 import 'params.dart';
 
@@ -180,15 +181,25 @@ extension QueryParamsWireCodec<T> on QueryParams<T> {
 
 /// Decode a [QueryParams] from a wire map produced by
 /// [QueryParamsWireCodec.toWire].
+///
+/// [fields] / [resolveField] carry typed `Field<T, dynamic>` context so a
+/// decoded [Filter] binds to a field of [T]. Without it the converter builds a
+/// fallback field whose getter throws for typed entities — the `as Filter<T>?`
+/// cast cannot catch that (review #2179).
 QueryParams<T> queryParamsFromWire<T>(
   Map<String, dynamic> raw,
-  T Function(Object? json) fromElement,
-) {
+  T Function(Object? json) fromElement, [
+  Map<String, Field<T, dynamic>>? fields,
+  FieldResolver<T>? resolveField,
+]) {
   return QueryParams<T>.fromTrusted(
     params: raw['params'] as Map<String, dynamic>?,
     filter: raw['filter'] != null
-        ? FilterConverter.fromJson(raw['filter'] as Map<String, dynamic>)
-              as Filter<T>?
+        ? FilterConverter.fromJsonTyped<T>(
+            raw['filter'] as Map<String, dynamic>,
+            fields,
+            resolveField,
+          )
         : null,
   );
 }

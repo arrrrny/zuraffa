@@ -16,6 +16,7 @@ sealed class AppFailure implements ZorphyValueBase {
   String get message;
   String? get traceId;
   bool get isRetryable;
+  String? get code;
   static ZorphyBoundaryResult<AppFailure> fromWire(Map<String, Object?> raw) {
     final Object? tag = raw['kind'];
     if (tag is String) {
@@ -207,6 +208,24 @@ sealed class AppFailure implements ZorphyValueBase {
           UnexpectedFailure _node => _node.copyWith(isRetryable: value as bool),
         },
       ),
+      '/code' => ZorphyLens<AppFailure, Object?>(
+        path: '/code',
+        get: (root) => root.code,
+        set: (root, value) => switch (root) {
+          NetworkFailure _node => _node.copyWith(code: value as String?),
+          TimeoutFailure _node => _node.copyWith(code: value as String?),
+          BoundaryViolationFailure _node => _node.copyWith(
+            code: value as String?,
+          ),
+          PolicyDeniedFailure _node => _node.copyWith(code: value as String?),
+          NotFoundFailure _node => _node.copyWith(code: value as String?),
+          ConflictFailure _node => _node.copyWith(code: value as String?),
+          CancelledFailure _node => _node.copyWith(code: value as String?),
+          InterruptedFailure _node => _node.copyWith(code: value as String?),
+          StorageFailure _node => _node.copyWith(code: value as String?),
+          UnexpectedFailure _node => _node.copyWith(code: value as String?),
+        },
+      ),
       '/statusCode' => ZorphyLens<AppFailure, Object?>(
         path: '/statusCode',
         get: (root) => switch (root) {
@@ -361,6 +380,7 @@ final class NetworkFailure extends AppFailure implements ZorphyValueBase {
     required this.message,
     this.traceId,
     required this.isRetryable,
+    this.code,
     this.statusCode,
   });
 
@@ -373,6 +393,9 @@ final class NetworkFailure extends AppFailure implements ZorphyValueBase {
   @override
   final bool isRetryable;
 
+  @override
+  final String? code;
+
   final int? statusCode;
 
   static const NetworkFailureLenses lenses = NetworkFailureLenses();
@@ -381,6 +404,7 @@ final class NetworkFailure extends AppFailure implements ZorphyValueBase {
     String? message,
     Object? traceId = _sentinel,
     bool? isRetryable,
+    Object? code = _sentinel,
     Object? statusCode = _sentinel,
   }) {
     return NetworkFailure.fromTrusted(
@@ -389,6 +413,7 @@ final class NetworkFailure extends AppFailure implements ZorphyValueBase {
           ? this.traceId
           : traceId as String?,
       isRetryable: isRetryable ?? this.isRetryable,
+      code: identical(code, _sentinel) ? this.code : code as String?,
       statusCode: identical(statusCode, _sentinel)
           ? this.statusCode
           : statusCode as int?,
@@ -402,16 +427,17 @@ final class NetworkFailure extends AppFailure implements ZorphyValueBase {
         this.message == other.message &&
         this.traceId == other.traceId &&
         this.isRetryable == other.isRetryable &&
+        this.code == other.code &&
         this.statusCode == other.statusCode;
   }
 
   @override
   int get hashCode =>
-      Object.hashAll([message, traceId, isRetryable, statusCode]);
+      Object.hashAll([message, traceId, isRetryable, code, statusCode]);
 
   @override
   String toString() =>
-      'NetworkFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, statusCode: $statusCode)';
+      'NetworkFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, code: $code, statusCode: $statusCode)';
 
   static ZorphyBoundaryResult<NetworkFailure> fromWire(
     Map<String, Object?> raw,
@@ -432,6 +458,11 @@ final class NetworkFailure extends AppFailure implements ZorphyValueBase {
       '/isRetryable',
       violations,
     );
+    final Object? raw_code = raw['code'];
+    String? _code;
+    if (raw_code != null) {
+      _code = _boundaryAs<String>(raw_code, '/code', violations);
+    }
     final Object? raw_statusCode = raw['statusCode'];
     int? _statusCode;
     if (raw_statusCode != null) {
@@ -448,6 +479,7 @@ final class NetworkFailure extends AppFailure implements ZorphyValueBase {
         message: _message!,
         traceId: _traceId,
         isRetryable: _isRetryable!,
+        code: _code,
         statusCode: _statusCode,
       ),
     );
@@ -461,6 +493,10 @@ final class NetworkFailure extends AppFailure implements ZorphyValueBase {
       map['traceId'] = _traceId;
     }
     map['isRetryable'] = this.isRetryable;
+    final _code = this.code;
+    if (_code != null) {
+      map['code'] = _code;
+    }
     final _statusCode = this.statusCode;
     if (_statusCode != null) {
       map['statusCode'] = _statusCode;
@@ -491,6 +527,11 @@ final class NetworkFailure extends AppFailure implements ZorphyValueBase {
         get: (root) => root.isRetryable,
         set: (root, value) => root.copyWith(isRetryable: value as bool),
       ),
+      '/code' => ZorphyLens<NetworkFailure, Object?>(
+        path: '/code',
+        get: (root) => root.code,
+        set: (root, value) => root.copyWith(code: value as String?),
+      ),
       '/statusCode' => ZorphyLens<NetworkFailure, Object?>(
         path: '/statusCode',
         get: (root) => root.statusCode,
@@ -506,6 +547,7 @@ final class TimeoutFailure extends AppFailure implements ZorphyValueBase {
     required this.message,
     this.traceId,
     required this.isRetryable,
+    this.code,
     this.timeout,
   });
 
@@ -518,6 +560,9 @@ final class TimeoutFailure extends AppFailure implements ZorphyValueBase {
   @override
   final bool isRetryable;
 
+  @override
+  final String? code;
+
   final Duration? timeout;
 
   static const TimeoutFailureLenses lenses = TimeoutFailureLenses();
@@ -526,6 +571,7 @@ final class TimeoutFailure extends AppFailure implements ZorphyValueBase {
     String? message,
     Object? traceId = _sentinel,
     bool? isRetryable,
+    Object? code = _sentinel,
     Object? timeout = _sentinel,
   }) {
     return TimeoutFailure.fromTrusted(
@@ -534,6 +580,7 @@ final class TimeoutFailure extends AppFailure implements ZorphyValueBase {
           ? this.traceId
           : traceId as String?,
       isRetryable: isRetryable ?? this.isRetryable,
+      code: identical(code, _sentinel) ? this.code : code as String?,
       timeout: identical(timeout, _sentinel)
           ? this.timeout
           : timeout as Duration?,
@@ -547,15 +594,17 @@ final class TimeoutFailure extends AppFailure implements ZorphyValueBase {
         this.message == other.message &&
         this.traceId == other.traceId &&
         this.isRetryable == other.isRetryable &&
+        this.code == other.code &&
         this.timeout == other.timeout;
   }
 
   @override
-  int get hashCode => Object.hashAll([message, traceId, isRetryable, timeout]);
+  int get hashCode =>
+      Object.hashAll([message, traceId, isRetryable, code, timeout]);
 
   @override
   String toString() =>
-      'TimeoutFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, timeout: $timeout)';
+      'TimeoutFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, code: $code, timeout: $timeout)';
 
   static ZorphyBoundaryResult<TimeoutFailure> fromWire(
     Map<String, Object?> raw,
@@ -576,6 +625,11 @@ final class TimeoutFailure extends AppFailure implements ZorphyValueBase {
       '/isRetryable',
       violations,
     );
+    final Object? raw_code = raw['code'];
+    String? _code;
+    if (raw_code != null) {
+      _code = _boundaryAs<String>(raw_code, '/code', violations);
+    }
     final Object? raw_timeout = raw['timeout'];
     Duration? _timeout;
     if (raw_timeout != null) {
@@ -592,6 +646,7 @@ final class TimeoutFailure extends AppFailure implements ZorphyValueBase {
         message: _message!,
         traceId: _traceId,
         isRetryable: _isRetryable!,
+        code: _code,
         timeout: _timeout,
       ),
     );
@@ -605,6 +660,10 @@ final class TimeoutFailure extends AppFailure implements ZorphyValueBase {
       map['traceId'] = _traceId;
     }
     map['isRetryable'] = this.isRetryable;
+    final _code = this.code;
+    if (_code != null) {
+      map['code'] = _code;
+    }
     final _timeout = this.timeout;
     if (_timeout != null) {
       map['timeout'] = _timeout;
@@ -635,6 +694,11 @@ final class TimeoutFailure extends AppFailure implements ZorphyValueBase {
         get: (root) => root.isRetryable,
         set: (root, value) => root.copyWith(isRetryable: value as bool),
       ),
+      '/code' => ZorphyLens<TimeoutFailure, Object?>(
+        path: '/code',
+        get: (root) => root.code,
+        set: (root, value) => root.copyWith(code: value as String?),
+      ),
       '/timeout' => ZorphyLens<TimeoutFailure, Object?>(
         path: '/timeout',
         get: (root) => root.timeout,
@@ -651,6 +715,7 @@ final class BoundaryViolationFailure extends AppFailure
     required this.message,
     this.traceId,
     required this.isRetryable,
+    this.code,
     required this.violations,
   });
 
@@ -663,6 +728,9 @@ final class BoundaryViolationFailure extends AppFailure
   @override
   final bool isRetryable;
 
+  @override
+  final String? code;
+
   final List<FieldViolation> violations;
 
   static const BoundaryViolationFailureLenses lenses =
@@ -672,6 +740,7 @@ final class BoundaryViolationFailure extends AppFailure
     String? message,
     Object? traceId = _sentinel,
     bool? isRetryable,
+    Object? code = _sentinel,
     List<FieldViolation>? violations,
   }) {
     return BoundaryViolationFailure.fromTrusted(
@@ -680,6 +749,7 @@ final class BoundaryViolationFailure extends AppFailure
           ? this.traceId
           : traceId as String?,
       isRetryable: isRetryable ?? this.isRetryable,
+      code: identical(code, _sentinel) ? this.code : code as String?,
       violations: violations ?? this.violations,
     );
   }
@@ -691,16 +761,17 @@ final class BoundaryViolationFailure extends AppFailure
         this.message == other.message &&
         this.traceId == other.traceId &&
         this.isRetryable == other.isRetryable &&
+        this.code == other.code &&
         this.violations == other.violations;
   }
 
   @override
   int get hashCode =>
-      Object.hashAll([message, traceId, isRetryable, violations]);
+      Object.hashAll([message, traceId, isRetryable, code, violations]);
 
   @override
   String toString() =>
-      'BoundaryViolationFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, violations: $violations)';
+      'BoundaryViolationFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, code: $code, violations: $violations)';
 
   static ZorphyBoundaryResult<BoundaryViolationFailure> fromWire(
     Map<String, Object?> raw,
@@ -721,6 +792,11 @@ final class BoundaryViolationFailure extends AppFailure
       '/isRetryable',
       violations,
     );
+    final Object? raw_code = raw['code'];
+    String? _code;
+    if (raw_code != null) {
+      _code = _boundaryAs<String>(raw_code, '/code', violations);
+    }
     final Object? raw_violations = raw['violations'];
     List<FieldViolation>? _violations;
     final list_violations = _boundaryList(
@@ -754,6 +830,7 @@ final class BoundaryViolationFailure extends AppFailure
         message: _message!,
         traceId: _traceId,
         isRetryable: _isRetryable!,
+        code: _code,
         violations: _violations!,
       ),
     );
@@ -767,6 +844,10 @@ final class BoundaryViolationFailure extends AppFailure
       map['traceId'] = _traceId;
     }
     map['isRetryable'] = this.isRetryable;
+    final _code = this.code;
+    if (_code != null) {
+      map['code'] = _code;
+    }
     map['violations'] = this.violations;
     return map;
   }
@@ -796,6 +877,11 @@ final class BoundaryViolationFailure extends AppFailure
         get: (root) => root.isRetryable,
         set: (root, value) => root.copyWith(isRetryable: value as bool),
       ),
+      '/code' => ZorphyLens<BoundaryViolationFailure, Object?>(
+        path: '/code',
+        get: (root) => root.code,
+        set: (root, value) => root.copyWith(code: value as String?),
+      ),
       '/violations' => ZorphyLens<BoundaryViolationFailure, Object?>(
         path: '/violations',
         get: (root) => root.violations,
@@ -812,6 +898,7 @@ final class PolicyDeniedFailure extends AppFailure implements ZorphyValueBase {
     required this.message,
     this.traceId,
     required this.isRetryable,
+    this.code,
     required this.reason,
   });
 
@@ -824,6 +911,9 @@ final class PolicyDeniedFailure extends AppFailure implements ZorphyValueBase {
   @override
   final bool isRetryable;
 
+  @override
+  final String? code;
+
   final String reason;
 
   static const PolicyDeniedFailureLenses lenses = PolicyDeniedFailureLenses();
@@ -832,6 +922,7 @@ final class PolicyDeniedFailure extends AppFailure implements ZorphyValueBase {
     String? message,
     Object? traceId = _sentinel,
     bool? isRetryable,
+    Object? code = _sentinel,
     String? reason,
   }) {
     return PolicyDeniedFailure.fromTrusted(
@@ -840,6 +931,7 @@ final class PolicyDeniedFailure extends AppFailure implements ZorphyValueBase {
           ? this.traceId
           : traceId as String?,
       isRetryable: isRetryable ?? this.isRetryable,
+      code: identical(code, _sentinel) ? this.code : code as String?,
       reason: reason ?? this.reason,
     );
   }
@@ -851,15 +943,17 @@ final class PolicyDeniedFailure extends AppFailure implements ZorphyValueBase {
         this.message == other.message &&
         this.traceId == other.traceId &&
         this.isRetryable == other.isRetryable &&
+        this.code == other.code &&
         this.reason == other.reason;
   }
 
   @override
-  int get hashCode => Object.hashAll([message, traceId, isRetryable, reason]);
+  int get hashCode =>
+      Object.hashAll([message, traceId, isRetryable, code, reason]);
 
   @override
   String toString() =>
-      'PolicyDeniedFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, reason: $reason)';
+      'PolicyDeniedFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, code: $code, reason: $reason)';
 
   static ZorphyBoundaryResult<PolicyDeniedFailure> fromWire(
     Map<String, Object?> raw,
@@ -880,6 +974,11 @@ final class PolicyDeniedFailure extends AppFailure implements ZorphyValueBase {
       '/isRetryable',
       violations,
     );
+    final Object? raw_code = raw['code'];
+    String? _code;
+    if (raw_code != null) {
+      _code = _boundaryAs<String>(raw_code, '/code', violations);
+    }
     final Object? raw_reason = raw['reason'];
     String? _reason;
     _reason = _boundaryAs<String>(raw_reason, '/reason', violations);
@@ -894,6 +993,7 @@ final class PolicyDeniedFailure extends AppFailure implements ZorphyValueBase {
         message: _message!,
         traceId: _traceId,
         isRetryable: _isRetryable!,
+        code: _code,
         reason: _reason!,
       ),
     );
@@ -907,6 +1007,10 @@ final class PolicyDeniedFailure extends AppFailure implements ZorphyValueBase {
       map['traceId'] = _traceId;
     }
     map['isRetryable'] = this.isRetryable;
+    final _code = this.code;
+    if (_code != null) {
+      map['code'] = _code;
+    }
     map['reason'] = this.reason;
     return map;
   }
@@ -934,6 +1038,11 @@ final class PolicyDeniedFailure extends AppFailure implements ZorphyValueBase {
         get: (root) => root.isRetryable,
         set: (root, value) => root.copyWith(isRetryable: value as bool),
       ),
+      '/code' => ZorphyLens<PolicyDeniedFailure, Object?>(
+        path: '/code',
+        get: (root) => root.code,
+        set: (root, value) => root.copyWith(code: value as String?),
+      ),
       '/reason' => ZorphyLens<PolicyDeniedFailure, Object?>(
         path: '/reason',
         get: (root) => root.reason,
@@ -949,6 +1058,7 @@ final class NotFoundFailure extends AppFailure implements ZorphyValueBase {
     required this.message,
     this.traceId,
     required this.isRetryable,
+    this.code,
     this.resourceType,
     this.resourceId,
   });
@@ -962,6 +1072,9 @@ final class NotFoundFailure extends AppFailure implements ZorphyValueBase {
   @override
   final bool isRetryable;
 
+  @override
+  final String? code;
+
   final String? resourceType;
 
   final String? resourceId;
@@ -972,6 +1085,7 @@ final class NotFoundFailure extends AppFailure implements ZorphyValueBase {
     String? message,
     Object? traceId = _sentinel,
     bool? isRetryable,
+    Object? code = _sentinel,
     Object? resourceType = _sentinel,
     Object? resourceId = _sentinel,
   }) {
@@ -981,6 +1095,7 @@ final class NotFoundFailure extends AppFailure implements ZorphyValueBase {
           ? this.traceId
           : traceId as String?,
       isRetryable: isRetryable ?? this.isRetryable,
+      code: identical(code, _sentinel) ? this.code : code as String?,
       resourceType: identical(resourceType, _sentinel)
           ? this.resourceType
           : resourceType as String?,
@@ -997,17 +1112,24 @@ final class NotFoundFailure extends AppFailure implements ZorphyValueBase {
         this.message == other.message &&
         this.traceId == other.traceId &&
         this.isRetryable == other.isRetryable &&
+        this.code == other.code &&
         this.resourceType == other.resourceType &&
         this.resourceId == other.resourceId;
   }
 
   @override
-  int get hashCode =>
-      Object.hashAll([message, traceId, isRetryable, resourceType, resourceId]);
+  int get hashCode => Object.hashAll([
+    message,
+    traceId,
+    isRetryable,
+    code,
+    resourceType,
+    resourceId,
+  ]);
 
   @override
   String toString() =>
-      'NotFoundFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, resourceType: $resourceType, resourceId: $resourceId)';
+      'NotFoundFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, code: $code, resourceType: $resourceType, resourceId: $resourceId)';
 
   static ZorphyBoundaryResult<NotFoundFailure> fromWire(
     Map<String, Object?> raw,
@@ -1028,6 +1150,11 @@ final class NotFoundFailure extends AppFailure implements ZorphyValueBase {
       '/isRetryable',
       violations,
     );
+    final Object? raw_code = raw['code'];
+    String? _code;
+    if (raw_code != null) {
+      _code = _boundaryAs<String>(raw_code, '/code', violations);
+    }
     final Object? raw_resourceType = raw['resourceType'];
     String? _resourceType;
     if (raw_resourceType != null) {
@@ -1057,6 +1184,7 @@ final class NotFoundFailure extends AppFailure implements ZorphyValueBase {
         message: _message!,
         traceId: _traceId,
         isRetryable: _isRetryable!,
+        code: _code,
         resourceType: _resourceType,
         resourceId: _resourceId,
       ),
@@ -1071,6 +1199,10 @@ final class NotFoundFailure extends AppFailure implements ZorphyValueBase {
       map['traceId'] = _traceId;
     }
     map['isRetryable'] = this.isRetryable;
+    final _code = this.code;
+    if (_code != null) {
+      map['code'] = _code;
+    }
     final _resourceType = this.resourceType;
     if (_resourceType != null) {
       map['resourceType'] = _resourceType;
@@ -1105,6 +1237,11 @@ final class NotFoundFailure extends AppFailure implements ZorphyValueBase {
         get: (root) => root.isRetryable,
         set: (root, value) => root.copyWith(isRetryable: value as bool),
       ),
+      '/code' => ZorphyLens<NotFoundFailure, Object?>(
+        path: '/code',
+        get: (root) => root.code,
+        set: (root, value) => root.copyWith(code: value as String?),
+      ),
       '/resourceType' => ZorphyLens<NotFoundFailure, Object?>(
         path: '/resourceType',
         get: (root) => root.resourceType,
@@ -1125,6 +1262,7 @@ final class ConflictFailure extends AppFailure implements ZorphyValueBase {
     required this.message,
     this.traceId,
     required this.isRetryable,
+    this.code,
     this.localPatchWire,
     this.remotePatchWire,
   });
@@ -1138,6 +1276,9 @@ final class ConflictFailure extends AppFailure implements ZorphyValueBase {
   @override
   final bool isRetryable;
 
+  @override
+  final String? code;
+
   final Map<String, Object?>? localPatchWire;
 
   final Map<String, Object?>? remotePatchWire;
@@ -1148,6 +1289,7 @@ final class ConflictFailure extends AppFailure implements ZorphyValueBase {
     String? message,
     Object? traceId = _sentinel,
     bool? isRetryable,
+    Object? code = _sentinel,
     Object? localPatchWire = _sentinel,
     Object? remotePatchWire = _sentinel,
   }) {
@@ -1157,6 +1299,7 @@ final class ConflictFailure extends AppFailure implements ZorphyValueBase {
           ? this.traceId
           : traceId as String?,
       isRetryable: isRetryable ?? this.isRetryable,
+      code: identical(code, _sentinel) ? this.code : code as String?,
       localPatchWire: identical(localPatchWire, _sentinel)
           ? this.localPatchWire
           : localPatchWire as Map<String, Object?>?,
@@ -1173,6 +1316,7 @@ final class ConflictFailure extends AppFailure implements ZorphyValueBase {
         this.message == other.message &&
         this.traceId == other.traceId &&
         this.isRetryable == other.isRetryable &&
+        this.code == other.code &&
         this.localPatchWire == other.localPatchWire &&
         this.remotePatchWire == other.remotePatchWire;
   }
@@ -1182,13 +1326,14 @@ final class ConflictFailure extends AppFailure implements ZorphyValueBase {
     message,
     traceId,
     isRetryable,
+    code,
     localPatchWire,
     remotePatchWire,
   ]);
 
   @override
   String toString() =>
-      'ConflictFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, localPatchWire: $localPatchWire, remotePatchWire: $remotePatchWire)';
+      'ConflictFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, code: $code, localPatchWire: $localPatchWire, remotePatchWire: $remotePatchWire)';
 
   static ZorphyBoundaryResult<ConflictFailure> fromWire(
     Map<String, Object?> raw,
@@ -1209,6 +1354,11 @@ final class ConflictFailure extends AppFailure implements ZorphyValueBase {
       '/isRetryable',
       violations,
     );
+    final Object? raw_code = raw['code'];
+    String? _code;
+    if (raw_code != null) {
+      _code = _boundaryAs<String>(raw_code, '/code', violations);
+    }
     final Object? raw_localPatchWire = raw['localPatchWire'];
     Map<String, Object?>? _localPatchWire;
     if (raw_localPatchWire != null) {
@@ -1276,6 +1426,7 @@ final class ConflictFailure extends AppFailure implements ZorphyValueBase {
         message: _message!,
         traceId: _traceId,
         isRetryable: _isRetryable!,
+        code: _code,
         localPatchWire: _localPatchWire,
         remotePatchWire: _remotePatchWire,
       ),
@@ -1290,6 +1441,10 @@ final class ConflictFailure extends AppFailure implements ZorphyValueBase {
       map['traceId'] = _traceId;
     }
     map['isRetryable'] = this.isRetryable;
+    final _code = this.code;
+    if (_code != null) {
+      map['code'] = _code;
+    }
     final _localPatchWire = this.localPatchWire;
     if (_localPatchWire != null) {
       map['localPatchWire'] = _localPatchWire;
@@ -1324,6 +1479,11 @@ final class ConflictFailure extends AppFailure implements ZorphyValueBase {
         get: (root) => root.isRetryable,
         set: (root, value) => root.copyWith(isRetryable: value as bool),
       ),
+      '/code' => ZorphyLens<ConflictFailure, Object?>(
+        path: '/code',
+        get: (root) => root.code,
+        set: (root, value) => root.copyWith(code: value as String?),
+      ),
       '/localPatchWire' => ZorphyLens<ConflictFailure, Object?>(
         path: '/localPatchWire',
         get: (root) => root.localPatchWire,
@@ -1346,6 +1506,7 @@ final class CancelledFailure extends AppFailure implements ZorphyValueBase {
     required this.message,
     this.traceId,
     required this.isRetryable,
+    this.code,
   });
 
   @override
@@ -1357,12 +1518,16 @@ final class CancelledFailure extends AppFailure implements ZorphyValueBase {
   @override
   final bool isRetryable;
 
+  @override
+  final String? code;
+
   static const CancelledFailureLenses lenses = CancelledFailureLenses();
 
   CancelledFailure copyWith({
     String? message,
     Object? traceId = _sentinel,
     bool? isRetryable,
+    Object? code = _sentinel,
   }) {
     return CancelledFailure.fromTrusted(
       message: message ?? this.message,
@@ -1370,6 +1535,7 @@ final class CancelledFailure extends AppFailure implements ZorphyValueBase {
           ? this.traceId
           : traceId as String?,
       isRetryable: isRetryable ?? this.isRetryable,
+      code: identical(code, _sentinel) ? this.code : code as String?,
     );
   }
 
@@ -1379,15 +1545,16 @@ final class CancelledFailure extends AppFailure implements ZorphyValueBase {
     return other is CancelledFailure &&
         this.message == other.message &&
         this.traceId == other.traceId &&
-        this.isRetryable == other.isRetryable;
+        this.isRetryable == other.isRetryable &&
+        this.code == other.code;
   }
 
   @override
-  int get hashCode => Object.hashAll([message, traceId, isRetryable]);
+  int get hashCode => Object.hashAll([message, traceId, isRetryable, code]);
 
   @override
   String toString() =>
-      'CancelledFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable)';
+      'CancelledFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, code: $code)';
 
   static ZorphyBoundaryResult<CancelledFailure> fromWire(
     Map<String, Object?> raw,
@@ -1408,6 +1575,11 @@ final class CancelledFailure extends AppFailure implements ZorphyValueBase {
       '/isRetryable',
       violations,
     );
+    final Object? raw_code = raw['code'];
+    String? _code;
+    if (raw_code != null) {
+      _code = _boundaryAs<String>(raw_code, '/code', violations);
+    }
     if (violations.isNotEmpty) {
       return BoundaryErr<CancelledFailure>(
         targetType: 'CancelledFailure',
@@ -1419,6 +1591,7 @@ final class CancelledFailure extends AppFailure implements ZorphyValueBase {
         message: _message!,
         traceId: _traceId,
         isRetryable: _isRetryable!,
+        code: _code,
       ),
     );
   }
@@ -1431,6 +1604,10 @@ final class CancelledFailure extends AppFailure implements ZorphyValueBase {
       map['traceId'] = _traceId;
     }
     map['isRetryable'] = this.isRetryable;
+    final _code = this.code;
+    if (_code != null) {
+      map['code'] = _code;
+    }
     return map;
   }
 
@@ -1457,6 +1634,11 @@ final class CancelledFailure extends AppFailure implements ZorphyValueBase {
         get: (root) => root.isRetryable,
         set: (root, value) => root.copyWith(isRetryable: value as bool),
       ),
+      '/code' => ZorphyLens<CancelledFailure, Object?>(
+        path: '/code',
+        get: (root) => root.code,
+        set: (root, value) => root.copyWith(code: value as String?),
+      ),
       _ => null,
     };
   }
@@ -1467,6 +1649,7 @@ final class InterruptedFailure extends AppFailure implements ZorphyValueBase {
     required this.message,
     this.traceId,
     required this.isRetryable,
+    this.code,
     this.intentDigest,
   });
 
@@ -1479,6 +1662,9 @@ final class InterruptedFailure extends AppFailure implements ZorphyValueBase {
   @override
   final bool isRetryable;
 
+  @override
+  final String? code;
+
   final String? intentDigest;
 
   static const InterruptedFailureLenses lenses = InterruptedFailureLenses();
@@ -1487,6 +1673,7 @@ final class InterruptedFailure extends AppFailure implements ZorphyValueBase {
     String? message,
     Object? traceId = _sentinel,
     bool? isRetryable,
+    Object? code = _sentinel,
     Object? intentDigest = _sentinel,
   }) {
     return InterruptedFailure.fromTrusted(
@@ -1495,6 +1682,7 @@ final class InterruptedFailure extends AppFailure implements ZorphyValueBase {
           ? this.traceId
           : traceId as String?,
       isRetryable: isRetryable ?? this.isRetryable,
+      code: identical(code, _sentinel) ? this.code : code as String?,
       intentDigest: identical(intentDigest, _sentinel)
           ? this.intentDigest
           : intentDigest as String?,
@@ -1508,16 +1696,17 @@ final class InterruptedFailure extends AppFailure implements ZorphyValueBase {
         this.message == other.message &&
         this.traceId == other.traceId &&
         this.isRetryable == other.isRetryable &&
+        this.code == other.code &&
         this.intentDigest == other.intentDigest;
   }
 
   @override
   int get hashCode =>
-      Object.hashAll([message, traceId, isRetryable, intentDigest]);
+      Object.hashAll([message, traceId, isRetryable, code, intentDigest]);
 
   @override
   String toString() =>
-      'InterruptedFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, intentDigest: $intentDigest)';
+      'InterruptedFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, code: $code, intentDigest: $intentDigest)';
 
   static ZorphyBoundaryResult<InterruptedFailure> fromWire(
     Map<String, Object?> raw,
@@ -1538,6 +1727,11 @@ final class InterruptedFailure extends AppFailure implements ZorphyValueBase {
       '/isRetryable',
       violations,
     );
+    final Object? raw_code = raw['code'];
+    String? _code;
+    if (raw_code != null) {
+      _code = _boundaryAs<String>(raw_code, '/code', violations);
+    }
     final Object? raw_intentDigest = raw['intentDigest'];
     String? _intentDigest;
     if (raw_intentDigest != null) {
@@ -1558,6 +1752,7 @@ final class InterruptedFailure extends AppFailure implements ZorphyValueBase {
         message: _message!,
         traceId: _traceId,
         isRetryable: _isRetryable!,
+        code: _code,
         intentDigest: _intentDigest,
       ),
     );
@@ -1571,6 +1766,10 @@ final class InterruptedFailure extends AppFailure implements ZorphyValueBase {
       map['traceId'] = _traceId;
     }
     map['isRetryable'] = this.isRetryable;
+    final _code = this.code;
+    if (_code != null) {
+      map['code'] = _code;
+    }
     final _intentDigest = this.intentDigest;
     if (_intentDigest != null) {
       map['intentDigest'] = _intentDigest;
@@ -1601,6 +1800,11 @@ final class InterruptedFailure extends AppFailure implements ZorphyValueBase {
         get: (root) => root.isRetryable,
         set: (root, value) => root.copyWith(isRetryable: value as bool),
       ),
+      '/code' => ZorphyLens<InterruptedFailure, Object?>(
+        path: '/code',
+        get: (root) => root.code,
+        set: (root, value) => root.copyWith(code: value as String?),
+      ),
       '/intentDigest' => ZorphyLens<InterruptedFailure, Object?>(
         path: '/intentDigest',
         get: (root) => root.intentDigest,
@@ -1616,6 +1820,7 @@ final class StorageFailure extends AppFailure implements ZorphyValueBase {
     required this.message,
     this.traceId,
     required this.isRetryable,
+    this.code,
     required this.layer,
   });
 
@@ -1628,6 +1833,9 @@ final class StorageFailure extends AppFailure implements ZorphyValueBase {
   @override
   final bool isRetryable;
 
+  @override
+  final String? code;
+
   final String layer;
 
   static const StorageFailureLenses lenses = StorageFailureLenses();
@@ -1636,6 +1844,7 @@ final class StorageFailure extends AppFailure implements ZorphyValueBase {
     String? message,
     Object? traceId = _sentinel,
     bool? isRetryable,
+    Object? code = _sentinel,
     String? layer,
   }) {
     return StorageFailure.fromTrusted(
@@ -1644,6 +1853,7 @@ final class StorageFailure extends AppFailure implements ZorphyValueBase {
           ? this.traceId
           : traceId as String?,
       isRetryable: isRetryable ?? this.isRetryable,
+      code: identical(code, _sentinel) ? this.code : code as String?,
       layer: layer ?? this.layer,
     );
   }
@@ -1655,15 +1865,17 @@ final class StorageFailure extends AppFailure implements ZorphyValueBase {
         this.message == other.message &&
         this.traceId == other.traceId &&
         this.isRetryable == other.isRetryable &&
+        this.code == other.code &&
         this.layer == other.layer;
   }
 
   @override
-  int get hashCode => Object.hashAll([message, traceId, isRetryable, layer]);
+  int get hashCode =>
+      Object.hashAll([message, traceId, isRetryable, code, layer]);
 
   @override
   String toString() =>
-      'StorageFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, layer: $layer)';
+      'StorageFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, code: $code, layer: $layer)';
 
   static ZorphyBoundaryResult<StorageFailure> fromWire(
     Map<String, Object?> raw,
@@ -1684,6 +1896,11 @@ final class StorageFailure extends AppFailure implements ZorphyValueBase {
       '/isRetryable',
       violations,
     );
+    final Object? raw_code = raw['code'];
+    String? _code;
+    if (raw_code != null) {
+      _code = _boundaryAs<String>(raw_code, '/code', violations);
+    }
     final Object? raw_layer = raw['layer'];
     String? _layer;
     _layer = _boundaryAs<String>(raw_layer, '/layer', violations);
@@ -1698,6 +1915,7 @@ final class StorageFailure extends AppFailure implements ZorphyValueBase {
         message: _message!,
         traceId: _traceId,
         isRetryable: _isRetryable!,
+        code: _code,
         layer: _layer!,
       ),
     );
@@ -1711,6 +1929,10 @@ final class StorageFailure extends AppFailure implements ZorphyValueBase {
       map['traceId'] = _traceId;
     }
     map['isRetryable'] = this.isRetryable;
+    final _code = this.code;
+    if (_code != null) {
+      map['code'] = _code;
+    }
     map['layer'] = this.layer;
     return map;
   }
@@ -1738,6 +1960,11 @@ final class StorageFailure extends AppFailure implements ZorphyValueBase {
         get: (root) => root.isRetryable,
         set: (root, value) => root.copyWith(isRetryable: value as bool),
       ),
+      '/code' => ZorphyLens<StorageFailure, Object?>(
+        path: '/code',
+        get: (root) => root.code,
+        set: (root, value) => root.copyWith(code: value as String?),
+      ),
       '/layer' => ZorphyLens<StorageFailure, Object?>(
         path: '/layer',
         get: (root) => root.layer,
@@ -1753,6 +1980,7 @@ final class UnexpectedFailure extends AppFailure implements ZorphyValueBase {
     required this.message,
     this.traceId,
     required this.isRetryable,
+    this.code,
     this.cause,
     this.stackTrace,
   });
@@ -1766,6 +1994,9 @@ final class UnexpectedFailure extends AppFailure implements ZorphyValueBase {
   @override
   final bool isRetryable;
 
+  @override
+  final String? code;
+
   final String? cause;
 
   final String? stackTrace;
@@ -1776,6 +2007,7 @@ final class UnexpectedFailure extends AppFailure implements ZorphyValueBase {
     String? message,
     Object? traceId = _sentinel,
     bool? isRetryable,
+    Object? code = _sentinel,
     Object? cause = _sentinel,
     Object? stackTrace = _sentinel,
   }) {
@@ -1785,6 +2017,7 @@ final class UnexpectedFailure extends AppFailure implements ZorphyValueBase {
           ? this.traceId
           : traceId as String?,
       isRetryable: isRetryable ?? this.isRetryable,
+      code: identical(code, _sentinel) ? this.code : code as String?,
       cause: identical(cause, _sentinel) ? this.cause : cause as String?,
       stackTrace: identical(stackTrace, _sentinel)
           ? this.stackTrace
@@ -1799,17 +2032,18 @@ final class UnexpectedFailure extends AppFailure implements ZorphyValueBase {
         this.message == other.message &&
         this.traceId == other.traceId &&
         this.isRetryable == other.isRetryable &&
+        this.code == other.code &&
         this.cause == other.cause &&
         this.stackTrace == other.stackTrace;
   }
 
   @override
   int get hashCode =>
-      Object.hashAll([message, traceId, isRetryable, cause, stackTrace]);
+      Object.hashAll([message, traceId, isRetryable, code, cause, stackTrace]);
 
   @override
   String toString() =>
-      'UnexpectedFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, cause: $cause, stackTrace: $stackTrace)';
+      'UnexpectedFailure(message: $message, traceId: $traceId, isRetryable: $isRetryable, code: $code, cause: $cause, stackTrace: $stackTrace)';
 
   static ZorphyBoundaryResult<UnexpectedFailure> fromWire(
     Map<String, Object?> raw,
@@ -1830,6 +2064,11 @@ final class UnexpectedFailure extends AppFailure implements ZorphyValueBase {
       '/isRetryable',
       violations,
     );
+    final Object? raw_code = raw['code'];
+    String? _code;
+    if (raw_code != null) {
+      _code = _boundaryAs<String>(raw_code, '/code', violations);
+    }
     final Object? raw_cause = raw['cause'];
     String? _cause;
     if (raw_cause != null) {
@@ -1855,6 +2094,7 @@ final class UnexpectedFailure extends AppFailure implements ZorphyValueBase {
         message: _message!,
         traceId: _traceId,
         isRetryable: _isRetryable!,
+        code: _code,
         cause: _cause,
         stackTrace: _stackTrace,
       ),
@@ -1869,6 +2109,10 @@ final class UnexpectedFailure extends AppFailure implements ZorphyValueBase {
       map['traceId'] = _traceId;
     }
     map['isRetryable'] = this.isRetryable;
+    final _code = this.code;
+    if (_code != null) {
+      map['code'] = _code;
+    }
     final _cause = this.cause;
     if (_cause != null) {
       map['cause'] = _cause;
@@ -1902,6 +2146,11 @@ final class UnexpectedFailure extends AppFailure implements ZorphyValueBase {
         path: '/isRetryable',
         get: (root) => root.isRetryable,
         set: (root, value) => root.copyWith(isRetryable: value as bool),
+      ),
+      '/code' => ZorphyLens<UnexpectedFailure, Object?>(
+        path: '/code',
+        get: (root) => root.code,
+        set: (root, value) => root.copyWith(code: value as String?),
       ),
       '/cause' => ZorphyLens<UnexpectedFailure, Object?>(
         path: '/cause',
@@ -1950,6 +2199,7 @@ class NetworkFailureMockData {
       message: 'message-${seed}',
       traceId: 'traceid-${seed}',
       isRetryable: (seed + 248) % 2 == 0,
+      code: 'code-${seed}',
       statusCode: seed % 97 + 535,
     );
   }
@@ -1967,6 +2217,7 @@ class TimeoutFailureMockData {
       message: 'message-${seed}',
       traceId: 'traceid-${seed}',
       isRetryable: (seed + 248) % 2 == 0,
+      code: 'code-${seed}',
       timeout: Duration(hours: seed + 945),
     );
   }
@@ -2001,6 +2252,7 @@ class PolicyDeniedFailureMockData {
       message: 'message-${seed}',
       traceId: 'traceid-${seed}',
       isRetryable: (seed + 248) % 2 == 0,
+      code: 'code-${seed}',
       reason: 'reason-${seed}',
     );
   }
@@ -2021,6 +2273,7 @@ class NotFoundFailureMockData {
       message: 'message-${seed}',
       traceId: 'traceid-${seed}',
       isRetryable: (seed + 248) % 2 == 0,
+      code: 'code-${seed}',
       resourceType: 'resourcetype-${seed}',
       resourceId: 'resourceid-${seed}',
     );
@@ -2042,6 +2295,7 @@ class ConflictFailureMockData {
       message: 'message-${seed}',
       traceId: 'traceid-${seed}',
       isRetryable: (seed + 248) % 2 == 0,
+      code: 'code-${seed}',
     );
   }
 
@@ -2061,6 +2315,7 @@ class CancelledFailureMockData {
       message: 'message-${seed}',
       traceId: 'traceid-${seed}',
       isRetryable: (seed + 248) % 2 == 0,
+      code: 'code-${seed}',
     );
   }
 
@@ -2080,6 +2335,7 @@ class InterruptedFailureMockData {
       message: 'message-${seed}',
       traceId: 'traceid-${seed}',
       isRetryable: (seed + 248) % 2 == 0,
+      code: 'code-${seed}',
       intentDigest: 'intentdigest-${seed}',
     );
   }
@@ -2100,6 +2356,7 @@ class StorageFailureMockData {
       message: 'message-${seed}',
       traceId: 'traceid-${seed}',
       isRetryable: (seed + 248) % 2 == 0,
+      code: 'code-${seed}',
       layer: 'layer-${seed}',
     );
   }
@@ -2117,6 +2374,7 @@ class UnexpectedFailureMockData {
       message: 'message-${seed}',
       traceId: 'traceid-${seed}',
       isRetryable: (seed + 248) % 2 == 0,
+      code: 'code-${seed}',
       cause: 'cause-${seed}',
       stackTrace: 'stacktrace-${seed}',
     );
@@ -2225,6 +2483,18 @@ final class NetworkFailureLenses {
   static NetworkFailure _setIsRetryable(NetworkFailure root, bool value) =>
       root.copyWith(isRetryable: value);
 
+  ZorphyLens<NetworkFailure, String?> get code =>
+      const ZorphyLens<NetworkFailure, String?>(
+        path: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static String? _getCode(NetworkFailure root) => root.code;
+
+  static NetworkFailure _setCode(NetworkFailure root, String? value) =>
+      root.copyWith(code: value);
+
   ZorphyLens<NetworkFailure, int?> get statusCode =>
       const ZorphyLens<NetworkFailure, int?>(
         path: '/statusCode',
@@ -2280,6 +2550,18 @@ final class TimeoutFailureLenses {
 
   static TimeoutFailure _setIsRetryable(TimeoutFailure root, bool value) =>
       root.copyWith(isRetryable: value);
+
+  ZorphyLens<TimeoutFailure, String?> get code =>
+      const ZorphyLens<TimeoutFailure, String?>(
+        path: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static String? _getCode(TimeoutFailure root) => root.code;
+
+  static TimeoutFailure _setCode(TimeoutFailure root, String? value) =>
+      root.copyWith(code: value);
 
   ZorphyLens<TimeoutFailure, Duration?> get timeout =>
       const ZorphyLens<TimeoutFailure, Duration?>(
@@ -2343,6 +2625,20 @@ final class BoundaryViolationFailureLenses {
     BoundaryViolationFailure root,
     bool value,
   ) => root.copyWith(isRetryable: value);
+
+  ZorphyLens<BoundaryViolationFailure, String?> get code =>
+      const ZorphyLens<BoundaryViolationFailure, String?>(
+        path: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static String? _getCode(BoundaryViolationFailure root) => root.code;
+
+  static BoundaryViolationFailure _setCode(
+    BoundaryViolationFailure root,
+    String? value,
+  ) => root.copyWith(code: value);
 
   ZorphyLens<BoundaryViolationFailure, List<FieldViolation>> get violations =>
       const ZorphyLens<BoundaryViolationFailure, List<FieldViolation>>(
@@ -2409,6 +2705,20 @@ final class PolicyDeniedFailureLenses {
     bool value,
   ) => root.copyWith(isRetryable: value);
 
+  ZorphyLens<PolicyDeniedFailure, String?> get code =>
+      const ZorphyLens<PolicyDeniedFailure, String?>(
+        path: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static String? _getCode(PolicyDeniedFailure root) => root.code;
+
+  static PolicyDeniedFailure _setCode(
+    PolicyDeniedFailure root,
+    String? value,
+  ) => root.copyWith(code: value);
+
   ZorphyLens<PolicyDeniedFailure, String> get reason =>
       const ZorphyLens<PolicyDeniedFailure, String>(
         path: '/reason',
@@ -2466,6 +2776,18 @@ final class NotFoundFailureLenses {
 
   static NotFoundFailure _setIsRetryable(NotFoundFailure root, bool value) =>
       root.copyWith(isRetryable: value);
+
+  ZorphyLens<NotFoundFailure, String?> get code =>
+      const ZorphyLens<NotFoundFailure, String?>(
+        path: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static String? _getCode(NotFoundFailure root) => root.code;
+
+  static NotFoundFailure _setCode(NotFoundFailure root, String? value) =>
+      root.copyWith(code: value);
 
   ZorphyLens<NotFoundFailure, String?> get resourceType =>
       const ZorphyLens<NotFoundFailure, String?>(
@@ -2536,6 +2858,18 @@ final class ConflictFailureLenses {
 
   static ConflictFailure _setIsRetryable(ConflictFailure root, bool value) =>
       root.copyWith(isRetryable: value);
+
+  ZorphyLens<ConflictFailure, String?> get code =>
+      const ZorphyLens<ConflictFailure, String?>(
+        path: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static String? _getCode(ConflictFailure root) => root.code;
+
+  static ConflictFailure _setCode(ConflictFailure root, String? value) =>
+      root.copyWith(code: value);
 
   ZorphyLens<ConflictFailure, Map<String, Object?>?> get localPatchWire =>
       const ZorphyLens<ConflictFailure, Map<String, Object?>?>(
@@ -2610,6 +2944,18 @@ final class CancelledFailureLenses {
 
   static CancelledFailure _setIsRetryable(CancelledFailure root, bool value) =>
       root.copyWith(isRetryable: value);
+
+  ZorphyLens<CancelledFailure, String?> get code =>
+      const ZorphyLens<CancelledFailure, String?>(
+        path: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static String? _getCode(CancelledFailure root) => root.code;
+
+  static CancelledFailure _setCode(CancelledFailure root, String? value) =>
+      root.copyWith(code: value);
 }
 
 /// Typed lenses over [InterruptedFailure] — one per writable field.
@@ -2660,6 +3006,18 @@ final class InterruptedFailureLenses {
     InterruptedFailure root,
     bool value,
   ) => root.copyWith(isRetryable: value);
+
+  ZorphyLens<InterruptedFailure, String?> get code =>
+      const ZorphyLens<InterruptedFailure, String?>(
+        path: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static String? _getCode(InterruptedFailure root) => root.code;
+
+  static InterruptedFailure _setCode(InterruptedFailure root, String? value) =>
+      root.copyWith(code: value);
 
   ZorphyLens<InterruptedFailure, String?> get intentDigest =>
       const ZorphyLens<InterruptedFailure, String?>(
@@ -2719,6 +3077,18 @@ final class StorageFailureLenses {
   static StorageFailure _setIsRetryable(StorageFailure root, bool value) =>
       root.copyWith(isRetryable: value);
 
+  ZorphyLens<StorageFailure, String?> get code =>
+      const ZorphyLens<StorageFailure, String?>(
+        path: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static String? _getCode(StorageFailure root) => root.code;
+
+  static StorageFailure _setCode(StorageFailure root, String? value) =>
+      root.copyWith(code: value);
+
   ZorphyLens<StorageFailure, String> get layer =>
       const ZorphyLens<StorageFailure, String>(
         path: '/layer',
@@ -2776,6 +3146,18 @@ final class UnexpectedFailureLenses {
     UnexpectedFailure root,
     bool value,
   ) => root.copyWith(isRetryable: value);
+
+  ZorphyLens<UnexpectedFailure, String?> get code =>
+      const ZorphyLens<UnexpectedFailure, String?>(
+        path: '/code',
+        get: _getCode,
+        set: _setCode,
+      );
+
+  static String? _getCode(UnexpectedFailure root) => root.code;
+
+  static UnexpectedFailure _setCode(UnexpectedFailure root, String? value) =>
+      root.copyWith(code: value);
 
   ZorphyLens<UnexpectedFailure, String?> get cause =>
       const ZorphyLens<UnexpectedFailure, String?>(
@@ -2890,41 +3272,51 @@ extension AppFailureWhenE on AppFailure {
 }
 
 extension NetworkFailureMorphing on NetworkFailure {
-  TimeoutFailure changeToTimeoutFailure({String? traceId, Duration? timeout}) {
+  TimeoutFailure changeToTimeoutFailure({
+    String? traceId,
+    String? code,
+    Duration? timeout,
+  }) {
     return TimeoutFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       timeout: timeout,
     );
   }
 
   BoundaryViolationFailure changeToBoundaryViolationFailure({
     String? traceId,
+    String? code,
     required List<FieldViolation> violations,
   }) {
     return BoundaryViolationFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       violations: violations,
     );
   }
 
   PolicyDeniedFailure changeToPolicyDeniedFailure({
     String? traceId,
+    String? code,
     required String reason,
   }) {
     return PolicyDeniedFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       reason: reason,
     );
   }
 
   NotFoundFailure changeToNotFoundFailure({
     String? traceId,
+    String? code,
     String? resourceType,
     String? resourceId,
   }) {
@@ -2932,6 +3324,7 @@ extension NetworkFailureMorphing on NetworkFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       resourceType: resourceType,
       resourceId: resourceId,
     );
@@ -2939,6 +3332,7 @@ extension NetworkFailureMorphing on NetworkFailure {
 
   ConflictFailure changeToConflictFailure({
     String? traceId,
+    String? code,
     Map<String, Object?>? localPatchWire,
     Map<String, Object?>? remotePatchWire,
   }) {
@@ -2946,45 +3340,52 @@ extension NetworkFailureMorphing on NetworkFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       localPatchWire: localPatchWire,
       remotePatchWire: remotePatchWire,
     );
   }
 
-  CancelledFailure changeToCancelledFailure({String? traceId}) {
+  CancelledFailure changeToCancelledFailure({String? traceId, String? code}) {
     return CancelledFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
     );
   }
 
   InterruptedFailure changeToInterruptedFailure({
     String? traceId,
+    String? code,
     String? intentDigest,
   }) {
     return InterruptedFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       intentDigest: intentDigest,
     );
   }
 
   StorageFailure changeToStorageFailure({
     String? traceId,
+    String? code,
     required String layer,
   }) {
     return StorageFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       layer: layer,
     );
   }
 
   UnexpectedFailure changeToUnexpectedFailure({
     String? traceId,
+    String? code,
     String? cause,
     String? stackTrace,
   }) {
@@ -2992,6 +3393,7 @@ extension NetworkFailureMorphing on NetworkFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       cause: cause,
       stackTrace: stackTrace,
     );
@@ -2999,41 +3401,51 @@ extension NetworkFailureMorphing on NetworkFailure {
 }
 
 extension TimeoutFailureMorphing on TimeoutFailure {
-  NetworkFailure changeToNetworkFailure({String? traceId, int? statusCode}) {
+  NetworkFailure changeToNetworkFailure({
+    String? traceId,
+    String? code,
+    int? statusCode,
+  }) {
     return NetworkFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       statusCode: statusCode,
     );
   }
 
   BoundaryViolationFailure changeToBoundaryViolationFailure({
     String? traceId,
+    String? code,
     required List<FieldViolation> violations,
   }) {
     return BoundaryViolationFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       violations: violations,
     );
   }
 
   PolicyDeniedFailure changeToPolicyDeniedFailure({
     String? traceId,
+    String? code,
     required String reason,
   }) {
     return PolicyDeniedFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       reason: reason,
     );
   }
 
   NotFoundFailure changeToNotFoundFailure({
     String? traceId,
+    String? code,
     String? resourceType,
     String? resourceId,
   }) {
@@ -3041,6 +3453,7 @@ extension TimeoutFailureMorphing on TimeoutFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       resourceType: resourceType,
       resourceId: resourceId,
     );
@@ -3048,6 +3461,7 @@ extension TimeoutFailureMorphing on TimeoutFailure {
 
   ConflictFailure changeToConflictFailure({
     String? traceId,
+    String? code,
     Map<String, Object?>? localPatchWire,
     Map<String, Object?>? remotePatchWire,
   }) {
@@ -3055,45 +3469,52 @@ extension TimeoutFailureMorphing on TimeoutFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       localPatchWire: localPatchWire,
       remotePatchWire: remotePatchWire,
     );
   }
 
-  CancelledFailure changeToCancelledFailure({String? traceId}) {
+  CancelledFailure changeToCancelledFailure({String? traceId, String? code}) {
     return CancelledFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
     );
   }
 
   InterruptedFailure changeToInterruptedFailure({
     String? traceId,
+    String? code,
     String? intentDigest,
   }) {
     return InterruptedFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       intentDigest: intentDigest,
     );
   }
 
   StorageFailure changeToStorageFailure({
     String? traceId,
+    String? code,
     required String layer,
   }) {
     return StorageFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       layer: layer,
     );
   }
 
   UnexpectedFailure changeToUnexpectedFailure({
     String? traceId,
+    String? code,
     String? cause,
     String? stackTrace,
   }) {
@@ -3101,6 +3522,7 @@ extension TimeoutFailureMorphing on TimeoutFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       cause: cause,
       stackTrace: stackTrace,
     );
@@ -3108,38 +3530,51 @@ extension TimeoutFailureMorphing on TimeoutFailure {
 }
 
 extension BoundaryViolationFailureMorphing on BoundaryViolationFailure {
-  NetworkFailure changeToNetworkFailure({String? traceId, int? statusCode}) {
+  NetworkFailure changeToNetworkFailure({
+    String? traceId,
+    String? code,
+    int? statusCode,
+  }) {
     return NetworkFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       statusCode: statusCode,
     );
   }
 
-  TimeoutFailure changeToTimeoutFailure({String? traceId, Duration? timeout}) {
+  TimeoutFailure changeToTimeoutFailure({
+    String? traceId,
+    String? code,
+    Duration? timeout,
+  }) {
     return TimeoutFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       timeout: timeout,
     );
   }
 
   PolicyDeniedFailure changeToPolicyDeniedFailure({
     String? traceId,
+    String? code,
     required String reason,
   }) {
     return PolicyDeniedFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       reason: reason,
     );
   }
 
   NotFoundFailure changeToNotFoundFailure({
     String? traceId,
+    String? code,
     String? resourceType,
     String? resourceId,
   }) {
@@ -3147,6 +3582,7 @@ extension BoundaryViolationFailureMorphing on BoundaryViolationFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       resourceType: resourceType,
       resourceId: resourceId,
     );
@@ -3154,6 +3590,7 @@ extension BoundaryViolationFailureMorphing on BoundaryViolationFailure {
 
   ConflictFailure changeToConflictFailure({
     String? traceId,
+    String? code,
     Map<String, Object?>? localPatchWire,
     Map<String, Object?>? remotePatchWire,
   }) {
@@ -3161,45 +3598,52 @@ extension BoundaryViolationFailureMorphing on BoundaryViolationFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       localPatchWire: localPatchWire,
       remotePatchWire: remotePatchWire,
     );
   }
 
-  CancelledFailure changeToCancelledFailure({String? traceId}) {
+  CancelledFailure changeToCancelledFailure({String? traceId, String? code}) {
     return CancelledFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
     );
   }
 
   InterruptedFailure changeToInterruptedFailure({
     String? traceId,
+    String? code,
     String? intentDigest,
   }) {
     return InterruptedFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       intentDigest: intentDigest,
     );
   }
 
   StorageFailure changeToStorageFailure({
     String? traceId,
+    String? code,
     required String layer,
   }) {
     return StorageFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       layer: layer,
     );
   }
 
   UnexpectedFailure changeToUnexpectedFailure({
     String? traceId,
+    String? code,
     String? cause,
     String? stackTrace,
   }) {
@@ -3207,6 +3651,7 @@ extension BoundaryViolationFailureMorphing on BoundaryViolationFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       cause: cause,
       stackTrace: stackTrace,
     );
@@ -3214,38 +3659,51 @@ extension BoundaryViolationFailureMorphing on BoundaryViolationFailure {
 }
 
 extension PolicyDeniedFailureMorphing on PolicyDeniedFailure {
-  NetworkFailure changeToNetworkFailure({String? traceId, int? statusCode}) {
+  NetworkFailure changeToNetworkFailure({
+    String? traceId,
+    String? code,
+    int? statusCode,
+  }) {
     return NetworkFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       statusCode: statusCode,
     );
   }
 
-  TimeoutFailure changeToTimeoutFailure({String? traceId, Duration? timeout}) {
+  TimeoutFailure changeToTimeoutFailure({
+    String? traceId,
+    String? code,
+    Duration? timeout,
+  }) {
     return TimeoutFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       timeout: timeout,
     );
   }
 
   BoundaryViolationFailure changeToBoundaryViolationFailure({
     String? traceId,
+    String? code,
     required List<FieldViolation> violations,
   }) {
     return BoundaryViolationFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       violations: violations,
     );
   }
 
   NotFoundFailure changeToNotFoundFailure({
     String? traceId,
+    String? code,
     String? resourceType,
     String? resourceId,
   }) {
@@ -3253,6 +3711,7 @@ extension PolicyDeniedFailureMorphing on PolicyDeniedFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       resourceType: resourceType,
       resourceId: resourceId,
     );
@@ -3260,6 +3719,7 @@ extension PolicyDeniedFailureMorphing on PolicyDeniedFailure {
 
   ConflictFailure changeToConflictFailure({
     String? traceId,
+    String? code,
     Map<String, Object?>? localPatchWire,
     Map<String, Object?>? remotePatchWire,
   }) {
@@ -3267,45 +3727,52 @@ extension PolicyDeniedFailureMorphing on PolicyDeniedFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       localPatchWire: localPatchWire,
       remotePatchWire: remotePatchWire,
     );
   }
 
-  CancelledFailure changeToCancelledFailure({String? traceId}) {
+  CancelledFailure changeToCancelledFailure({String? traceId, String? code}) {
     return CancelledFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
     );
   }
 
   InterruptedFailure changeToInterruptedFailure({
     String? traceId,
+    String? code,
     String? intentDigest,
   }) {
     return InterruptedFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       intentDigest: intentDigest,
     );
   }
 
   StorageFailure changeToStorageFailure({
     String? traceId,
+    String? code,
     required String layer,
   }) {
     return StorageFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       layer: layer,
     );
   }
 
   UnexpectedFailure changeToUnexpectedFailure({
     String? traceId,
+    String? code,
     String? cause,
     String? stackTrace,
   }) {
@@ -3313,6 +3780,7 @@ extension PolicyDeniedFailureMorphing on PolicyDeniedFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       cause: cause,
       stackTrace: stackTrace,
     );
@@ -3320,50 +3788,65 @@ extension PolicyDeniedFailureMorphing on PolicyDeniedFailure {
 }
 
 extension NotFoundFailureMorphing on NotFoundFailure {
-  NetworkFailure changeToNetworkFailure({String? traceId, int? statusCode}) {
+  NetworkFailure changeToNetworkFailure({
+    String? traceId,
+    String? code,
+    int? statusCode,
+  }) {
     return NetworkFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       statusCode: statusCode,
     );
   }
 
-  TimeoutFailure changeToTimeoutFailure({String? traceId, Duration? timeout}) {
+  TimeoutFailure changeToTimeoutFailure({
+    String? traceId,
+    String? code,
+    Duration? timeout,
+  }) {
     return TimeoutFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       timeout: timeout,
     );
   }
 
   BoundaryViolationFailure changeToBoundaryViolationFailure({
     String? traceId,
+    String? code,
     required List<FieldViolation> violations,
   }) {
     return BoundaryViolationFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       violations: violations,
     );
   }
 
   PolicyDeniedFailure changeToPolicyDeniedFailure({
     String? traceId,
+    String? code,
     required String reason,
   }) {
     return PolicyDeniedFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       reason: reason,
     );
   }
 
   ConflictFailure changeToConflictFailure({
     String? traceId,
+    String? code,
     Map<String, Object?>? localPatchWire,
     Map<String, Object?>? remotePatchWire,
   }) {
@@ -3371,45 +3854,52 @@ extension NotFoundFailureMorphing on NotFoundFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       localPatchWire: localPatchWire,
       remotePatchWire: remotePatchWire,
     );
   }
 
-  CancelledFailure changeToCancelledFailure({String? traceId}) {
+  CancelledFailure changeToCancelledFailure({String? traceId, String? code}) {
     return CancelledFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
     );
   }
 
   InterruptedFailure changeToInterruptedFailure({
     String? traceId,
+    String? code,
     String? intentDigest,
   }) {
     return InterruptedFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       intentDigest: intentDigest,
     );
   }
 
   StorageFailure changeToStorageFailure({
     String? traceId,
+    String? code,
     required String layer,
   }) {
     return StorageFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       layer: layer,
     );
   }
 
   UnexpectedFailure changeToUnexpectedFailure({
     String? traceId,
+    String? code,
     String? cause,
     String? stackTrace,
   }) {
@@ -3417,6 +3907,7 @@ extension NotFoundFailureMorphing on NotFoundFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       cause: cause,
       stackTrace: stackTrace,
     );
@@ -3424,50 +3915,65 @@ extension NotFoundFailureMorphing on NotFoundFailure {
 }
 
 extension ConflictFailureMorphing on ConflictFailure {
-  NetworkFailure changeToNetworkFailure({String? traceId, int? statusCode}) {
+  NetworkFailure changeToNetworkFailure({
+    String? traceId,
+    String? code,
+    int? statusCode,
+  }) {
     return NetworkFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       statusCode: statusCode,
     );
   }
 
-  TimeoutFailure changeToTimeoutFailure({String? traceId, Duration? timeout}) {
+  TimeoutFailure changeToTimeoutFailure({
+    String? traceId,
+    String? code,
+    Duration? timeout,
+  }) {
     return TimeoutFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       timeout: timeout,
     );
   }
 
   BoundaryViolationFailure changeToBoundaryViolationFailure({
     String? traceId,
+    String? code,
     required List<FieldViolation> violations,
   }) {
     return BoundaryViolationFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       violations: violations,
     );
   }
 
   PolicyDeniedFailure changeToPolicyDeniedFailure({
     String? traceId,
+    String? code,
     required String reason,
   }) {
     return PolicyDeniedFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       reason: reason,
     );
   }
 
   NotFoundFailure changeToNotFoundFailure({
     String? traceId,
+    String? code,
     String? resourceType,
     String? resourceId,
   }) {
@@ -3475,45 +3981,52 @@ extension ConflictFailureMorphing on ConflictFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       resourceType: resourceType,
       resourceId: resourceId,
     );
   }
 
-  CancelledFailure changeToCancelledFailure({String? traceId}) {
+  CancelledFailure changeToCancelledFailure({String? traceId, String? code}) {
     return CancelledFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
     );
   }
 
   InterruptedFailure changeToInterruptedFailure({
     String? traceId,
+    String? code,
     String? intentDigest,
   }) {
     return InterruptedFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       intentDigest: intentDigest,
     );
   }
 
   StorageFailure changeToStorageFailure({
     String? traceId,
+    String? code,
     required String layer,
   }) {
     return StorageFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       layer: layer,
     );
   }
 
   UnexpectedFailure changeToUnexpectedFailure({
     String? traceId,
+    String? code,
     String? cause,
     String? stackTrace,
   }) {
@@ -3521,6 +4034,7 @@ extension ConflictFailureMorphing on ConflictFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       cause: cause,
       stackTrace: stackTrace,
     );
@@ -3528,50 +4042,65 @@ extension ConflictFailureMorphing on ConflictFailure {
 }
 
 extension CancelledFailureMorphing on CancelledFailure {
-  NetworkFailure changeToNetworkFailure({String? traceId, int? statusCode}) {
+  NetworkFailure changeToNetworkFailure({
+    String? traceId,
+    String? code,
+    int? statusCode,
+  }) {
     return NetworkFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       statusCode: statusCode,
     );
   }
 
-  TimeoutFailure changeToTimeoutFailure({String? traceId, Duration? timeout}) {
+  TimeoutFailure changeToTimeoutFailure({
+    String? traceId,
+    String? code,
+    Duration? timeout,
+  }) {
     return TimeoutFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       timeout: timeout,
     );
   }
 
   BoundaryViolationFailure changeToBoundaryViolationFailure({
     String? traceId,
+    String? code,
     required List<FieldViolation> violations,
   }) {
     return BoundaryViolationFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       violations: violations,
     );
   }
 
   PolicyDeniedFailure changeToPolicyDeniedFailure({
     String? traceId,
+    String? code,
     required String reason,
   }) {
     return PolicyDeniedFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       reason: reason,
     );
   }
 
   NotFoundFailure changeToNotFoundFailure({
     String? traceId,
+    String? code,
     String? resourceType,
     String? resourceId,
   }) {
@@ -3579,6 +4108,7 @@ extension CancelledFailureMorphing on CancelledFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       resourceType: resourceType,
       resourceId: resourceId,
     );
@@ -3586,6 +4116,7 @@ extension CancelledFailureMorphing on CancelledFailure {
 
   ConflictFailure changeToConflictFailure({
     String? traceId,
+    String? code,
     Map<String, Object?>? localPatchWire,
     Map<String, Object?>? remotePatchWire,
   }) {
@@ -3593,6 +4124,7 @@ extension CancelledFailureMorphing on CancelledFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       localPatchWire: localPatchWire,
       remotePatchWire: remotePatchWire,
     );
@@ -3600,30 +4132,35 @@ extension CancelledFailureMorphing on CancelledFailure {
 
   InterruptedFailure changeToInterruptedFailure({
     String? traceId,
+    String? code,
     String? intentDigest,
   }) {
     return InterruptedFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       intentDigest: intentDigest,
     );
   }
 
   StorageFailure changeToStorageFailure({
     String? traceId,
+    String? code,
     required String layer,
   }) {
     return StorageFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       layer: layer,
     );
   }
 
   UnexpectedFailure changeToUnexpectedFailure({
     String? traceId,
+    String? code,
     String? cause,
     String? stackTrace,
   }) {
@@ -3631,6 +4168,7 @@ extension CancelledFailureMorphing on CancelledFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       cause: cause,
       stackTrace: stackTrace,
     );
@@ -3638,50 +4176,65 @@ extension CancelledFailureMorphing on CancelledFailure {
 }
 
 extension InterruptedFailureMorphing on InterruptedFailure {
-  NetworkFailure changeToNetworkFailure({String? traceId, int? statusCode}) {
+  NetworkFailure changeToNetworkFailure({
+    String? traceId,
+    String? code,
+    int? statusCode,
+  }) {
     return NetworkFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       statusCode: statusCode,
     );
   }
 
-  TimeoutFailure changeToTimeoutFailure({String? traceId, Duration? timeout}) {
+  TimeoutFailure changeToTimeoutFailure({
+    String? traceId,
+    String? code,
+    Duration? timeout,
+  }) {
     return TimeoutFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       timeout: timeout,
     );
   }
 
   BoundaryViolationFailure changeToBoundaryViolationFailure({
     String? traceId,
+    String? code,
     required List<FieldViolation> violations,
   }) {
     return BoundaryViolationFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       violations: violations,
     );
   }
 
   PolicyDeniedFailure changeToPolicyDeniedFailure({
     String? traceId,
+    String? code,
     required String reason,
   }) {
     return PolicyDeniedFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       reason: reason,
     );
   }
 
   NotFoundFailure changeToNotFoundFailure({
     String? traceId,
+    String? code,
     String? resourceType,
     String? resourceId,
   }) {
@@ -3689,6 +4242,7 @@ extension InterruptedFailureMorphing on InterruptedFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       resourceType: resourceType,
       resourceId: resourceId,
     );
@@ -3696,6 +4250,7 @@ extension InterruptedFailureMorphing on InterruptedFailure {
 
   ConflictFailure changeToConflictFailure({
     String? traceId,
+    String? code,
     Map<String, Object?>? localPatchWire,
     Map<String, Object?>? remotePatchWire,
   }) {
@@ -3703,33 +4258,38 @@ extension InterruptedFailureMorphing on InterruptedFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       localPatchWire: localPatchWire,
       remotePatchWire: remotePatchWire,
     );
   }
 
-  CancelledFailure changeToCancelledFailure({String? traceId}) {
+  CancelledFailure changeToCancelledFailure({String? traceId, String? code}) {
     return CancelledFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
     );
   }
 
   StorageFailure changeToStorageFailure({
     String? traceId,
+    String? code,
     required String layer,
   }) {
     return StorageFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       layer: layer,
     );
   }
 
   UnexpectedFailure changeToUnexpectedFailure({
     String? traceId,
+    String? code,
     String? cause,
     String? stackTrace,
   }) {
@@ -3737,6 +4297,7 @@ extension InterruptedFailureMorphing on InterruptedFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       cause: cause,
       stackTrace: stackTrace,
     );
@@ -3744,50 +4305,65 @@ extension InterruptedFailureMorphing on InterruptedFailure {
 }
 
 extension StorageFailureMorphing on StorageFailure {
-  NetworkFailure changeToNetworkFailure({String? traceId, int? statusCode}) {
+  NetworkFailure changeToNetworkFailure({
+    String? traceId,
+    String? code,
+    int? statusCode,
+  }) {
     return NetworkFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       statusCode: statusCode,
     );
   }
 
-  TimeoutFailure changeToTimeoutFailure({String? traceId, Duration? timeout}) {
+  TimeoutFailure changeToTimeoutFailure({
+    String? traceId,
+    String? code,
+    Duration? timeout,
+  }) {
     return TimeoutFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       timeout: timeout,
     );
   }
 
   BoundaryViolationFailure changeToBoundaryViolationFailure({
     String? traceId,
+    String? code,
     required List<FieldViolation> violations,
   }) {
     return BoundaryViolationFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       violations: violations,
     );
   }
 
   PolicyDeniedFailure changeToPolicyDeniedFailure({
     String? traceId,
+    String? code,
     required String reason,
   }) {
     return PolicyDeniedFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       reason: reason,
     );
   }
 
   NotFoundFailure changeToNotFoundFailure({
     String? traceId,
+    String? code,
     String? resourceType,
     String? resourceId,
   }) {
@@ -3795,6 +4371,7 @@ extension StorageFailureMorphing on StorageFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       resourceType: resourceType,
       resourceId: resourceId,
     );
@@ -3802,6 +4379,7 @@ extension StorageFailureMorphing on StorageFailure {
 
   ConflictFailure changeToConflictFailure({
     String? traceId,
+    String? code,
     Map<String, Object?>? localPatchWire,
     Map<String, Object?>? remotePatchWire,
   }) {
@@ -3809,33 +4387,38 @@ extension StorageFailureMorphing on StorageFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       localPatchWire: localPatchWire,
       remotePatchWire: remotePatchWire,
     );
   }
 
-  CancelledFailure changeToCancelledFailure({String? traceId}) {
+  CancelledFailure changeToCancelledFailure({String? traceId, String? code}) {
     return CancelledFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
     );
   }
 
   InterruptedFailure changeToInterruptedFailure({
     String? traceId,
+    String? code,
     String? intentDigest,
   }) {
     return InterruptedFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       intentDigest: intentDigest,
     );
   }
 
   UnexpectedFailure changeToUnexpectedFailure({
     String? traceId,
+    String? code,
     String? cause,
     String? stackTrace,
   }) {
@@ -3843,6 +4426,7 @@ extension StorageFailureMorphing on StorageFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       cause: cause,
       stackTrace: stackTrace,
     );
@@ -3850,50 +4434,65 @@ extension StorageFailureMorphing on StorageFailure {
 }
 
 extension UnexpectedFailureMorphing on UnexpectedFailure {
-  NetworkFailure changeToNetworkFailure({String? traceId, int? statusCode}) {
+  NetworkFailure changeToNetworkFailure({
+    String? traceId,
+    String? code,
+    int? statusCode,
+  }) {
     return NetworkFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       statusCode: statusCode,
     );
   }
 
-  TimeoutFailure changeToTimeoutFailure({String? traceId, Duration? timeout}) {
+  TimeoutFailure changeToTimeoutFailure({
+    String? traceId,
+    String? code,
+    Duration? timeout,
+  }) {
     return TimeoutFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       timeout: timeout,
     );
   }
 
   BoundaryViolationFailure changeToBoundaryViolationFailure({
     String? traceId,
+    String? code,
     required List<FieldViolation> violations,
   }) {
     return BoundaryViolationFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       violations: violations,
     );
   }
 
   PolicyDeniedFailure changeToPolicyDeniedFailure({
     String? traceId,
+    String? code,
     required String reason,
   }) {
     return PolicyDeniedFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       reason: reason,
     );
   }
 
   NotFoundFailure changeToNotFoundFailure({
     String? traceId,
+    String? code,
     String? resourceType,
     String? resourceId,
   }) {
@@ -3901,6 +4500,7 @@ extension UnexpectedFailureMorphing on UnexpectedFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       resourceType: resourceType,
       resourceId: resourceId,
     );
@@ -3908,6 +4508,7 @@ extension UnexpectedFailureMorphing on UnexpectedFailure {
 
   ConflictFailure changeToConflictFailure({
     String? traceId,
+    String? code,
     Map<String, Object?>? localPatchWire,
     Map<String, Object?>? remotePatchWire,
   }) {
@@ -3915,39 +4516,45 @@ extension UnexpectedFailureMorphing on UnexpectedFailure {
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       localPatchWire: localPatchWire,
       remotePatchWire: remotePatchWire,
     );
   }
 
-  CancelledFailure changeToCancelledFailure({String? traceId}) {
+  CancelledFailure changeToCancelledFailure({String? traceId, String? code}) {
     return CancelledFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
     );
   }
 
   InterruptedFailure changeToInterruptedFailure({
     String? traceId,
+    String? code,
     String? intentDigest,
   }) {
     return InterruptedFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       intentDigest: intentDigest,
     );
   }
 
   StorageFailure changeToStorageFailure({
     String? traceId,
+    String? code,
     required String layer,
   }) {
     return StorageFailure.fromTrusted(
       message: message,
       traceId: traceId ?? this.traceId,
       isRetryable: isRetryable,
+      code: code ?? this.code,
       layer: layer,
     );
   }

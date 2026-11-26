@@ -9,10 +9,10 @@ part '../../_br_/src/core/failure.part.dart';
 /// trust-boundary `fromWire`/`toWire` codec and discriminator dispatch.
 ///
 /// The v2 taxonomy's seventeen concrete classes were folded into these ten
-/// variants (see the deprecated forwarding factories below and the migration
-/// table on issue #2149). Construct a variant through its factory
-/// (`AppFailure.network(...)`, `AppFailure.timeout(...)`, …) or decode one
-/// with [AppFailure.fromWire].
+/// variants (see the migration table on issue #2149). Construct a variant
+/// through its top-level helper (`networkFailure(...)`, `timeoutFailure(...)`,
+/// …) — the v3 union emitter does not carry static factories onto the
+/// generated root — or decode one with [AppFailure.fromWire].
 @ZorphyUnion()
 abstract class $AppFailure {
   /// Human-readable error message.
@@ -24,6 +24,9 @@ abstract class $AppFailure {
   /// Whether the failed operation may be retried unchanged.
   @ZorphyDomainBool()
   bool get isRetryable;
+
+  /// Machine-readable code, e.g. a GraphQL error type name (v2 parity).
+  String? get code;
 }
 
 @ZorphyValue()
@@ -35,6 +38,8 @@ class $NetworkFailure implements $AppFailure {
   @override
   @ZorphyDomainBool()
   final bool isRetryable;
+  @override
+  final String? code;
 
   /// HTTP status code carried over from the v2 `ServerFailure.statusCode`.
   final int? statusCode;
@@ -43,6 +48,7 @@ class $NetworkFailure implements $AppFailure {
     required this.message,
     this.traceId,
     this.isRetryable = false,
+    this.code,
     this.statusCode,
   });
 }
@@ -56,12 +62,15 @@ class $TimeoutFailure implements $AppFailure {
   @override
   @ZorphyDomainBool()
   final bool isRetryable;
+  @override
+  final String? code;
   final Duration? timeout;
 
   const $TimeoutFailure({
     required this.message,
     this.traceId,
     this.isRetryable = true,
+    this.code,
     this.timeout,
   });
 }
@@ -75,12 +84,15 @@ class $BoundaryViolationFailure implements $AppFailure {
   @override
   @ZorphyDomainBool()
   final bool isRetryable;
+  @override
+  final String? code;
   final List<FieldViolation> violations;
 
   const $BoundaryViolationFailure({
     required this.message,
     this.traceId,
     this.isRetryable = false,
+    this.code,
     this.violations = const [],
   });
 }
@@ -94,12 +106,15 @@ class $PolicyDeniedFailure implements $AppFailure {
   @override
   @ZorphyDomainBool()
   final bool isRetryable;
+  @override
+  final String? code;
   final String reason;
 
   const $PolicyDeniedFailure({
     required this.message,
     this.traceId,
     this.isRetryable = false,
+    this.code,
     this.reason = 'permission',
   });
 }
@@ -113,6 +128,8 @@ class $NotFoundFailure implements $AppFailure {
   @override
   @ZorphyDomainBool()
   final bool isRetryable;
+  @override
+  final String? code;
   final String? resourceType;
   final String? resourceId;
 
@@ -120,6 +137,7 @@ class $NotFoundFailure implements $AppFailure {
     required this.message,
     this.traceId,
     this.isRetryable = false,
+    this.code,
     this.resourceType,
     this.resourceId,
   });
@@ -134,6 +152,8 @@ class $ConflictFailure implements $AppFailure {
   @override
   @ZorphyDomainBool()
   final bool isRetryable;
+  @override
+  final String? code;
   final Map<String, Object?>? localPatchWire;
   final Map<String, Object?>? remotePatchWire;
 
@@ -141,6 +161,7 @@ class $ConflictFailure implements $AppFailure {
     required this.message,
     this.traceId,
     this.isRetryable = false,
+    this.code,
     this.localPatchWire,
     this.remotePatchWire,
   });
@@ -155,11 +176,14 @@ class $CancelledFailure implements $AppFailure {
   @override
   @ZorphyDomainBool()
   final bool isRetryable;
+  @override
+  final String? code;
 
   const $CancelledFailure({
     required this.message,
     this.traceId,
     this.isRetryable = false,
+    this.code,
   });
 }
 
@@ -172,12 +196,15 @@ class $InterruptedFailure implements $AppFailure {
   @override
   @ZorphyDomainBool()
   final bool isRetryable;
+  @override
+  final String? code;
   final String? intentDigest;
 
   const $InterruptedFailure({
     required this.message,
     this.traceId,
     this.isRetryable = true,
+    this.code,
     this.intentDigest,
   });
 }
@@ -191,12 +218,15 @@ class $StorageFailure implements $AppFailure {
   @override
   @ZorphyDomainBool()
   final bool isRetryable;
+  @override
+  final String? code;
   final String layer;
 
   const $StorageFailure({
     required this.message,
     this.traceId,
     this.isRetryable = false,
+    this.code,
     this.layer = 'cache',
   });
 }
@@ -210,6 +240,8 @@ class $UnexpectedFailure implements $AppFailure {
   @override
   @ZorphyDomainBool()
   final bool isRetryable;
+  @override
+  final String? code;
 
   /// Stringified originating error/cause carried over from v2 (diagnostic).
   final String? cause;
@@ -221,6 +253,7 @@ class $UnexpectedFailure implements $AppFailure {
     required this.message,
     this.traceId,
     this.isRetryable = false,
+    this.code,
     this.cause,
     this.stackTrace,
   });
@@ -245,6 +278,7 @@ NetworkFailure networkFailure(
   bool isRetryable = false,
   dynamic details,
 }) => NetworkFailure.fromTrusted(
+  code: code,
   message: message,
   traceId: traceId,
   isRetryable: isRetryable,
@@ -261,6 +295,7 @@ TimeoutFailure timeoutFailure(
   String? traceId,
   bool isRetryable = true,
 }) => TimeoutFailure.fromTrusted(
+  code: code,
   message: message,
   traceId: traceId,
   isRetryable: isRetryable,
@@ -283,6 +318,7 @@ BoundaryViolationFailure boundaryViolationFailure(
   String? traceId,
   bool isRetryable = false,
 }) => BoundaryViolationFailure.fromTrusted(
+  code: code,
   message: message,
   traceId: traceId,
   isRetryable: isRetryable,
@@ -318,6 +354,7 @@ PolicyDeniedFailure policyDeniedFailure(
   String? traceId,
   bool isRetryable = false,
 }) => PolicyDeniedFailure.fromTrusted(
+  code: code,
   message: message,
   traceId: traceId,
   isRetryable: isRetryable,
@@ -342,6 +379,7 @@ NotFoundFailure notFoundFailure(
   String? traceId,
   bool isRetryable = false,
 }) => NotFoundFailure.fromTrusted(
+  code: code,
   message: message,
   traceId: traceId,
   isRetryable: isRetryable,
@@ -361,6 +399,7 @@ ConflictFailure conflictFailure(
   String? traceId,
   bool isRetryable = false,
 }) => ConflictFailure.fromTrusted(
+  code: code,
   message: message,
   traceId: traceId,
   isRetryable: isRetryable,
@@ -383,6 +422,7 @@ InterruptedFailure interruptedFailure(
   String? traceId,
   bool isRetryable = true,
 }) => InterruptedFailure.fromTrusted(
+  code: code,
   message: message,
   traceId: traceId,
   isRetryable: isRetryable,
@@ -399,6 +439,7 @@ StorageFailure storageFailure(
   String? traceId,
   bool isRetryable = false,
 }) => StorageFailure.fromTrusted(
+  code: code,
   message: message,
   traceId: traceId,
   isRetryable: isRetryable,
@@ -415,6 +456,7 @@ UnexpectedFailure unexpectedFailure(
   String? traceId,
   bool isRetryable = false,
 }) => UnexpectedFailure.fromTrusted(
+  code: code,
   message: message,
   traceId: traceId,
   isRetryable: isRetryable,

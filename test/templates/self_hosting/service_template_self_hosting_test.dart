@@ -109,7 +109,7 @@ class StubProductService implements ProductService {
 
 Future<void> main() async {
   final ProductService service = StubProductService();
-  final product = await service.getProduct(const QueryParams<Product>());
+  final product = await service.getProduct(const QueryParams<Product>.fromTrusted());
   if (product.id != 'p1' || product.price != 99.5) {
     throw StateError('behavior check failed: wrong entity through the '
         'generated service contract');

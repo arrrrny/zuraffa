@@ -39,23 +39,25 @@ class TodoPresenter {
       _deleteTodo = getIt<DeleteTodoUseCase>();
 
   Future<Result<Todo, AppFailure>> getTodo(int id) {
-    return _getTodo(QueryParams<Todo>(filter: Eq(TodoFields.id, id)));
+    return _getTodo(
+      QueryParams<Todo>.fromTrusted(filter: Eq(TodoFields.id, id)),
+    );
   }
 
   Future<Result<List<Todo>, AppFailure>> getTodoList([
-    ListQueryParams<Todo> params = const ListQueryParams(),
+    ListQueryParams<Todo> params = const ListQueryParams.fromTrusted(),
   ]) {
     return _getTodoList(params);
   }
 
   Stream<Result<Todo, AppFailure>> watchTodo([
-    QueryParams<Todo> params = const QueryParams<Todo>(),
+    QueryParams<Todo> params = const QueryParams<Todo>.fromTrusted(),
   ]) {
     return _watchTodo(params);
   }
 
   Stream<Result<List<Todo>, AppFailure>> watchTodoList([
-    ListQueryParams<Todo> params = const ListQueryParams(),
+    ListQueryParams<Todo> params = const ListQueryParams.fromTrusted(),
   ]) {
     return _watchTodoList(params);
   }
@@ -66,7 +68,7 @@ class TodoPresenter {
 
   Future<Result<Todo, AppFailure>> updateTodo(Todo todo) {
     return _updateTodo(
-      UpdateParams<int, TodoPatch>(
+      UpdateParams<int, TodoPatch>.fromTrusted(
         id: todo.id,
         data: TodoPatch().withIsCompleted(!todo.isCompleted),
       ),
@@ -74,6 +76,6 @@ class TodoPresenter {
   }
 
   Future<Result<void, AppFailure>> deleteTodo(int id) {
-    return _deleteTodo(DeleteParams<int>(id: id));
+    return _deleteTodo(DeleteParams<int>.fromTrusted(id: id));
   }
 }

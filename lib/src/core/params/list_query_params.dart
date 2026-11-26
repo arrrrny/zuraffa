@@ -142,22 +142,36 @@ extension ListQueryParamsWireCodec<T> on ListQueryParams<T> {
 }
 
 /// Decode a [ListQueryParams] from a wire map.
+///
+/// [fields] / [resolveField] carry typed `Field<T, dynamic>` context so a
+/// decoded [Filter]/[Sort] binds to a field of [T]. Without them the converter
+/// builds a fallback `Field<dynamic, dynamic>` whose getter only reads
+/// `Map<String, dynamic>` entities and throws `StateError` for typed ones —
+/// the `as Filter<T>?` / `as Sort<T>?` cast cannot catch that (review #2179).
 ListQueryParams<T> listQueryParamsFromWire<T>(
   Map<String, dynamic> raw,
-  T Function(Object? json) fromElement,
-) {
+  T Function(Object? json) fromElement, [
+  Map<String, Field<T, dynamic>>? fields,
+  FieldResolver<T>? resolveField,
+]) {
   return ListQueryParams<T>.fromTrusted(
     search: raw['search'] as String?,
     limit: raw['limit'] as int?,
     offset: raw['offset'] as int?,
     params: raw['params'] as Map<String, dynamic>?,
     filter: raw['filter'] != null
-        ? FilterConverter.fromJson(raw['filter'] as Map<String, dynamic>)
-              as Filter<T>?
+        ? FilterConverter.fromJsonTyped<T>(
+            raw['filter'] as Map<String, dynamic>,
+            fields,
+            resolveField,
+          )
         : null,
     sort: raw['sort'] != null
-        ? SortConverter.fromJson(raw['sort'] as Map<String, dynamic>)
-              as Sort<T>?
+        ? SortConverter.fromJsonTyped<T>(
+            raw['sort'] as Map<String, dynamic>,
+            fields,
+            resolveField,
+          )
         : null,
   );
 }

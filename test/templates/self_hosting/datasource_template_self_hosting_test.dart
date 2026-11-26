@@ -136,11 +136,11 @@ class InMemoryProductDataSource with Loggable, FailureHandler
 
 Future<void> main() async {
   final ProductDataSource dataSource = InMemoryProductDataSource();
-  final product = await dataSource.get(const QueryParams<Product>());
+  final product = await dataSource.get(const QueryParams<Product>.fromTrusted());
   if (product.name != 'Desk') {
     throw StateError('behavior check failed: datasource contract broken');
   }
-  final list = await dataSource.getList(const ListQueryParams<Product>());
+  final list = await dataSource.getList(const ListQueryParams<Product>.fromTrusted());
   if (list.length != 1) {
     throw StateError('behavior check failed: list contract broken');
   }

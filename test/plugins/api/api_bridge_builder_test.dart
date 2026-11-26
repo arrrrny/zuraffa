@@ -477,10 +477,7 @@ extension ProductSerialization on Product {
       // Truncated fragments like these would not compile.
       expect(content, isNot(contains('QueryParams<Product.')));
       expect(content, isNot(contains('QueryParams<Product(')));
-      expect(
-        content,
-        contains('QueryParams<Product>(filter: ProductFields.id.eq(id))'),
-      );
+      expect(content, contains('QueryParams<Product>.fromTrusted('));
     });
 
     test('QueryParams usecases get a typed id handler', () async {
@@ -503,7 +500,10 @@ extension ProductSerialization on Product {
               'class GetProductListUseCase extends UseCase<List<Product>, ListQueryParams<Product>> {}',
         },
       ]);
-      expect(content, contains('final params = ListQueryParams<Product>();'));
+      expect(
+        content,
+        contains('final params = ListQueryParams<Product>.fromTrusted();'),
+      );
       expect(content, contains('params: {}'));
       expect(content, isNot(contains('id is required')));
       // Generic return type must survive intact for the toJson helper.
@@ -590,7 +590,10 @@ extension ProductSerialization on Product {
           },
         ]);
         expect(content, contains("params: {'args': 'QueryParams<Product>'}"));
-        expect(content, contains('QueryParams<Product>.fromJson(json)'));
+        expect(
+          content,
+          contains('queryParamsFromWire<Product>(json, (v) => v as Product)'),
+        );
       },
     );
   });

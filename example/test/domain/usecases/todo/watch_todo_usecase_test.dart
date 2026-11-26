@@ -3,7 +3,7 @@ import 'package:example/src/data/datasources/todo/todo_datasource.dart';
 import 'package:example/src/data/datasources/todo/todo_mock_datasource.dart';
 import 'package:example/src/data/mock/todo_mock_data.dart';
 import 'package:example/src/data/repositories/data_todo_repository.dart';
-import 'package:example/src/domain/entities/todo/todo.dart';
+import 'package:example/src/domain/entities/todo/todo.dart' hide TodoMockData;
 import 'package:example/src/domain/usecases/todo/watch_todo_usecase.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/mock.dart';
@@ -66,14 +66,14 @@ void main() {
     final tTodo = TodoMockData.sampleTodo;
     test('should call repository.watch and return result', () async {
       final result = useCase.call(
-        QueryParams<Todo>(filter: Eq(TodoFields.id, tTodo.id)),
+        QueryParams<Todo>.fromTrusted(filter: Eq(TodoFields.id, tTodo.id)),
       );
       await expectLater(result, emits(isA<Success<Todo, AppFailure>>()));
     });
     test('should return Failure when repository throws', () async {
       await expectLater(
         throwingUseCase.call(
-          QueryParams<Todo>(filter: Eq(TodoFields.id, tTodo.id)),
+          QueryParams<Todo>.fromTrusted(filter: Eq(TodoFields.id, tTodo.id)),
         ),
         emits(isA<Failure<Todo, AppFailure>>()),
       );

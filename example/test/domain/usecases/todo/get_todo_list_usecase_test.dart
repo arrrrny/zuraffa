@@ -63,7 +63,7 @@ void main() {
   });
   group('GetTodoListUseCase', () {
     test('should call repository.getList and return result', () async {
-      final result = await useCase.call(ListQueryParams<Todo>());
+      final result = await useCase.call(ListQueryParams<Todo>.fromTrusted());
       expect(result.isSuccess, true);
       expect(
         result.getOrElse(() => throw (Exception('not success'))),
@@ -71,7 +71,7 @@ void main() {
       );
     });
     test('should return Failure when repository throws', () async {
-      final result = await throwingUseCase.call(ListQueryParams<Todo>());
+      final result = await throwingUseCase.call(ListQueryParams<Todo>.fromTrusted());
       expect(result.isFailure, true);
     });
   });

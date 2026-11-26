@@ -57,7 +57,10 @@ class NotesPackageModule extends PackageModule {
       invoke: (usecase, args) async {
         final raw = args['params'];
         final params = raw is Map ? Map<String, dynamic>.from(raw) : null;
-        return usecase.execute(QueryParams<Note>(params: params), null);
+        return usecase.execute(
+          QueryParams<Note>.fromTrusted(params: params),
+          null,
+        );
       },
     ),
   ];

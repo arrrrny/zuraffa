@@ -50,14 +50,57 @@ class FailureReportStore {
       final file = File(filePath);
       await file.parent.create(recursive: true);
 
-      final jsonList = reports.map(_reportToJson).toList();
+      // Serialize each report independently. A zorphy patch wire may carry a
+      // raw DateTime; a single such value used to make jsonEncode throw for
+      // the WHOLE batch, so unrelated reports were never written and could be
+      // dropped when the queue cleared on shutdown (review #2179). Convert
+      // supported values to a JSON-safe shape, then isolate any report that
+      // still cannot be encoded.
+      final jsonList = <Map<String, dynamic>>[];
+      var skipped = 0;
+      for (final report in reports) {
+        try {
+          jsonList.add(
+            _jsonSafeValue(_reportToJson(report)) as Map<String, dynamic>,
+          );
+        } catch (e, stackTrace) {
+          skipped++;
+          _logger.warning(
+            'Skipping an unserializable failure report so the rest of the '
+            'batch persists',
+            e,
+            stackTrace,
+          );
+        }
+      }
       await file.writeAsString(jsonEncode(jsonList));
 
-      _logger.fine('Persisted ${reports.length} failure reports to disk');
+      _logger.fine(
+        'Persisted ${jsonList.length} failure reports to disk'
+        '${skipped == 0 ? '' : ' ($skipped skipped as unserializable)'}',
+      );
     } catch (e, stackTrace) {
       _logger.warning('Failed to persist failure reports', e, stackTrace);
     }
   }
+
+  /// Recursively convert values that `jsonEncode` cannot handle.
+  ///
+  /// Zorphy patch wires are declared as `Map<String, Object?>`, so a
+  /// `DateTime` (or nested map/list containing one) can legally reach here.
+  /// Encoding it as an ISO-8601 string keeps the value recoverable while
+  /// letting the rest of the batch persist.
+  Object? _jsonSafeValue(Object? value) => switch (value) {
+    null => null,
+    String() || num() || bool() => value,
+    DateTime() => value.toIso8601String(),
+    Map() => {
+      for (final entry in value.entries)
+        entry.key.toString(): _jsonSafeValue(entry.value),
+    },
+    List() => [for (final element in value) _jsonSafeValue(element)],
+    Object() => value.toString(),
+  };
 
   /// Load persisted reports from disk.
   ///

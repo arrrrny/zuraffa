@@ -5,9 +5,9 @@ import '../../domain/entities/note/note.dart';
 /// Mock data for Note
 class NoteMockData {
   static final List<Note> notes = [
-    Note(id: 'id 1', body: 'body 1'),
-    Note(id: 'id 2', body: 'body 2'),
-    Note(id: 'id 3', body: 'body 3'),
+    Note.fromTrusted(id: 'id 1', body: 'body 1'),
+    Note.fromTrusted(id: 'id 2', body: 'body 2'),
+    Note.fromTrusted(id: 'id 3', body: 'body 3'),
   ];
 
   static Note get sampleNote => notes.first;
@@ -20,7 +20,7 @@ class NoteMockData {
       List.generate(100, (index) => _createNote(index + 1000));
 
   static Note _createNote(int seed) {
-    return Note(id: 'id $seed', body: 'body $seed');
+    return Note.fromTrusted(id: 'id $seed', body: 'body $seed');
   }
 }
 
