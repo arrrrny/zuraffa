@@ -94,13 +94,12 @@ dependencies:
 
 # dependency_overrides intentionally removed per spec 018-cli-plugin task
 # instructions ("delete the entire dependency_overrides: section"). The
-# previous section pinned analyzer: 14.1.0, which is already an exact version
-# pin in the dependencies: block above, so removal is a no-op for resolution
-# and eliminates any path-override risk for CI. Do NOT reintroduce path:
+# previous section pinned analyzer: 14.1.0 (already an exact pin in the
+# dependencies: block above) and the fleet-wide hosted `xml: 7.1.0` pin.
+# A lock-free `dart pub get --no-example` still resolves xml 7.1.0
+# transitively, so neither override is needed here. Do NOT reintroduce path:
 # overrides — CI has no sibling checkouts and every branch goes red when
-# they are present. The ONLY override allowed here is the fleet-wide hosted
-# exact pin at the bottom of this file (`xml: 7.1.0`): it references no
-# sibling checkout, so CI resolves it from pub.dev like any other package.
+# they are present. The example app keeps its own hosted xml pin.
 executables:
   zuraffa:
   zfa:
@@ -132,5 +131,3 @@ dev_dependencies:
 
 # Fleet-wide xml policy: pin the override to the latest xml so graphs that
 # still transitively pull the abandoned minio (xml 6.x) resolve cleanly.
-dependency_overrides:
-  xml: 7.1.0
