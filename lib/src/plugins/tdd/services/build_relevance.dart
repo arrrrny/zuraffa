@@ -20,7 +20,7 @@
 ///     `test/`, `bin/`, `tool/` — slang translation sources and assets
 ///     written there) → run;
 ///   - any Dart write whose RAW content mentions a builder-facing
-///     annotation (`@Zorphy`, `@ZorphyMixin`, `@JsonSerializable`,
+///     annotation (a zorphy archetype, `@JsonSerializable`,
 ///     `@HiveType`, `@HiveField`, `@Route`, `@ZfaRoute`) → run.
 ///
 /// Coverage boundary (issue #1587 review): [fingerprint] covers those
@@ -195,11 +195,13 @@ class BuildRelevance {
       entity is File && !entity.path.endsWith('.g.dart.part') ? entity : null;
 
   /// The builder-facing annotations `zfa build`'s stages consume: the
-  /// zorphy entity builder, json_serializable, the hive_ce generators,
-  /// and the DDA route stage. Raw-content match (comments count — the
-  /// fail-safe direction).
+  /// zorphy archetypes and member annotations, json_serializable, the
+  /// hive_ce generators, and the DDA route stage. Raw-content match
+  /// (comments count — the fail-safe direction).
   static final RegExp builderFacingAnnotation = RegExp(
-    r'@(Zorphy(?:Mixin)?|JsonSerializable|HiveType|HiveField|Route|ZfaRoute)\b',
+    r'@(ZorphyEntity|ZorphyState|ZorphyUnion|ZorphyIntent|ZorphyValue|'
+    r'ZorphyDomainBool|ZorphyMock|JsonSerializable|HiveType|HiveField|'
+    r'Route|ZfaRoute)\b',
   );
 
   /// The skip note recorded on a synthetic skipped build step and

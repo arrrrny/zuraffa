@@ -19,6 +19,7 @@ import '../feature_flags/feature_flag_config.dart';
 import '../feature_flags/registry_emitter.dart';
 import '../models/generator_config.dart';
 import '../plugins/cache/builders/cache_builder.dart';
+import '../utils/zorphy_annotations.dart';
 
 class BuildCommand extends Command {
   final FileParser _fileParser = const FileParser();
@@ -749,10 +750,10 @@ class BuildCommand extends Command {
     }
   }
 
-  /// Returns `true` when the build produced the expected `.zorphy.dart` /
-  /// `.g.dart` outputs (or when there are no `@Zorphy` sources to generate
+  /// Returns `true` when the build produced the expected generated
+  /// outputs (or when there are no zorphy-annotated sources to generate
   /// from). Returns `false` and prints an actionable error when build_runner
-  /// exited 0 but wrote 0 outputs despite `@Zorphy`-annotated sources being
+  /// exited 0 but wrote 0 outputs despite zorphy-annotated sources being
   /// present — the "silent success with 0 outputs" misconfiguration from
   /// zuraffa#276 that the static pre-flight cannot detect.
   ///
@@ -786,7 +787,7 @@ class BuildCommand extends Command {
           return false;
         }
         print(
-          '\n❌ build_runner wrote 0 outputs although @Zorphy sources exist.\n'
+          '\n❌ build_runner wrote 0 outputs although zorphy sources exist.\n'
           '   This usually means build.yaml registers `zorphy:zorphy` but its\n'
           '   `generate_for` glob does not include the annotated files. Fix by\n'
           '   ensuring `generate_for` covers `lib/src/**` (and `test/**`):\n'
@@ -811,7 +812,8 @@ class BuildCommand extends Command {
   }
 
   /// Returns `true` when every generated part declared by a source file under
-  /// `lib/`/`test/` (`.zorphy.dart` / `.g.dart`) actually exists on disk.
+  /// `lib/`/`test/` (a zorphy shared part or a `.g.dart`) actually exists on
+  /// disk.
   ///
   /// This is the residual case zuraffa#379: build_runner (AOT) can exit 0 —
   /// or its clean-cache retry can — while a single generator (e.g.
@@ -820,8 +822,8 @@ class BuildCommand extends Command {
   /// case; this catches the per-file partial case so the build fails loudly
   /// instead of leaving a broken package that references a missing part.
   ///
-  /// Only sources that declare a `.zorphy.dart` / `.g.dart` part are checked,
-  /// so hand-written multi-part libraries are not inspected.
+  /// Only sources that declare a generated part are checked, so
+  /// hand-written multi-part libraries are not inspected.
   @visibleForTesting
   bool verifyDeclaredPartsOrFail({String? projectRoot}) {
     final missing = <String>[];
@@ -836,9 +838,7 @@ class BuildCommand extends Command {
       for (final entity in dir.listSync(recursive: true)) {
         if (entity is! File || !entity.path.endsWith('.dart')) continue;
         final name = p.basename(entity.path);
-        if (name.endsWith('.zorphy.dart') || name.endsWith('.g.dart')) {
-          continue;
-        }
+        if (_isGeneratedOutput(name, path: entity.path)) continue;
         String src;
         try {
           src = entity.readAsStringSync();
@@ -858,13 +858,18 @@ class BuildCommand extends Command {
           if (directive is! PartDirective) continue;
           final partName = directive.uri.stringValue;
           if (partName == null) continue;
-          if (!partName.endsWith('.zorphy.dart') &&
-              !partName.endsWith('.g.dart')) {
-            continue;
-          }
+          if (!_isGeneratedPart(partName)) continue;
           final resolved = p.join(p.dirname(entity.path), partName);
           if (!File(resolved).existsSync()) {
-            missing.add('${p.relative(entity.path)} -> $partName');
+            final declared = p.relative(entity.path);
+            // A source whose shared part is missing is not always a broken
+            // build: a library with no zorphy archetype has nothing to
+            // contribute, and build_runner writes no part for it.
+            if (partName.endsWith('.part.dart') &&
+                !declaresZorphyArchetype(src)) {
+              continue;
+            }
+            missing.add('$declared -> $partName');
             missingRelativePaths.add(
               p
                   .relative(
@@ -911,8 +916,24 @@ class BuildCommand extends Command {
     return true;
   }
 
-  /// True when at least one `.zorphy.dart` or `.g.dart` file exists under
-  /// `lib/` or `test/` (the dirs covered by the canonical `generate_for`).
+  /// True when [partName] — the URI of a `part` directive — names a
+  /// generated file the build is expected to write.
+  ///
+  /// `lib/_br_/.../<library>.part.dart` is the shared part every zorphy
+  /// v3 source declares (build_runner's "add to library" output); a
+  /// source only declares one when it carries a zorphy archetype.
+  /// `.g.dart` is json_serializable's output. The v2 `.zorphy.dart` name
+  /// is no longer produced; it stays recognised so a not-yet-migrated
+  /// source is still covered rather than silently exempt.
+  static bool _isGeneratedPart(String partName) =>
+      partName.endsWith('.part.dart') ||
+      partName.endsWith('.g.dart') ||
+      partName.endsWith('.zorphy.dart');
+
+  /// True when at least one generated file exists under `lib/` or
+  /// `test/`: a shared part in `_br_/` (zorphy v3), a `.g.dart`, or a
+  /// legacy `.zorphy.dart` (the dirs covered by the canonical
+  /// `generate_for`).
   @visibleForTesting
   bool hasGeneratedOutputs({String? projectRoot}) {
     const roots = <String>['lib', 'test'];
@@ -921,24 +942,27 @@ class BuildCommand extends Command {
       final dir = Directory(dirPath);
       if (!dir.existsSync()) continue;
       for (final entity in dir.listSync(recursive: true)) {
-        if (entity is File) {
-          final name = p.basename(entity.path);
-          if (name.endsWith('.zorphy.dart') || name.endsWith('.g.dart')) {
-            return true;
-          }
+        if (entity is File && _isGeneratedOutput(p.basename(entity.path))) {
+          return true;
         }
       }
     }
     return false;
   }
 
-  /// True when at least one non-generated `.dart` source under `lib/` carries
-  /// an `@Zorphy` / `@ZorphyMixin` annotation. `//` line comments are stripped
-  /// before matching so a comment that merely mentions `@Zorphy` does not
-  /// false-positive (important so the safety net never breaks a correctly
-  /// configured project — zuraffa#276). The scan lives in [BuildYamlGuard]
-  /// (shared with the #1709 pipeline-usage guard) so the two callers cannot
-  /// drift apart.
+  /// True when [name] is a generated-output filename. `.part.dart` counts
+  /// only in build_runner's reserved `_br_` directories — a hand-written
+  /// `part` file elsewhere is source, not build output.
+  static bool _isGeneratedOutput(String name, {String? path}) =>
+      name.endsWith('.g.dart') ||
+      name.endsWith('.zorphy.dart') ||
+      (name.endsWith('.part.dart') &&
+          (path ?? '').contains('${p.separator}_br_${p.separator}'));
+
+  /// True when at least one non-generated `.dart` source under `lib/`
+  /// carries a zorphy annotation. The scan lives in [BuildYamlGuard]
+  /// (shared with the #1709 pipeline-usage guard) so the two callers
+  /// cannot drift apart.
   @visibleForTesting
   bool hasZorphyAnnotatedSources({String? projectRoot}) =>
       BuildYamlGuard.hasZorphyAnnotatedSources(projectRoot: projectRoot);
@@ -1062,9 +1086,9 @@ class BuildCommand extends Command {
   ///
   /// Two attribution surfaces (bug 1675):
   ///
-  ///   1. the generated-name suffixes the build command itself owns
-  ///      (`.zorphy.dart` / `.g.dart`; the same convention the
-  ///      zorphy-annotation scan uses);
+  ///   1. the generated outputs the build command itself owns: the
+  ///      `.zorphy.dart` / `.g.dart` suffixes and build_runner's
+  ///      reserved `_br_/` directory (the zorphy v3 shared parts);
   ///   2. the directory conventions the `zfa make` plugins write into
   ///      *under the output dir* ([outputDir] — `lib/src` by default):
   ///      `domain`, `data`, `di`, `routing`, `presentation`, `cache`. Files
@@ -1113,9 +1137,17 @@ class BuildCommand extends Command {
     if (!stripped.startsWith('lib/')) {
       candidates.add('lib/$stripped');
     }
-    final isGeneratedSuffix = candidates.any(
-      (c) => c.endsWith('.zorphy.dart') || c.endsWith('.g.dart'),
+    // build_runner's reserved output namespace (the zorphy v3 shared
+    // parts live under `_br_/`, with or without the `lib/` prefix the
+    // analyzer may have dropped).
+    final inBuildRunnerOutput = candidates.any(
+      (c) => c.startsWith('_br_/') || c.contains('/_br_/'),
     );
+    final isGeneratedSuffix =
+        inBuildRunnerOutput ||
+        candidates.any(
+          (c) => c.endsWith('.zorphy.dart') || c.endsWith('.g.dart'),
+        );
     if (isGeneratedSuffix) {
       return true;
     }

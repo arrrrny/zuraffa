@@ -823,26 +823,29 @@ abstract class \$ChatMessage {
     );
 
     test(
-      '#307 — autoId: true resolves the identity to a String id even without '
-      'an id getter in the source',
+      'a v3 value object with no id-like field is not refused as id-less '
+      '(the class is @ZorphyValue, not @ZorphyEntity)',
       timeout: const Timeout(Duration(minutes: 5)),
       () async {
-        await writeEntity('TelemetryEvent', '''
+        // `entity create --kind=value_object` writes `@ZorphyValue()`.
+        // The identity resolver read only the v2 annotation forms, so
+        // this class was taken for an id-less entity and `make` refused
+        // it, advising v2 annotations a v3 build rejects.
+        await writeEntity('Money', '''
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 
-@Zorphy(generateJson: true, autoId: true)
-abstract class \$TelemetryEvent {
-  TelemetryEventType get type;
-  String get value;
+@ZorphyValue()
+abstract class \$Money {
+  double get amount;
+  String get currency;
 }
 ''');
 
         final result = await runZfaSource([
           'make',
-          'TelemetryEvent',
+          'Money',
           '--preset=crud',
           '--with=vpc',
-          '--verbose',
           '--output',
           outputDir,
         ]);
@@ -850,8 +853,13 @@ abstract class \$TelemetryEvent {
         expect(result.exitCode, 0, reason: 'stderr: ${result.stderr}');
         expect(
           result.stdout as String,
-          contains('Resolved id field for "TelemetryEvent": id (String)'),
+          isNot(contains('has no id field')),
           reason: 'stdout: ${result.stdout}',
+        );
+        expect(
+          result.stdout as String,
+          isNot(contains('auto-id')),
+          reason: 'the v3 diagnostic must not advise the removed flag',
         );
       },
     );
@@ -864,7 +872,7 @@ abstract class \$TelemetryEvent {
         await writeEntity('ParserConfig', '''
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 
-@ZValueObject
+@ZorphyValue()
 abstract class \$ParserConfig {
   String get separator;
   bool get trimWhitespace;
@@ -1480,9 +1488,12 @@ abstract class \$ChatMessage {
         outputDir,
       ]);
 
-      // Same #307 diagnostic: message + the three remediation hints.
+      // Same #307 diagnostic: message + the two v3 remediation hints. In v3
+      // identity is declared by the archetype (`principalKey`), never by a
+      // CLI toggle, so the removed `--auto-id` flag must not be offered.
       expect(output, contains('has no id field'));
-      expect(output, contains('--auto-id'));
+      expect(output, contains('@ZorphyValue()'));
+      expect(output, isNot(contains('--auto-id')));
       expect(output, contains('value_object'));
       expect(output, contains('add-field'));
       expect(output, contains('❌ Error: Cannot generate architecture'));

@@ -188,9 +188,66 @@ void main() {
   });
 
   group('artifacts check (U4-U5)', () {
+    /// A v3 entity source: annotated, declaring build_runner's shared part.
+    const v3Entity = """
+import 'package:zorphy_annotation/zorphy_annotation.dart';
+
+part '../../../../_br_/src/domain/entities/user/user.part.dart';
+
+@ZorphyEntity(principalKey: #id)
+abstract class \$User {
+  String get id;
+}
+""";
+
+    test('U4: a zorphy entity whose shared part is absent fails with the '
+        'build_runner fix', () async {
+      final dir = await _sandbox();
+      await _writePubspec(dir);
+      final entity = File('${dir.path}/lib/src/domain/entities/user/user.dart');
+      await entity.parent.create(recursive: true);
+      await entity.writeAsString(v3Entity);
+
+      final results = await DoctorChecksRunner(
+        projectDir: dir.path,
+      ).runAll(fix: false);
+
+      final artifacts = _pick(results, 'artifacts');
+      expect(artifacts.status, DoctorCheckStatus.fail);
+      expect(artifacts.detail, contains('user.dart'));
+      // Names the v3 artifact — the _br_/ shared part, never a v2 sibling.
+      expect(artifacts.detail, contains('_br_/src/domain/entities/user/'));
+      expect(artifacts.detail, isNot(contains('.zorphy.dart')));
+      expect(
+        artifacts.suggestedFix,
+        contains('dart run build_runner build --delete-conflicting-outputs'),
+      );
+    });
+
+    test('U5: an entity with its shared part present passes', () async {
+      final dir = await _sandbox();
+      await _writePubspec(dir);
+      final entityDir = Directory('${dir.path}/lib/src/domain/entities/user');
+      await entityDir.create(recursive: true);
+      await File('${entityDir.path}/user.dart').writeAsString(v3Entity);
+      final part = File(
+        '${dir.path}/lib/_br_/src/domain/entities/user/user.part.dart',
+      );
+      await part.create(recursive: true);
+      await part.writeAsString('// generated');
+
+      final results = await DoctorChecksRunner(
+        projectDir: dir.path,
+      ).runAll(fix: false);
+      expect(_pick(results, 'artifacts').status, DoctorCheckStatus.pass);
+    });
+
     test(
-      'U4: entity without sibling .g.dart fails with build_runner fix',
+      'a source with no zorphy archetype owes no shared part and passes',
       () async {
+        // The v2 check demanded a sibling of EVERY class; in v3 the builder
+        // only contributes to annotated libraries, so a plain class must
+        // not be reported as missing artifacts.
         final dir = await _sandbox();
         await _writePubspec(dir);
         final entity = File(
@@ -202,34 +259,14 @@ void main() {
         final results = await DoctorChecksRunner(
           projectDir: dir.path,
         ).runAll(fix: false);
-
-        final artifacts = _pick(results, 'artifacts');
-        expect(artifacts.status, DoctorCheckStatus.fail);
-        expect(artifacts.detail, contains('user.dart'));
-        expect(
-          artifacts.suggestedFix,
-          contains('dart run build_runner build --delete-conflicting-outputs'),
-        );
+        expect(_pick(results, 'artifacts').status, DoctorCheckStatus.pass);
       },
     );
 
-    test('U5: complete entities pass and absent entities dir passes', () async {
-      final dir = await _sandbox();
-      await _writePubspec(dir);
-      final entityDir = Directory('${dir.path}/lib/src/domain/entities/user');
-      await entityDir.create(recursive: true);
-      await File('${entityDir.path}/user.dart').writeAsString('class User {}');
-      await File('${entityDir.path}/user.g.dart').writeAsString('// gen');
-      await File('${entityDir.path}/user.zorphy.dart').writeAsString('// gen');
-
-      var results = await DoctorChecksRunner(
-        projectDir: dir.path,
-      ).runAll(fix: false);
-      expect(_pick(results, 'artifacts').status, DoctorCheckStatus.pass);
-
+    test('U5: an absent entities dir passes', () async {
       final empty = await _sandbox();
       await _writePubspec(empty);
-      results = await DoctorChecksRunner(
+      final results = await DoctorChecksRunner(
         projectDir: empty.path,
       ).runAll(fix: false);
       expect(_pick(results, 'artifacts').status, DoctorCheckStatus.pass);

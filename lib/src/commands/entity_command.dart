@@ -440,7 +440,6 @@ ${missing.map((d) => '   • $d').join('\n')}
       explicitSubtypes: _asStringList(parsed['subtypes']),
       generateSubtypes: parsed['generate_subs'] as bool? ?? false,
       dryRun: parsed['dry_run'] as bool? ?? false,
-      autoId: parsed['auto_id'] == true,
       kind: _parseKind(parsed['kind'] as String?),
       typeKey: parsed['type_key'] as String?,
       subtypeWireValue: parsed['subtype_wire_value'] as String?,
@@ -578,7 +577,6 @@ ${missing.map((d) => '   • $d').join('\n')}
         input: {
           'fields': fields.map(_formatFieldDisplay).toList(),
           if (parsed['kind'] != null) 'kind': parsed['kind'],
-          if (entityConfig.autoId) 'autoId': true,
           if (entityConfig.generateSubtypes) 'generateSubtypes': true,
         },
         filePaths: [result.filePath],
@@ -588,10 +586,6 @@ ${missing.map((d) => '   • $d').join('\n')}
       print('\n📋 Next steps:');
       print('  1. Run: zfa build');
       print('  2. Import and use your ${entityConfig.className} class');
-
-      if (entityConfig.autoId) {
-        _warnIfUuidMissing();
-      }
 
       if (fields.isNotEmpty) {
         print('\n✨ Generated ${fields.length} fields:');
@@ -793,22 +787,6 @@ ${missing.map((d) => '   • $d').join('\n')}
     if (rest is String && rest.isNotEmpty) return rest;
     if (rest is List && rest.isNotEmpty) return rest.first.toString();
     return null;
-  }
-
-  /// autoId entities reference `package:uuid/uuid.dart` in the generated
-  /// code — warn when the app does not depend on it yet.
-  void _warnIfUuidMissing() {
-    final pubspecFile = File('pubspec.yaml');
-    if (!pubspecFile.existsSync()) return;
-    try {
-      final content = pubspecFile.readAsStringSync();
-      if (content.contains(RegExp(r'^\s*uuid\s*:', multiLine: true))) return;
-      print(
-        '⚠️  Generated id uses package:uuid — add it with: dart pub add uuid',
-      );
-    } catch (_) {
-      // Best-effort hint only.
-    }
   }
 
   /// Issue #807: emit a proof.v1 generation receipt for the files this
@@ -1945,9 +1923,6 @@ CREATE COMMAND:
                             Each entry is name:wireValue. Used with
                             --type-key for polymorphic dispatch.
     --generate-subs         Generate subtype files
-    --auto-id               Auto-generate a String id (uuid v4). The id
-                            field is optional at construction and defaults
-                            to a fresh uuid (adds uuid to your pubspec).
     --kind=<entity|value_object>
                             Semantic kind. value_object marks an immutable
                             composition type: no id required and `zfa make`
@@ -2015,7 +1990,7 @@ FIELD SYNTAX:
 EXAMPLES:
   zfa entity create -n User --field id:String --field name:String
   zfa entity create -n Product --field name:String --field price:double --filter
-  zfa entity create -n ChatMessage --auto-id --field role:ChatMessageRole
+  zfa entity create -n ChatMessage --field id:String --field role:ChatMessageRole
     --field content:String --field timestamp:DateTime
   zfa entity create -n ParserConfig --kind=value_object
     --field separator:String --field trimWhitespace:bool

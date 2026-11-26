@@ -158,7 +158,7 @@ targets:
     group('check() — zorphy pipeline not in use (#1709)', () {
       /// A minimal non-zuraffa Dart/Flutter package: a real pubspec.yaml, a
       /// `build.yaml` for its OWN builders, plain Dart sources, and no
-      /// zorphy dependency or `@Zorphy` annotation anywhere.
+      /// zorphy dependency or zorphy annotation anywhere.
       void writeNonZuraffaProject({required String dartSource}) {
         File(p.join(sandbox.path, 'pubspec.yaml')).writeAsStringSync('''
 name: shadapp
@@ -249,11 +249,63 @@ dependency_overrides:
         );
       });
 
-      test('returns missingZorphyBuilder when a @Zorphy source exists', () {
-        writeNonZuraffaProject(dartSource: '@Zorphy()\nclass Product {}');
+      test(
+        'returns missingZorphyBuilder when a source declares a v3 archetype',
+        () {
+          // The annotation is the ONLY signal here (no zorphy dependency in
+          // the pubspec). Under v3 every class annotation is an archetype —
+          // the guard's scan matched only the removed v2 `@Zorphy`, so this
+          // project was taken for "not using the pipeline" and its build
+          // silently wrote nothing.
+          for (final archetype in [
+            'ZorphyEntity(principalKey: #id)',
+            'ZorphyValue()',
+            'ZorphyUnion()',
+            'ZorphyState()',
+            'ZorphyIntent()',
+          ]) {
+            writeNonZuraffaProject(
+              dartSource:
+                  '@$archetype\nabstract class \$Product {\n'
+                  '  String get id;\n}\n',
+            );
+            expect(
+              BuildYamlGuard.check(projectRoot: sandbox.path),
+              BuildYamlStatus.missingZorphyBuilder,
+              reason: '@$archetype must count as using the zorphy pipeline',
+            );
+          }
+        },
+      );
+
+      test('a generated shared part under lib/_br_/ is not a source', () {
+        // The v3 builder writes its output under lib/_br_/; those files
+        // carry the generated annotations, and counting them would make
+        // every built project look like it uses the pipeline.
+        writeNonZuraffaProject(dartSource: 'class App {}');
+        final parts = Directory(p.join(sandbox.path, 'lib', '_br_'))
+          ..createSync(recursive: true);
+        File(
+          p.join(parts.path, 'product.part.dart'),
+        ).writeAsStringSync('@ZorphyEntity(principalKey: #id)\nclass P {}\n');
+        File(
+          p.join(sandbox.path, 'lib', 'src', 'generated.g.dart'),
+        ).writeAsStringSync('@ZorphyValue()\nclass G {}\n');
         expect(
           BuildYamlGuard.check(projectRoot: sandbox.path),
-          BuildYamlStatus.missingZorphyBuilder,
+          BuildYamlStatus.notApplicable,
+        );
+      });
+
+      test('a comment mentioning an archetype is not a source', () {
+        writeNonZuraffaProject(
+          dartSource:
+              '/// Not @ZorphyValue() — a plain class.\n// @ZorphyUnion()\n'
+              'class App {}',
+        );
+        expect(
+          BuildYamlGuard.check(projectRoot: sandbox.path),
+          BuildYamlStatus.notApplicable,
         );
       });
 

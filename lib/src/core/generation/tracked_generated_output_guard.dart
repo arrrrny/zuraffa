@@ -1,6 +1,5 @@
 /// `TrackedGeneratedOutputGuard` — spec 1540 restore-or-refuse protection
-/// for git-tracked hand-authored generated-name files (`.g.dart`,
-/// `.zorphy.dart`).
+/// for git-tracked hand-authored generated-name files (`.g.dart`).
 ///
 /// ## Problem (issue #1540)
 ///
@@ -62,7 +61,13 @@ const String kHandAuthoredPlaceholderDoc =
 
 /// The generated-name suffixes the build step already special-cases
 /// (`verifyDeclaredPartsOrFail`, `hasGeneratedOutputs`).
-const List<String> kGeneratedSuffixes = <String>['.g.dart', '.zorphy.dart'];
+///
+/// `.g.dart` only: json_serializable reserves `<lib>.g.dart` for every
+/// library in `generate_for`, which is what makes a hand-authored one
+/// indistinguishable from an orphaned output. The zorphy v3 builder
+/// writes only build_runner-managed `_br_/` shared parts, which are never
+/// hand-authored — so no zorphy suffix belongs here.
+const List<String> kGeneratedSuffixes = <String>['.g.dart'];
 
 /// The Hive registrar host file (`lib/src/cache/hive_registrar.dart` in the
 /// canonical layout): build_runner output in projects that enable

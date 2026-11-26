@@ -75,7 +75,7 @@ void main() {
           // annotated write lands and the run never reaches the build
           // step (issue #1587 review, walkthrough addendum). `-i.bak`
           // is the form both BSD and GNU sed accept.
-          "sed -i.bak '1s|.*|// @Zorphy annotated probe — builder-consumable|' "
+          "sed -i.bak '1s|.*|// @ZorphyValue annotated probe — builder-consumable|' "
               '"$subjectPath"',
         ],
       },

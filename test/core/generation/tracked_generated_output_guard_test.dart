@@ -270,11 +270,13 @@ Future<void> main() async {
         ),
         'lib/src/engine/events/engine_event.dart',
       );
+      // The v2 `.zorphy.dart` is no longer a generated name — the guard
+      // must not treat a stray one as a protected output.
       expect(
         TrackedGeneratedOutputGuard.owningLibraryFor(
           'lib/src/models/user.zorphy.dart',
         ),
-        'lib/src/models/user.dart',
+        isNull,
       );
       expect(
         TrackedGeneratedOutputGuard.owningLibraryFor('lib/plain.dart'),

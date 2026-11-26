@@ -7,7 +7,7 @@ library;
 // `zfa make: preset crud/read-only lack di + datasource activation doesn't
 // flow into DI` — the canonical documented flow
 //
-//     zfa entity create -n ScratchItem --auto-id --field name:String
+//     zfa entity create -n ScratchItem --field name:String
 //     zfa make ScratchItem --preset=crud --with=di --force
 //
 // produced an app that compiled but crashed at runtime with

@@ -40,10 +40,15 @@ import 'package:yaml/yaml.dart';
 import '../config/zfa_config.dart';
 import '../cli/binary_staleness.dart';
 import '../core/dependencies/generated_import_scanner.dart';
+import '../utils/zorphy_annotations.dart';
 import '../plugins/tdd/tdd_plugin.dart';
 import '../skew/skew_contract.dart';
 import '../version.dart';
 import 'tdd_command.dart';
+
+/// The remedy for every artifacts finding: rebuild the generated outputs.
+const String kArtifactsFix =
+    'dart run build_runner build --delete-conflicting-outputs';
 
 /// Status of a single named doctor check.
 enum DoctorCheckStatus { pass, fail, fixed, warn, skipped }
@@ -335,13 +340,7 @@ class DoctorChecksRunner {
 
     String? findings;
     for (final entity in _entitySources(entitiesDir)) {
-      final missing = <String>[];
-      final stem = entity.path.substring(
-        0,
-        entity.path.length - '.dart'.length,
-      );
-      if (!File('$stem.g.dart').existsSync()) missing.add('.g.dart');
-      if (!File('$stem.zorphy.dart').existsSync()) missing.add('.zorphy.dart');
+      final missing = _missingGeneratedArtifacts(entity);
       if (missing.isEmpty) continue;
       final rel = p.relative(entity.path, from: _root);
       findings = findings == null
@@ -350,8 +349,6 @@ class DoctorChecksRunner {
     }
 
     if (findings == null) return _pass(id, 'all entity artifacts present');
-    const suggested =
-        'dart run build_runner build --delete-conflicting-outputs';
 
     if (fix) {
       final result = await _processRunner('dart', [
@@ -360,40 +357,77 @@ class DoctorChecksRunner {
         'build',
         '--delete-conflicting-outputs',
       ]);
-      final stillMissing = _entitySources(entitiesDir).any((entity) {
-        final stem = entity.path.substring(
-          0,
-          entity.path.length - '.dart'.length,
-        );
-        return !File('$stem.g.dart').existsSync() ||
-            !File('$stem.zorphy.dart').existsSync();
-      });
+      final stillMissing = _entitySources(
+        entitiesDir,
+      ).any((entity) => _missingGeneratedArtifacts(entity).isNotEmpty);
       if (result.exitCode == 0 && !stillMissing) {
         return DoctorCheckResult(
           id: id,
           status: DoctorCheckStatus.fixed,
           detail: 'regenerated entity artifacts',
-          suggestedFix: suggested,
-          fixedItems: [suggested],
+          suggestedFix: kArtifactsFix,
+          fixedItems: const [kArtifactsFix],
         );
       }
       return _fail(
         id,
         '$findings (build_runner exited ${result.exitCode})',
-        suggested,
+        kArtifactsFix,
       );
     }
-    return _fail(id, findings, suggested);
+    return _fail(id, findings, kArtifactsFix);
   }
 
+  /// The generated artifacts [entity] declares but that are absent:
+  /// build_runner's shared part for a zorphy-annotated source, and the
+  /// `.g.dart` a source declares with a `part` directive.
+  ///
+  /// A source with no zorphy archetype declares no shared part and owes
+  /// nothing — the v3 builder only contributes to annotated libraries, so
+  /// demanding a sibling of a plain class would be a false positive.
+  List<String> _missingGeneratedArtifacts(File entity) {
+    String src;
+    try {
+      src = entity.readAsStringSync();
+    } catch (_) {
+      return const [];
+    }
+    final missing = <String>[];
+    final rel = p.relative(entity.path, from: _root).replaceAll(r'\', '/');
+    final declaredParts = _declaredPartUris(src);
+    if (declaresZorphyArchetype(src)) {
+      final part = sharedPartPath(rel);
+      if (!File(p.join(_root, part)).existsSync()) missing.add(part);
+    }
+    for (final uri in declaredParts) {
+      if (uri.endsWith('.g.dart') &&
+          !File(p.join(p.dirname(entity.path), uri)).existsSync()) {
+        missing.add(uri);
+      }
+    }
+    return missing;
+  }
+
+  /// Every `part '<uri>';` a source declares. Line comments are stripped
+  /// first so a commented-out directive is not taken as a declaration.
+  static List<String> _declaredPartUris(String src) => RegExp(
+    r"^\s*part\s+'([^']+)'\s*;",
+    multiLine: true,
+  ).allMatches(stripComments(src)).map((m) => m.group(1)!).toList();
+
+  /// Every hand-written entity source under [entitiesDir]: `.dart` files
+  /// that are not a generator's output (a `.g.dart` / `.freezed.dart`
+  /// sibling, or build_runner's `_br_/` shared parts).
   List<File> _entitySources(Directory entitiesDir) {
-    final generatedSuffixes = ['.g.dart', '.zorphy.dart', '.freezed.dart'];
+    final generatedSuffixes = ['.g.dart', '.freezed.dart'];
     return entitiesDir
         .listSync(recursive: true, followLinks: false)
         .whereType<File>()
         .where((f) => f.path.endsWith('.dart'))
         .where(
-          (f) => !generatedSuffixes.any((s) => p.basename(f.path).endsWith(s)),
+          (f) =>
+              !generatedSuffixes.any((s) => p.basename(f.path).endsWith(s)) &&
+              !p.split(p.relative(f.path, from: _root)).contains('_br_'),
         )
         .toList()
       ..sort((a, b) => a.path.compareTo(b.path));

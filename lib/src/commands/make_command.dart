@@ -922,9 +922,10 @@ class MakeCommand extends Command<void> {
     // #307: the old resolver fell back to the FIRST field as the id —
     // for id-less entities whose first field is an enum (ChatMessage.role,
     // TelemetryEvent.type) that produced enum-typed ids and missing enum
-    // imports. The fallback is gone: id-less entities must opt into
-    // `autoId`, and value objects are treated as embedded types (their
-    // root plugins are dropped below).
+    // imports. The fallback is gone: an entity must declare an identity
+    // (a `principalKey` field, `id`, or a `*Id` field), and value objects
+    // are treated as embedded types (their root plugins are dropped
+    // below).
     if (context.data['no-entity'] != true) {
       final resolution = EntityFieldResolver.resolveIdField(
         entityName: entityName,
@@ -970,9 +971,9 @@ class MakeCommand extends Command<void> {
             // GeneratorConfig's constructor (see generator_config.dart).
           }
         } else {
-          // Loud failure (issue #307): an entity with no id-like field and
-          // no autoId marker would silently produce enum-typed ids /
-          // broken signatures if we fell back to the first field.
+          // Loud failure (issue #307): an entity with no id-like field
+          // would silently produce enum-typed ids / broken signatures if
+          // we fell back to the first field.
           //
           // Issue #508: that requirement only applies to id-DEPENDENT
           // plugins — the ones whose generated signatures embed the id.
@@ -2251,7 +2252,7 @@ class MakeCommand extends Command<void> {
 }
 
 /// Thrown when `zfa make` cannot proceed because of an entity-contract
-/// violation (e.g. an id-less entity without `autoId` — issue #307).
+/// violation (e.g. an id-less entity — issue #307).
 ///
 /// The CLI runner's catch-all prints the message and exits 1; tests using
 /// `runCapturing` catch it without terminating the isolate.

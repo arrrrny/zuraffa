@@ -2,12 +2,14 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+import 'package:meta/meta.dart';
 import 'package:path/path.dart' as path;
 
 import '../config/zfa_config.dart';
 import '../core/dependencies/dependency_wirer.dart';
 import '../utils/file_utils.dart';
 import '../utils/string_utils.dart';
+import '../utils/zorphy_annotations.dart';
 import 'speckit_scaffolding.dart';
 
 class InitializeCommand {
@@ -300,7 +302,7 @@ class InitializeCommand {
     final entityFile = path.join(entityDir, '$entitySnake.dart');
 
     // Generate entity content
-    final content = _generateEntityContent(entityName);
+    final content = generateEntityContent(entityName);
 
     try {
       final result = await FileUtils.writeFile(
@@ -379,33 +381,32 @@ DESCRIPTION:
 ''');
   }
 
-  String _generateEntityContent(String entityName) {
+  /// The sample entity `zfa init` scaffolds, in the zorphy v3 source shape
+  /// the `zorphy` builder consumes: a `@ZorphyEntity` whose `principalKey`
+  /// names a declared `id` getter, and build_runner's shared part. The
+  /// part URI is derived from the library's own path — the one place that
+  /// knows the `_br_/` convention is [sharedPartUri].
+  @visibleForTesting
+  static String generateEntityContent(String entityName) {
+    final snake = StringUtils.camelToSnake(entityName);
+    final partUri = sharedPartUri(
+      path.posix.join(fixedEntityOutput, snake, '$snake.dart'),
+    );
     return '''
-import 'package:zorphy_annotation/zorphy.dart';
+import 'package:zorphy_annotation/zorphy_annotation.dart';
 
-part '$entityName.zorphy.dart';
+part '$partUri';
 
-@Zorphy(
-  json: true,
-  copyWith: true,
-  equal: true,
-)
-class $entityName with _\$$entityName {
-  const $entityName._();
-
-  const factory $entityName({
-    @Default('') String id,
-    required String name,
-    String? description,
-    required double price,
-    String? category,
-    @Default(true) bool isActive,
-    required DateTime createdAt,
-    DateTime? updatedAt,
-  }) = _\$$entityName${entityName}Impl;
-
-  factory $entityName.fromJson(Map<String, dynamic> json) =>
-      _\$${entityName}FromJson(json);
+@ZorphyEntity(principalKey: #id)
+abstract class \$$entityName {
+  String get id;
+  String get name;
+  String? get description;
+  double get price;
+  String? get category;
+  bool get isActive;
+  DateTime get createdAt;
+  DateTime? get updatedAt;
 }
 ''';
   }

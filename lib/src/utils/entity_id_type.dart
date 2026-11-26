@@ -11,9 +11,9 @@
 // accessor takes `int` → argument_type_not_assignable.
 //
 // Resolution order:
-//   1. Probe the entity source file via [EntityFieldResolver] (a field
-//      named `id`, else the first field ending in `Id`, else the
-//      synthetic `id: String` promised by `autoId: true`).
+//   1. Probe the entity source file via [EntityFieldResolver] (the
+//      `principalKey` field, else a field named `id`, else the first field
+//      ending in `Id`).
 //   2. Fall back to the persisted args of the last `zfa make` run
 //      (`.zfa/plans/last_run_<Entity>.json`). This covers entities
 //      whose identity was declared explicitly at make time via

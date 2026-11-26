@@ -576,17 +576,12 @@ class EntityAnalyzer {
     return buffer.toString();
   }
 
-  /// True when [surface] declares an identity — a field literally named
-  /// `id`, a field ending in `Id`, or `@Zorphy(autoId: true)`. The same
-  /// resolution order `zfa make` applies (see [EntityFieldResolver]).
-  static bool _hasIdentityField(String surface) {
-    if (EntityFieldResolver.detectsAutoId(surface)) return true;
-    for (final field in EntityFieldResolver.parseEntityFields(surface)) {
-      if (field.name == 'id') return true;
-      if (field.name.length > 2 && field.name.endsWith('Id')) return true;
-    }
-    return false;
-  }
+  /// True when [surface] declares an identity, by the one resolution
+  /// `zfa make` applies ([EntityFieldResolver.resolveFromSource]): the
+  /// `principalKey` field, a field literally named `id`, or one ending
+  /// in `Id`.
+  static bool _hasIdentityField(String surface) =>
+      EntityFieldResolver.resolveFromSource(surface)?.hasId ?? false;
 
   /// The import a consumer in [fromDir] writes to bring [entityName] into
   /// scope, relative to its own directory.

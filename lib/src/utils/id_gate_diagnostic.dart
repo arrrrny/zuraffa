@@ -21,21 +21,14 @@ void printIdGateDiagnostic(
     '$entityName --field id:String',
   );
   print(
-    '  2. Auto-generate one:  recreate with '
-    'zfa entity create -n $entityName --auto-id <fields...>',
-  );
-  print(
-    '  3. Mark it as a value object if it is an immutable '
+    '  2. Mark it as a value object if it is an immutable '
     'composition type (no identity, no CRUD surface):',
   );
   print(
     '       zfa entity create -n $entityName --kind=value_object '
     '<fields...>',
   );
-  print(
-    '     or add @ZValueObject / kind: ZorphyKind.valueObject '
-    'to its annotation.',
-  );
+  print('     or annotate it @ZorphyValue().');
   for (final line in extraLines) {
     print(line);
   }

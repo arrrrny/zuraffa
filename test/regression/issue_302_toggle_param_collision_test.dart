@@ -96,11 +96,10 @@ void main() {
             'Resolver should resolve the id-less Barcode contract without '
             'silently falling back to the first field',
       );
-      // #307: no `id` / `*Id` / `autoId` → id-less entity (zfa make fails
-      // loudly). The `value`-as-id toggle-collision scenario (#302) now
-      // requires an explicit `--id-field=value` on `zfa make`.
+      // #307: no `id` / `*Id` → id-less entity (zfa make fails loudly).
+      // The `value`-as-id toggle-collision scenario (#302) now requires an
+      // explicit `--id-field=value` on `zfa make`.
       expect(resolved!.kind, EntitySourceKind.entity);
-      expect(resolved.autoId, isFalse);
       expect(resolved.idField, isNull);
       expect(resolved.hasId, isFalse);
     });
