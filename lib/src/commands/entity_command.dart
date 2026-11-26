@@ -284,6 +284,32 @@ ${missing.map((d) => '   • $d').join('\n')}
     ZfaConfig? config,
   ) async {
     final parsed = _parseArgs(args);
+    // Issue #2185: reject unknown flags before any validation or write so a
+    // typo (`--knd=value_object`) or a removed flag never silently produces
+    // the wrong entity. The set is every option `create`/`new` reads plus the
+    // documented-but-ignored `--output` and the global `-p/--package`.
+    _rejectUnknownFlags(parsed, const {
+      'name',
+      'output',
+      'package',
+      'field',
+      'fields',
+      'json',
+      'filter',
+      'copywith_fn',
+      'compare',
+      'sealed',
+      'non_sealed',
+      'type_key',
+      'subtype_wire_value',
+      'extends',
+      'subtypes',
+      'generate_subs',
+      'auto_id',
+      'kind',
+      'allow_forward_refs',
+      'dry_run',
+    }, command);
     final name = parsed['name'] as String?;
 
     if (name == null || name.isEmpty) {
@@ -906,6 +932,14 @@ ${missing.map((d) => '   • $d').join('\n')}
 
   Future<void> _handleEnum(List<String> args) async {
     final parsed = _parseArgs(args);
+    // Issue #2185: same unknown-flag guard as `entity create`.
+    _rejectUnknownFlags(parsed, const {
+      'name',
+      'output',
+      'package',
+      'value',
+      'dry_run',
+    }, 'enum');
     final name = parsed['name'] as String?;
 
     if (name == null || name.isEmpty) {
@@ -973,6 +1007,16 @@ ${missing.map((d) => '   • $d').join('\n')}
 
   Future<void> _handleAddField(List<String> args, [ZfaConfig? config]) async {
     final parsed = _parseArgs(args);
+    // Issue #2185: same unknown-flag guard as `entity create`.
+    _rejectUnknownFlags(parsed, const {
+      'name',
+      'output',
+      'package',
+      'field',
+      'fields',
+      'allow_forward_refs',
+      'dry_run',
+    }, 'add-field');
     final name = parsed['name'] as String?;
 
     if (name == null || name.isEmpty) {
@@ -1487,6 +1531,43 @@ ${missing.map((d) => '   • $d').join('\n')}
       );
     }
     return null;
+  }
+
+  /// Issue #2185: reject options the subcommand does not recognise.
+  ///
+  /// The entity subcommands parse args with the custom [_parseArgs], which
+  /// stores every `--flag` into a map and never validates it — the handlers
+  /// read only the keys they know, so an unrecognised option (a typo like
+  /// `--knd=value_object`, or a removed flag like `--totally-bogus-flag`)
+  /// was silently swallowed and the command exited 0 as if it were never
+  /// passed. This guard names each offending flag and bails with the usage
+  /// exit code, pointing at the subcommand's `--help`. [parsed] keys are the
+  /// normalised (dash→underscore) flag names; `rest` (bare positionals) is
+  /// left to the handler, which is the only reader of positional arguments.
+  void _rejectUnknownFlags(
+    Map<String, dynamic> parsed,
+    Set<String> allowed,
+    String subcommand,
+  ) {
+    final unknown = <String>[];
+    for (final key in parsed.keys) {
+      if (key == 'rest') continue;
+      if (!allowed.contains(key)) {
+        unknown.add('--${key.replaceAll('_', '-')}');
+      }
+    }
+    if (unknown.isEmpty) return;
+    print(
+      'Error: unknown option(s) for `zfa entity $subcommand`: '
+      '${unknown.join(', ')}.',
+    );
+    print(
+      ExitProtocol.fixLine(
+        'remove the unknown option(s) and run `zfa entity $subcommand '
+        '--help` for the supported flags',
+      ),
+    );
+    _bail(ExitProtocol.usage);
   }
 
   Map<String, dynamic> _parseArgs(List<String> args) {
