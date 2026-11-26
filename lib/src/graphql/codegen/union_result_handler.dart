@@ -131,7 +131,9 @@ class UnionResultHandler {
         cb.Code("final typename = data['__typename'] as String?;"),
         cb.Code('if (typename == null) {'),
         cb.Code('  return SignalResult<$returnType>.failure('),
-        cb.Code("    AppFailure.network(message: 'Missing __typename in union result'),"),
+        cb.Code(
+          "    AppFailure.network(message: 'Missing __typename in union result'),",
+        ),
         cb.Code('  );'),
         cb.Code('}'),
         cb.Code(''),

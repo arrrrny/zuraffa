@@ -331,7 +331,8 @@ abstract class BackgroundUseCase<T, Params> with Loggable {
           _controller?.add(
             Result.failure(
               AppFailure.unexpected(
-                message: 'Received data of unexpected type: ${message.data.runtimeType}',
+                message:
+                    'Received data of unexpected type: ${message.data.runtimeType}',
               ),
             ),
           );

@@ -200,17 +200,21 @@ void main() {
                 TimeoutException('too slow', const Duration(seconds: 1)),
               )
               as TimeoutFailure;
-      expect(failure.isRetryable, timeoutFailure('test').isRetryable);
+      expect(
+        failure.isRetryable,
+        AppFailure.timeout(message: 'test').isRetryable,
+      );
     });
 
-    test('field names are escaped as single JSON Pointer tokens', () {
-      final failure = dataSource.validationFailure(
-        'Bad input',
-        fieldErrors: const {
-          'a/b': ['bad'],
-        },
+    test('an ArgumentError becomes a boundary violation naming the field', () {
+      final failure = dataSource.handleError(
+        ArgumentError.value(-1, 'count', 'must be positive'),
       );
-      expect(failure.violations.single.path, '/a~1b');
+      expect(failure, isA<BoundaryViolationFailure>());
+      final violation = (failure as BoundaryViolationFailure).violations.single;
+      expect(violation.path, '/count');
+      expect(violation.actual, '-1');
+      expect(failure.message, contains('must be positive'));
     });
   });
 }

@@ -31,13 +31,15 @@ final class DeleteParams<I extends Object> implements ZorphyValueBase {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is DeleteParams &&
-        this.id == other.id &&
+        DeleteParams._zorphyCollectionEquals(this.id, other.id) &&
         DeleteParams._zorphyCollectionEquals(this.params, other.params);
   }
 
   @override
-  int get hashCode =>
-      Object.hashAll([id, DeleteParams._zorphyCollectionHash(params)]);
+  int get hashCode => Object.hashAll([
+    DeleteParams._zorphyCollectionHash(id),
+    DeleteParams._zorphyCollectionHash(params),
+  ]);
 
   @override
   String toString() => 'DeleteParams(id: $id, params: $params)';

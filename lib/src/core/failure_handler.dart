@@ -54,7 +54,9 @@ mixin FailureHandler on Loggable {
         message: e.message.toString(),
         violations: [
           FieldViolation(
-            path: e.name == null ? '/' : '/${ZorphyPatchWire.pointerToken(e.name!)}',
+            path: e.name == null
+                ? '/'
+                : '/${ZorphyPatchWire.pointerToken(e.name!)}',
             expected: 'valid argument',
             actual: e.invalidValue?.toString() ?? 'null',
           ),

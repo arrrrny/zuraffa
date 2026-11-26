@@ -135,7 +135,7 @@ class StubProductRepository implements ProductRepository {
 
 Future<void> main() async {
   final useCase = GetProductUseCase(StubProductRepository());
-  final result = await useCase(const QueryParams<Product>.fromTrusted());
+  final result = await useCase(QueryParams<Product>.fromTrusted());
   if (!result.isSuccess) {
     throw StateError('behavior check failed: generated usecase returned '
         'a failure for the fixture entity');

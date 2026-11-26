@@ -51,7 +51,7 @@ class FailingMiddleware implements ZfaMiddleware<TestIntent, String> {
   ) async {
     ctx.metadata['log'] = (ctx.metadata['log'] as List<String>? ?? [])
       ..add('fail-pre');
-    return Result.failure(boundaryViolationFailure('blocked'));
+    return Result.failure(AppFailure.boundaryViolation(message: 'blocked'));
   }
 }
 

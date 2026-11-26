@@ -111,12 +111,12 @@ import '../lib/src/data/datasources/product/product_mock_datasource.dart';
 
 Future<void> main() async {
   final dataSource = ProductMockDataSource();
-  final product = await dataSource.get(const QueryParams<Product>.fromTrusted());
+  final product = await dataSource.get(QueryParams<Product>.fromTrusted());
   if (product.id != 'id 1') {
     throw StateError('behavior check failed: mock datasource returned '
         'unexpected entity: \$product');
   }
-  final list = await dataSource.getList(const ListQueryParams<Product>.fromTrusted());
+  final list = await dataSource.getList(ListQueryParams<Product>.fromTrusted());
   if (list.length != 3) {
     throw StateError('behavior check failed: mock list size '
         '\${list.length} != 3');

@@ -81,7 +81,7 @@ import 'package:zuraffa/zuraffa.dart';
 class _FailingAuthService implements AuthService {
   @override
   Future<AuthSession> login(LoginParams params) async {
-    throw networkFailure('invalid credentials', statusCode: 401);
+    throw AppFailure.network(message: 'invalid credentials', statusCode: 401);
   }
 }
 

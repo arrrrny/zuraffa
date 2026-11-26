@@ -37,30 +37,30 @@ abstract class $ToggleParams<I extends Object, F> implements Params {
   Map<String, dynamic>? get params;
 }
 
-/// Trust-boundary wire codec for [ToggleParams] (v3 generic value types get no
-/// generated codec).
-extension ToggleParamsWireCodec<I extends Object, F> on ToggleParams<I, F> {
-  /// Serialize to a wire map; [toI] encodes the id, [toF] encodes the field.
-  ///
-  /// [value] is an independent `Object?` (it may be a `bool`, `String`, etc.
-  /// that is not an [F]); applying the field codec to it cast a `bool` to the
-  /// field enum and threw. Only [field] goes through [toF].
-  Map<String, dynamic> toWire(
-    Object? Function(I value) toI,
-    Object? Function(F value) toF,
-  ) => {'params': params, 'id': toI(id), 'field': toF(field), 'value': value};
-}
+/// Serialize a [ToggleParams] to a wire map; [toI] encodes the id, [toF] the field.
+///
+/// Hand-written rather than the generated `toWire` — see [createParamsToWire].
+/// [value] is an independent `Object?` (it may be a `bool`, `String`, … that is
+/// not an [F]); only [field] goes through [toF].
+Map<String, dynamic> toggleParamsToWire<I extends Object, F>(
+  ToggleParams<I, F> params, {
+  required Object? Function(I value) toI,
+  required Object? Function(F value) toF,
+}) => {
+  'params': params.params,
+  'id': toI(params.id),
+  'field': toF(params.field),
+  'value': params.value,
+};
 
 /// Decode a [ToggleParams] from a wire map.
 ToggleParams<I, F> toggleParamsFromWire<I extends Object, F>(
   Map<String, dynamic> raw,
   I Function(Object? json) fromI,
   F Function(Object? json) fromF,
-) {
-  return ToggleParams<I, F>.fromTrusted(
-    params: raw['params'] as Map<String, dynamic>?,
-    id: fromI(raw['id']),
-    field: fromF(raw['field']),
-    value: raw['value'],
-  );
-}
+) => ToggleParams<I, F>.fromTrusted(
+  params: raw['params'] as Map<String, dynamic>?,
+  id: fromI(raw['id']),
+  field: fromF(raw['field']),
+  value: raw['value'],
+);

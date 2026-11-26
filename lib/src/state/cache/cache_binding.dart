@@ -28,7 +28,9 @@ extension CacheBinding<T> on SignalSlice<T> {
       if (deletedId != null) {
         // Entity was deleted — signal a failure state (type-safe for
         // non-nullable [T], which cannot represent a null data value).
-        result.emitFailure(AppFailure.unexpected(message: 'Entity deleted: $deletedId'));
+        result.emitFailure(
+          AppFailure.unexpected(message: 'Entity deleted: $deletedId'),
+        );
       } else if (entity != null) {
         // Entity updated — push new data
         result.emitSuccess(entity);

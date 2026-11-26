@@ -37,7 +37,7 @@ class TodoController extends ChangeNotifier {
         ? ListQueryParams<Todo>.fromTrusted(
             filter: Eq(TodoFields.priority, filter),
           )
-        : const ListQueryParams<Todo>.fromTrusted();
+        : ListQueryParams<Todo>.fromTrusted();
 
     _subscription?.cancel();
     _subscription = _presenter.watchTodoList(params).listen((result) {

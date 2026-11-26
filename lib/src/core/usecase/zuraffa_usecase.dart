@@ -82,7 +82,9 @@ class StreamToSignalResultAdapter<T> {
       },
       onDone: () {
         if (!sr.isSuccess && !sr.isFailure) {
-          sr.emitFailure(AppFailure.unexpected(message: 'Stream completed without result'));
+          sr.emitFailure(
+            AppFailure.unexpected(message: 'Stream completed without result'),
+          );
         }
         wrapper?.dispose();
       },

@@ -225,7 +225,7 @@ void main() {
       expect(result.isFailure, isTrue);
       final failure = result.getFailureOrNull();
       expect(failure, isA<PolicyDeniedFailure>());
-      expect((failure as PolicyDeniedFailure).reason, 'cascadeDepth');
+      expect((failure as PolicyDeniedFailure).reason, 'maxCascadeDepth');
       // Depth 0..8 run (9 hops); the 9th hop's child would be depth 9 > 8.
       expect(calls, bus.maxCascadeDepth + 1);
     });
@@ -246,7 +246,7 @@ void main() {
       ) async {
         executed.add(intent);
         if (intent is FailingIntent) {
-          return Result.failure(unexpectedFailure('boom'));
+          return Result.failure(AppFailure.unexpected(message: 'boom'));
         }
         if (intent is RecoveryIntent) {
           return Result.success('recovered');

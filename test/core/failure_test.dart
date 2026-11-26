@@ -3,36 +3,36 @@ import 'package:test/test.dart';
 
 void main() {
   group('AppFailure', () {
-    group('classifier appFailureFrom()', () {
+    group('classifier AppFailure.from()', () {
       test('returns same instance if already AppFailure', () {
-        final failure = networkFailure('test error');
-        final result = appFailureFrom(failure);
+        final failure = AppFailure.network(message: 'test error');
+        final result = AppFailure.from(failure);
         expect(identical(result, failure), isTrue);
       });
 
       test('creates NetworkFailure for socket exceptions', () {
         final error = Exception('SocketException: Connection refused');
-        final failure = appFailureFrom(error);
+        final failure = AppFailure.from(error);
         expect(failure, isA<NetworkFailure>());
       });
 
       test('creates NetworkFailure for connection errors', () {
         final error = Exception('Connection reset by peer');
-        expect(appFailureFrom(error), isA<NetworkFailure>());
+        expect(AppFailure.from(error), isA<NetworkFailure>());
       });
 
       test('creates NetworkFailure for failed host lookup', () {
         final error = Exception('Failed host lookup');
-        expect(appFailureFrom(error), isA<NetworkFailure>());
+        expect(AppFailure.from(error), isA<NetworkFailure>());
       });
 
       test('creates NetworkFailure for a bare no-address DNS exception', () {
         final error = Exception('No address associated with hostname');
-        expect(appFailureFrom(error), isA<NetworkFailure>());
+        expect(AppFailure.from(error), isA<NetworkFailure>());
       });
 
       test('keeps 403 + validation as an authorization failure (v2 order)', () {
-        final failure = appFailureFrom(
+        final failure = AppFailure.from(
           Exception('HTTP 403 Forbidden: validation failed'),
         );
         expect(failure, isA<PolicyDeniedFailure>());
@@ -41,73 +41,73 @@ void main() {
 
       test('creates TimeoutFailure for timeout errors', () {
         final error = Exception('Request timed out');
-        expect(appFailureFrom(error), isA<TimeoutFailure>());
+        expect(AppFailure.from(error), isA<TimeoutFailure>());
       });
 
       test('creates TimeoutFailure for deadline exceeded', () {
         final error = Exception('Deadline exceeded');
-        expect(appFailureFrom(error), isA<TimeoutFailure>());
+        expect(AppFailure.from(error), isA<TimeoutFailure>());
       });
 
       test('creates NotFoundFailure for 404 errors', () {
         final error = Exception('HTTP 404 Not Found');
-        expect(appFailureFrom(error), isA<NotFoundFailure>());
+        expect(AppFailure.from(error), isA<NotFoundFailure>());
       });
 
       test('creates NotFoundFailure for "does not exist" errors', () {
         final error = Exception('Resource does not exist');
-        expect(appFailureFrom(error), isA<NotFoundFailure>());
+        expect(AppFailure.from(error), isA<NotFoundFailure>());
       });
 
       test('creates PolicyDeniedFailure for 401 errors', () {
         final error = Exception('HTTP 401 Unauthorized');
-        expect(appFailureFrom(error), isA<PolicyDeniedFailure>());
+        expect(AppFailure.from(error), isA<PolicyDeniedFailure>());
       });
 
       test('creates PolicyDeniedFailure for token errors', () {
         final error = Exception('Token expired');
-        expect(appFailureFrom(error), isA<PolicyDeniedFailure>());
+        expect(AppFailure.from(error), isA<PolicyDeniedFailure>());
       });
 
       test('creates PolicyDeniedFailure for 403 errors', () {
         final error = Exception('HTTP 403 Forbidden');
-        expect(appFailureFrom(error), isA<PolicyDeniedFailure>());
+        expect(AppFailure.from(error), isA<PolicyDeniedFailure>());
       });
 
       test('creates NetworkFailure for 500 errors', () {
         final error = Exception('HTTP 500 Internal Server Error');
-        expect(appFailureFrom(error), isA<NetworkFailure>());
+        expect(AppFailure.from(error), isA<NetworkFailure>());
       });
 
       test('creates NetworkFailure for 502 errors', () {
         final error = Exception('Bad Gateway 502');
-        expect(appFailureFrom(error), isA<NetworkFailure>());
+        expect(AppFailure.from(error), isA<NetworkFailure>());
       });
 
       test('creates NetworkFailure for 503 errors', () {
         final error = Exception('Service Unavailable 503');
-        expect(appFailureFrom(error), isA<NetworkFailure>());
+        expect(AppFailure.from(error), isA<NetworkFailure>());
       });
 
       test('creates UnexpectedFailure for unrecognized errors', () {
         final error = Exception('Something completely random happened');
-        expect(appFailureFrom(error), isA<UnexpectedFailure>());
+        expect(AppFailure.from(error), isA<UnexpectedFailure>());
       });
     });
 
     group('NetworkFailure', () {
       test('stores message', () {
-        final failure = networkFailure('No internet connection');
+        final failure = AppFailure.network(message: 'No internet connection');
         expect(failure.message, equals('No internet connection'));
       });
 
       test('isRetryable defaults to false', () {
-        final failure = networkFailure('Connection refused');
+        final failure = AppFailure.network(message: 'Connection refused');
         expect(failure.isRetryable, isFalse);
       });
 
       test('toString returns generated format', () {
-        final failure = networkFailure('Connection refused');
+        final failure = AppFailure.network(message: 'Connection refused');
         expect(failure.toString(), contains('NetworkFailure'));
         expect(failure.toString(), contains('Connection refused'));
       });
@@ -115,17 +115,17 @@ void main() {
 
     group('StorageFailure', () {
       test('stores message', () {
-        final failure = storageFailure('Cache miss');
+        final failure = AppFailure.storage(message: 'Cache miss');
         expect(failure.message, equals('Cache miss'));
       });
 
       test('layer defaults to cache', () {
-        final failure = storageFailure('Cache corrupted');
-        expect(failure.layer, equals('cache'));
+        final failure = AppFailure.storage(message: 'Cache corrupted');
+        expect((failure as StorageFailure).layer, equals('cache'));
       });
 
       test('toString returns generated format', () {
-        final failure = storageFailure('Cache corrupted');
+        final failure = AppFailure.storage(message: 'Cache corrupted');
         expect(failure.toString(), contains('StorageFailure'));
         expect(failure.toString(), contains('Cache corrupted'));
       });
@@ -133,51 +133,53 @@ void main() {
 
     group('BoundaryViolationFailure', () {
       test('stores violations', () {
-        final failure = boundaryViolationFailure(
-          'Validation failed',
+        final failure = AppFailure.boundaryViolation(
+          message: 'Validation failed',
           violations: const [
             FieldViolation(path: '/email', expected: 'string', actual: 'bad'),
             FieldViolation(path: '/password', expected: 'string', actual: ''),
           ],
         );
-        expect(failure.violations, hasLength(2));
+        expect((failure as BoundaryViolationFailure).violations, hasLength(2));
         expect(failure.violations.first.path, equals('/email'));
       });
 
       test('toString works without violations', () {
-        final failure = boundaryViolationFailure('Validation failed');
+        final failure = AppFailure.boundaryViolation(
+          message: 'Validation failed',
+        );
         expect(failure.toString(), contains('BoundaryViolationFailure'));
         expect(failure.toString(), contains('Validation failed'));
       });
 
-      test('escapes legacy field names as one JSON Pointer token', () {
-        final failure = boundaryViolationFailure(
-          'Validation failed',
-          fieldErrors: const {
-            'a/b': ['bad'],
-            '~1': ['collision'],
-          },
+      test('carries violations with JSON Pointer paths verbatim', () {
+        // Pointer escaping (`/` -> `~1`, `~` -> `~0`) is the CALLER's contract
+        // in v8 — the variant stores what it is given.
+        const violations = [
+          FieldViolation(path: '/a~1b', expected: 'string', actual: 'bad'),
+          FieldViolation(path: '/~01', expected: 'string', actual: 'collision'),
+        ];
+        final failure = AppFailure.boundaryViolation(
+          message: 'Validation failed',
+          violations: violations,
         );
-        expect(failure.violations.map((v) => v.path).toList(), [
-          '/a~1b',
-          '/~01',
-        ]);
+        expect((failure as BoundaryViolationFailure).violations, violations);
       });
     });
 
     group('NotFoundFailure', () {
       test('stores resourceId and resourceType', () {
-        final failure = notFoundFailure(
-          'User not found',
+        final failure = AppFailure.notFound(
+          message: 'User not found',
           resourceId: '123',
           resourceType: 'User',
         );
-        expect(failure.resourceId, equals('123'));
+        expect((failure as NotFoundFailure).resourceId, equals('123'));
         expect(failure.resourceType, equals('User'));
       });
 
       test('toString works without resource info', () {
-        final failure = notFoundFailure('Resource not found');
+        final failure = AppFailure.notFound(message: 'Resource not found');
         expect(failure.toString(), contains('NotFoundFailure'));
         expect(failure.toString(), contains('Resource not found'));
       });
@@ -185,52 +187,43 @@ void main() {
 
     group('PolicyDeniedFailure', () {
       test('stores message', () {
-        final failure = policyDeniedFailure('Token expired');
+        final failure = AppFailure.policyDenied(message: 'Token expired');
         expect(failure.message, equals('Token expired'));
       });
 
       test('reason defaults to permission', () {
-        final failure = policyDeniedFailure('Access denied');
-        expect(failure.reason, equals('permission'));
+        final failure = AppFailure.policyDenied(message: 'Access denied');
+        expect((failure as PolicyDeniedFailure).reason, equals('permission'));
       });
 
       test('accepts an explicit reason', () {
-        final failure = policyDeniedFailure(
-          'Access denied',
+        final failure = AppFailure.policyDenied(
+          message: 'Access denied',
           reason: 'forbidden',
         );
-        expect(failure.reason, equals('forbidden'));
+        expect((failure as PolicyDeniedFailure).reason, equals('forbidden'));
       });
 
-      test('explicit reason beats a policy rule', () {
-        final failure = policyDeniedFailure(
-          'Denied',
-          reason: 'forbidden',
-          policyRule: 'maxCascadeDepth',
-        );
-        expect(failure.reason, equals('forbidden'));
-      });
-
-      test('cascade rules map to cascadeDepth before other rules', () {
-        expect(
-          policyDeniedFailure('Denied', policyRule: 'maxCascadeDepth').reason,
-          'cascadeDepth',
+      test('a rule name is carried as the reason verbatim', () {
+        final failure = AppFailure.policyDenied(
+          message: 'Denied',
+          reason: 'maxCascadeDepth',
         );
         expect(
-          policyDeniedFailure('Denied', policyRule: 'dailyQuota').reason,
-          'dailyQuota',
+          (failure as PolicyDeniedFailure).reason,
+          equals('maxCascadeDepth'),
         );
       });
     });
 
     group('ConflictFailure', () {
       test('stores message', () {
-        final failure = conflictFailure('Duplicate entry');
+        final failure = AppFailure.conflict(message: 'Duplicate entry');
         expect(failure.message, equals('Duplicate entry'));
       });
 
       test('toString returns generated format', () {
-        final failure = conflictFailure('Version conflict');
+        final failure = AppFailure.conflict(message: 'Version conflict');
         expect(failure.toString(), contains('ConflictFailure'));
         expect(failure.toString(), contains('Version conflict'));
       });
@@ -238,44 +231,49 @@ void main() {
 
     group('TimeoutFailure', () {
       test('stores timeout duration', () {
-        final failure = timeoutFailure(
-          'Request timed out',
+        final failure = AppFailure.timeout(
+          message: 'Request timed out',
           timeout: const Duration(seconds: 30),
         );
-        expect(failure.timeout, equals(const Duration(seconds: 30)));
+        expect(
+          (failure as TimeoutFailure).timeout,
+          equals(const Duration(seconds: 30)),
+        );
       });
 
       test('isRetryable defaults to true', () {
-        final failure = timeoutFailure('Request timed out');
+        final failure = AppFailure.timeout(message: 'Request timed out');
         expect(failure.isRetryable, isTrue);
       });
     });
 
     group('CancelledFailure', () {
       test('has default message', () {
-        final failure = cancelledFailure();
+        final failure = AppFailure.cancelled(
+          message: 'Operation was cancelled',
+        );
         expect(failure.message, equals('Operation was cancelled'));
       });
 
       test('accepts custom message', () {
-        final failure = cancelledFailure('User cancelled');
+        final failure = AppFailure.cancelled(message: 'User cancelled');
         expect(failure.message, equals('User cancelled'));
       });
     });
 
     group('InterruptedFailure', () {
       test('stores intentDigest', () {
-        final failure = interruptedFailure(
-          'Interrupted',
+        final failure = AppFailure.interrupted(
+          message: 'Interrupted',
           intentDigest: 'abc123',
         );
-        expect(failure.intentDigest, equals('abc123'));
+        expect((failure as InterruptedFailure).intentDigest, equals('abc123'));
       });
     });
 
     group('UnexpectedFailure', () {
       test('stores message', () {
-        final failure = unexpectedFailure('Something went wrong');
+        final failure = AppFailure.unexpected(message: 'Something went wrong');
         expect(failure.message, equals('Something went wrong'));
       });
     });
@@ -301,16 +299,16 @@ void main() {
     group('sealed class exhaustiveness', () {
       test('all ten variants can be matched in a switch', () {
         final failures = <AppFailure>[
-          networkFailure('test'),
-          timeoutFailure('test'),
-          boundaryViolationFailure('test'),
-          policyDeniedFailure('test'),
-          notFoundFailure('test'),
-          conflictFailure('test'),
-          cancelledFailure('test'),
-          interruptedFailure('test'),
-          storageFailure('test'),
-          unexpectedFailure('test'),
+          AppFailure.network(message: 'test'),
+          AppFailure.timeout(message: 'test'),
+          AppFailure.boundaryViolation(message: 'test'),
+          AppFailure.policyDenied(message: 'test'),
+          AppFailure.notFound(message: 'test'),
+          AppFailure.conflict(message: 'test'),
+          AppFailure.cancelled(message: 'test'),
+          AppFailure.interrupted(message: 'test'),
+          AppFailure.storage(message: 'test'),
+          AppFailure.unexpected(message: 'test'),
         ];
 
         for (final failure in failures) {
@@ -333,8 +331,8 @@ void main() {
 
     group('wire round-trip', () {
       test('AppFailure.fromWire(failure.toWire()) round-trips a variant', () {
-        final original = notFoundFailure(
-          'User not found',
+        final original = AppFailure.notFound(
+          message: 'User not found',
           resourceId: '123',
           resourceType: 'User',
         );
@@ -360,41 +358,41 @@ void main() {
         }
 
         final originals = <AppFailure>[
-          networkFailure(
-            'net',
+          AppFailure.network(
+            message: 'net',
             statusCode: 503,
             traceId: 'trace-network',
             isRetryable: true,
           ),
-          timeoutFailure(
-            'slow',
+          AppFailure.timeout(
+            message: 'slow',
             timeout: const Duration(seconds: 2),
             traceId: 'trace-timeout',
             isRetryable: false,
           ),
-          boundaryViolationFailure(
-            'bad input',
+          AppFailure.boundaryViolation(
+            message: 'bad input',
             violations: const [
               FieldViolation(path: '/name', expected: 'string', actual: 'int'),
             ],
             traceId: 'trace-boundary',
             isRetryable: true,
           ),
-          policyDeniedFailure(
-            'denied',
+          AppFailure.policyDenied(
+            message: 'denied',
             reason: 'forbidden',
             traceId: 'trace-policy',
             isRetryable: true,
           ),
-          notFoundFailure(
-            'missing',
+          AppFailure.notFound(
+            message: 'missing',
             resourceType: 'User',
             resourceId: '42',
             traceId: 'trace-notfound',
             isRetryable: true,
           ),
-          conflictFailure(
-            'clash',
+          AppFailure.conflict(
+            message: 'clash',
             localPatchWire: const {'local': 1},
             remotePatchWire: const {'remote': 2},
             traceId: 'trace-conflict',
@@ -405,22 +403,22 @@ void main() {
             traceId: 'trace-cancelled',
             isRetryable: true,
           ),
-          interruptedFailure(
-            'halted',
+          AppFailure.interrupted(
+            message: 'halted',
             intentDigest: 'digest',
             traceId: 'trace-interrupted',
             isRetryable: false,
           ),
-          storageFailure(
-            'cache miss',
+          AppFailure.storage(
+            message: 'cache miss',
             layer: 'database',
             traceId: 'trace-storage',
             isRetryable: true,
           ),
-          unexpectedFailure(
-            'boom',
+          AppFailure.unexpected(
+            message: 'boom',
             cause: 'bad state',
-            stackTrace: StackTrace.fromString('#0 boom'),
+            stackTrace: '#0 boom',
             traceId: 'trace-unexpected',
             isRetryable: true,
           ),

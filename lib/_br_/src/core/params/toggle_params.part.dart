@@ -46,16 +46,16 @@ final class ToggleParams<I extends Object, F> implements ZorphyValueBase {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is ToggleParams &&
-        this.id == other.id &&
-        this.field == other.field &&
+        ToggleParams._zorphyCollectionEquals(this.id, other.id) &&
+        ToggleParams._zorphyCollectionEquals(this.field, other.field) &&
         this.value == other.value &&
         ToggleParams._zorphyCollectionEquals(this.params, other.params);
   }
 
   @override
   int get hashCode => Object.hashAll([
-    id,
-    field,
+    ToggleParams._zorphyCollectionHash(id),
+    ToggleParams._zorphyCollectionHash(field),
     value,
     ToggleParams._zorphyCollectionHash(params),
   ]);

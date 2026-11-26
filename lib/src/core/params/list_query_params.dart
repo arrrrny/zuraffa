@@ -126,22 +126,26 @@ extension ListQueryParamsExtension on ListQueryParams {
   }
 }
 
-/// Trust-boundary wire codec for [ListQueryParams] (v3 generic value types get
-/// no generated codec).
-extension ListQueryParamsWireCodec<T> on ListQueryParams<T> {
-  /// Serialize to a wire map. [toElement] encodes a `T` element (unused here —
-  /// `filter`/`sort` use their converters).
-  Map<String, dynamic> toWire([Object? Function(T value)? toElement]) => {
-    'search': search,
-    'limit': limit,
-    'offset': offset,
-    'params': params,
-    if (filter != null) 'filter': FilterConverter.toJson(filter!),
-    if (sort != null) 'sort': SortConverter.toJson(sort!),
-  };
-}
+/// Serialize a [ListQueryParams] to a wire map.
+///
+/// Hand-written for the same reason as [listQueryParamsFromWire]: the
+/// generated `toWire` stores `Filter<T>`/`Sort<T>` as objects, but a wire map
+/// must carry their JSON form ([FilterConverter.toJson],
+/// [SortConverter.toJson]).
+Map<String, dynamic> listQueryParamsToWire<T>(ListQueryParams<T> params) => {
+  'search': params.search,
+  'limit': params.limit,
+  'offset': params.offset,
+  'params': params.params,
+  if (params.filter != null) 'filter': FilterConverter.toJson(params.filter!),
+  if (params.sort != null) 'sort': SortConverter.toJson(params.sort!),
+};
 
 /// Decode a [ListQueryParams] from a wire map.
+///
+/// This is deliberately hand-written rather than the generated `fromWire`:
+/// the generated codec boundary-casts `raw['filter']` to a `Filter<T>`, but a
+/// wire filter is a JSON map that must be BOUND to a typed field of `T` first.
 ///
 /// [fields] / [resolveField] carry typed `Field<T, dynamic>` context so a
 /// decoded [Filter]/[Sort] binds to a field of [T]. Without them the converter

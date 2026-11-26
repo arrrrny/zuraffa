@@ -25,7 +25,7 @@ void main() {
       expect(output, contains('ZfaAuthGuard'));
       expect(output, contains('requireRole'));
       expect(output, contains('AppFailure.policyDenied('));
-      expect(output, contains("reason: 'unauthenticated'"));
+      expect(output, contains('reason: "unauthenticated"'));
       expect(output, contains('DeleteUserUseCase'));
       expect(output, contains('Role.admin'));
       expect(output, contains('Unauthorized'));
@@ -308,7 +308,7 @@ void main() {
         final authOutput = authGen.generate();
         expect(authOutput, contains('ZfaAuthGuard'));
         expect(authOutput, contains('AppFailure.policyDenied('));
-        expect(authOutput, contains("reason: 'unauthenticated'"));
+        expect(authOutput, contains('reason: "unauthenticated"'));
 
         // Retry
         final retryGen = RetryGenerator();

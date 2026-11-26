@@ -25,61 +25,73 @@ void main() {
 
       final reports = [
         FailureReport(
-          failure: networkFailure('Server error', statusCode: 500),
+          failure: AppFailure.network(message: 'Server error', statusCode: 500),
           timestamp: DateTime.utc(2024, 1, 15, 10, 30),
           stackTrace: StackTrace.current,
           attributes: {'usecase': 'GetProductUseCase'},
         ),
         FailureReport(
-          failure: networkFailure('No internet'),
+          failure: AppFailure.network(message: 'No internet'),
           timestamp: DateTime.utc(2024, 1, 15, 10, 31),
         ),
         FailureReport(
-          failure: boundaryViolationFailure(
-            'Bad input',
-            fieldErrors: {
-              'email': ['Invalid format', 'Required'],
-            },
+          failure: AppFailure.boundaryViolation(
+            message: 'Bad input',
+            violations: const [
+              FieldViolation(
+                path: '/email',
+                expected: 'string',
+                actual: 'Invalid format',
+              ),
+              FieldViolation(
+                path: '/email',
+                expected: 'string',
+                actual: 'Required',
+              ),
+            ],
           ),
           timestamp: DateTime.utc(2024, 1, 15, 10, 32),
         ),
         FailureReport(
-          failure: notFoundFailure(
-            'Missing',
+          failure: AppFailure.notFound(
+            message: 'Missing',
             resourceType: 'User',
             resourceId: 'u-123',
           ),
           timestamp: DateTime.utc(2024, 1, 15, 10, 33),
         ),
         FailureReport(
-          failure: timeoutFailure('Slow', timeout: const Duration(seconds: 30)),
+          failure: AppFailure.timeout(
+            message: 'Slow',
+            timeout: const Duration(seconds: 30),
+          ),
           timestamp: DateTime.utc(2024, 1, 15, 10, 34),
         ),
         FailureReport(
-          failure: policyDeniedFailure('Token expired'),
+          failure: AppFailure.policyDenied(message: 'Token expired'),
           timestamp: DateTime.utc(2024, 1, 15, 10, 35),
         ),
         FailureReport(
-          failure: policyDeniedFailure(
-            'Access denied',
-            requiredPermission: 'admin',
+          failure: AppFailure.policyDenied(
+            message: 'Access denied',
+            reason: 'admin',
           ),
           timestamp: DateTime.utc(2024, 1, 15, 10, 36),
         ),
         FailureReport(
-          failure: storageFailure('Cache miss'),
+          failure: AppFailure.storage(message: 'Cache miss'),
           timestamp: DateTime.utc(2024, 1, 15, 10, 37),
         ),
         FailureReport(
-          failure: conflictFailure('Duplicate', conflictType: 'unique_key'),
+          failure: AppFailure.conflict(message: 'Duplicate'),
           timestamp: DateTime.utc(2024, 1, 15, 10, 38),
         ),
         FailureReport(
-          failure: unexpectedFailure('OS error', code: 'ENOENT'),
+          failure: AppFailure.unexpected(message: 'OS error', code: 'ENOENT'),
           timestamp: DateTime.utc(2024, 1, 15, 10, 39),
         ),
         FailureReport(
-          failure: unexpectedFailure('Mystery error'),
+          failure: AppFailure.unexpected(message: 'Mystery error'),
           timestamp: DateTime.utc(2024, 1, 15, 10, 40),
         ),
       ];
@@ -122,7 +134,7 @@ void main() {
       // PolicyDeniedFailure
       expect(loaded[6].failure, isA<PolicyDeniedFailure>());
       final fbFailure = loaded[6].failure as PolicyDeniedFailure;
-      expect(fbFailure.reason, equals('permission'));
+      expect(fbFailure.reason, equals('admin'));
 
       // ConflictFailure
       expect(loaded[8].failure, isA<ConflictFailure>());
@@ -180,7 +192,7 @@ void main() {
 
       await store.save([
         FailureReport(
-          failure: networkFailure('err'),
+          failure: AppFailure.network(message: 'err'),
           timestamp: DateTime.now(),
         ),
       ]);
@@ -197,7 +209,7 @@ void main() {
       // Save something first
       await store.save([
         FailureReport(
-          failure: networkFailure('err'),
+          failure: AppFailure.network(message: 'err'),
           timestamp: DateTime.now(),
         ),
       ]);
@@ -230,16 +242,16 @@ void main() {
         final store = FailureReportStore(filePath: filePath);
         final reports = [
           FailureReport(
-            failure: networkFailure(
-              'Server error',
+            failure: AppFailure.network(
+              message: 'Server error',
               statusCode: 503,
               traceId: 'trace-net',
             ),
             timestamp: DateTime.utc(2024, 1, 15, 10, 30),
           ),
           FailureReport(
-            failure: timeoutFailure(
-              'Slow',
+            failure: AppFailure.timeout(
+              message: 'Slow',
               timeout: const Duration(seconds: 30),
               traceId: 'trace-timeout',
               isRetryable: false,
@@ -247,10 +259,10 @@ void main() {
             timestamp: DateTime.utc(2024, 1, 15, 10, 31),
           ),
           FailureReport(
-            failure: unexpectedFailure(
-              'Boom',
+            failure: AppFailure.unexpected(
+              message: 'Boom',
               cause: 'bad state',
-              stackTrace: StackTrace.fromString('#0 original throw site'),
+              stackTrace: '#0 original throw site',
               traceId: 'trace-unexpected',
               isRetryable: true,
             ),
@@ -309,7 +321,10 @@ void main() {
 
       queue.enqueue(
         FailureReport(
-          failure: networkFailure('persisted error', statusCode: 503),
+          failure: AppFailure.network(
+            message: 'persisted error',
+            statusCode: 503,
+          ),
           timestamp: DateTime.now(),
         ),
       );
@@ -331,7 +346,7 @@ void main() {
       // Pre-persist a report
       await store.save([
         FailureReport(
-          failure: networkFailure('from last session'),
+          failure: AppFailure.network(message: 'from last session'),
           timestamp: DateTime.now(),
           attributes: {'failure.persisted': 'true'},
         ),

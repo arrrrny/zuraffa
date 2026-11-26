@@ -31,13 +31,15 @@ final class CreateParams<T> implements ZorphyValueBase {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is CreateParams &&
-        this.data == other.data &&
+        CreateParams._zorphyCollectionEquals(this.data, other.data) &&
         CreateParams._zorphyCollectionEquals(this.params, other.params);
   }
 
   @override
-  int get hashCode =>
-      Object.hashAll([data, CreateParams._zorphyCollectionHash(params)]);
+  int get hashCode => Object.hashAll([
+    CreateParams._zorphyCollectionHash(data),
+    CreateParams._zorphyCollectionHash(params),
+  ]);
 
   @override
   String toString() => 'CreateParams(data: $data, params: $params)';

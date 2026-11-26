@@ -45,19 +45,19 @@ class TodoPresenter {
   }
 
   Future<Result<List<Todo>, AppFailure>> getTodoList([
-    ListQueryParams<Todo> params = const ListQueryParams.fromTrusted(),
+    ListQueryParams<Todo> params = ListQueryParams.fromTrusted(),
   ]) {
     return _getTodoList(params);
   }
 
   Stream<Result<Todo, AppFailure>> watchTodo([
-    QueryParams<Todo> params = const QueryParams<Todo>.fromTrusted(),
+    QueryParams<Todo> params = QueryParams<Todo>.fromTrusted(),
   ]) {
     return _watchTodo(params);
   }
 
   Stream<Result<List<Todo>, AppFailure>> watchTodoList([
-    ListQueryParams<Todo> params = const ListQueryParams.fromTrusted(),
+    ListQueryParams<Todo> params = ListQueryParams.fromTrusted(),
   ]) {
     return _watchTodoList(params);
   }

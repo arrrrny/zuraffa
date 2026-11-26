@@ -20,12 +20,6 @@ abstract class $QueryParams<T> implements Params {
   const $QueryParams();
 
   /// Type-safe filter to identify the entity.
-  @JsonKey(
-    toJson: FilterConverter.toJson,
-    fromJson: FilterConverter.fromJson,
-    includeFromJson: false,
-    includeToJson: false,
-  )
   Filter<T>? get filter;
 
   /// Optional additional parameters (inherited from the params base in v2;
@@ -73,7 +67,8 @@ extension QueryParamsExtension<T> on Iterable<T> {
 
   /// Throws the [NotFoundFailure] for a query that matched nothing, naming what
   /// was searched so a miss is easy to triage from the log line alone.
-  Never _throwNotFound(String reason) => throw AppFailure.notFound(message: 'No $T $reason');
+  Never _throwNotFound(String reason) =>
+      throw AppFailure.notFound(message: 'No $T $reason');
 }
 
 /// The JSON view of [item] when it exposes one, or null when it cannot be
@@ -172,20 +167,21 @@ extension NestedNullableIterableFilterToQueryExtension<TEntity, TElement>
   }
 }
 
-/// Trust-boundary wire codec for [QueryParams] (v3: generic value types get no
-/// generated codec, so it is codec-parameterized and explicit).
-extension QueryParamsWireCodec<T> on QueryParams<T> {
-  /// Serialize to a wire map. [toElement] encodes a `T` element (unused by
-  /// `QueryParams` itself — `params` is already a map and `filter` uses
-  /// [FilterConverter] — but kept for parity with the v2 `toJson` signature).
-  Map<String, dynamic> toWire([Object? Function(T value)? toElement]) => {
-    'params': params,
-    if (filter != null) 'filter': FilterConverter.toJson(filter!),
-  };
-}
+/// Serialize a [QueryParams] to a wire map.
+///
+/// Hand-written for the same reason as [queryParamsFromWire]: the generated
+/// `toWire` stores the `Filter<T>` as an object, but a wire map must carry its
+/// JSON form ([FilterConverter.toJson]).
+Map<String, dynamic> queryParamsToWire<T>(QueryParams<T> params) => {
+  'params': params.params,
+  if (params.filter != null) 'filter': FilterConverter.toJson(params.filter!),
+};
 
-/// Decode a [QueryParams] from a wire map produced by
-/// [QueryParamsWireCodec.toWire].
+/// Decode a [QueryParams] from a wire map.
+///
+/// Hand-written for the same reason as [listQueryParamsFromWire]: the
+/// generated `fromWire` boundary-casts `raw['filter']` to a `Filter<T>`, but a
+/// wire filter is a JSON map that must be BOUND to a typed field of `T` first.
 ///
 /// [fields] / [resolveField] carry typed `Field<T, dynamic>` context so a
 /// decoded [Filter] binds to a field of [T]. Without it the converter builds a

@@ -23,23 +23,24 @@ abstract class $CreateParams<T> implements Params {
   Map<String, dynamic>? get params;
 }
 
-/// Trust-boundary wire codec for [CreateParams] (v3 generic value types get no
-/// generated codec).
-extension CreateParamsWireCodec<T> on CreateParams<T> {
-  /// Serialize to a wire map; [toElement] encodes the `T` payload.
-  Map<String, dynamic> toWire([Object? Function(T value)? toElement]) => {
-    'params': params,
-    'data': toElement == null ? data : toElement(data),
-  };
-}
+/// Serialize a [CreateParams] to a wire map; [toElement] encodes the payload.
+///
+/// Hand-written rather than the generated `toWire`: that codec requires every
+/// type parameter to encode to a `Map<String, Object?>`, which a scalar `T`
+/// cannot satisfy.
+Map<String, dynamic> createParamsToWire<T>(
+  CreateParams<T> params, {
+  Object? Function(T value)? toElement,
+}) => {
+  'params': params.params,
+  'data': toElement == null ? params.data : toElement(params.data),
+};
 
-/// Decode a [CreateParams] from a wire map.
+/// Decode a [CreateParams] from a wire map; [fromElement] decodes the payload.
 CreateParams<T> createParamsFromWire<T>(
   Map<String, dynamic> raw,
   T Function(Object? json) fromElement,
-) {
-  return CreateParams<T>.fromTrusted(
-    params: raw['params'] as Map<String, dynamic>?,
-    data: fromElement(raw['data']),
-  );
-}
+) => CreateParams<T>.fromTrusted(
+  params: raw['params'] as Map<String, dynamic>?,
+  data: fromElement(raw['data']),
+);

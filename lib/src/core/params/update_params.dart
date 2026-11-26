@@ -31,25 +31,22 @@ abstract class $UpdateParams<I, P> implements Params {
   Map<String, dynamic>? get params;
 }
 
-/// Trust-boundary wire codec for [UpdateParams] (v3 generic value types get no
-/// generated codec).
-extension UpdateParamsWireCodec<I, P> on UpdateParams<I, P> {
-  /// Serialize to a wire map; [toI] encodes the id, [toP] the patch payload.
-  Map<String, dynamic> toWire(
-    Object? Function(I value) toI,
-    Object? Function(P value) toP,
-  ) => {'params': params, 'id': toI(id), 'data': toP(data)};
-}
+/// Serialize an [UpdateParams] to a wire map; [toI] encodes the id, [toP] the patch.
+///
+/// Hand-written rather than the generated `toWire` — see [createParamsToWire].
+Map<String, dynamic> updateParamsToWire<I, P>(
+  UpdateParams<I, P> params, {
+  required Object? Function(I value) toI,
+  required Object? Function(P value) toP,
+}) => {'params': params.params, 'id': toI(params.id), 'data': toP(params.data)};
 
 /// Decode an [UpdateParams] from a wire map.
 UpdateParams<I, P> updateParamsFromWire<I, P>(
   Map<String, dynamic> raw,
   I Function(Object? json) fromI,
   P Function(Object? json) fromP,
-) {
-  return UpdateParams<I, P>.fromTrusted(
-    params: raw['params'] as Map<String, dynamic>?,
-    id: fromI(raw['id']),
-    data: fromP(raw['data']),
-  );
-}
+) => UpdateParams<I, P>.fromTrusted(
+  params: raw['params'] as Map<String, dynamic>?,
+  id: fromI(raw['id']),
+  data: fromP(raw['data']),
+);

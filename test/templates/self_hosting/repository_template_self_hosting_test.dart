@@ -134,12 +134,12 @@ class StubProductDataSource with Loggable, FailureHandler
 
 Future<void> main() async {
   final repository = DataProductRepository(StubProductDataSource());
-  final product = await repository.get(const QueryParams<Product>.fromTrusted());
+  final product = await repository.get(QueryParams<Product>.fromTrusted());
   if (product.id != 'p1') {
     throw StateError('behavior check failed: repository did not emit the '
         'fixture entity');
   }
-  final list = await repository.getList(const ListQueryParams<Product>.fromTrusted());
+  final list = await repository.getList(ListQueryParams<Product>.fromTrusted());
   if (list.isNotEmpty) {
     throw StateError('behavior check failed: expected the stub empty list');
   }

@@ -92,12 +92,12 @@ class ${name}Patch {}
       source,
       contains('Future<void> delete(DeleteParams<String> params)'),
     );
-    final throwsCount = 'throw networkFailure'.allMatches(source).length;
+    final throwsCount = 'throw AppFailure.network('.allMatches(source).length;
     expect(
       throwsCount,
       5,
       reason:
-          'every generated method throws NetworkFailure '
+          'every generated method throws AppFailure.network '
           '(found $throwsCount)',
     );
     expect(source, contains("import 'package:zuraffa/mock.dart'"));
@@ -148,12 +148,13 @@ class ${name}Patch {}
     expect(source, contains('Stream<Session> watch('));
     expect(source, contains('Stream<List<Session>> watchList('));
     // Stream methods deliver the sealed failure through the stream's
-    // error channel — Stream.error(networkFailure(...)) — one per
+    // error channel — Stream.error(AppFailure.network(message: ...)) — one per
     // method.
     expect('Stream.error('.allMatches(source).length, 2);
-    expect('networkFailure('.allMatches(source).length, 2);
+    // dart format may wrap the call, so count the constructor, not one line.
+    expect('AppFailure.network('.allMatches(source).length, 2);
     expect(
-      'throw networkFailure'.allMatches(source).length,
+      'throw AppFailure.network('.allMatches(source).length,
       0,
       reason:
           'stream methods fail through the error channel, not a '

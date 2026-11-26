@@ -34,7 +34,13 @@ abstract class $AppFailure {
     bool isRetryable = false,
     String? code,
     int? statusCode,
-  }) => $NetworkFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code, statusCode: statusCode);
+  }) => $NetworkFailure(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+    statusCode: statusCode,
+  );
 
   factory $AppFailure.timeout({
     required String message,
@@ -42,7 +48,13 @@ abstract class $AppFailure {
     bool isRetryable = true,
     String? code,
     Duration? timeout,
-  }) => $TimeoutFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code, timeout: timeout);
+  }) => $TimeoutFailure(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+    timeout: timeout,
+  );
 
   factory $AppFailure.boundaryViolation({
     required String message,
@@ -50,7 +62,13 @@ abstract class $AppFailure {
     bool isRetryable = false,
     String? code,
     List<FieldViolation> violations = const [],
-  }) => $BoundaryViolationFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code, violations: violations);
+  }) => $BoundaryViolationFailure(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+    violations: violations,
+  );
 
   factory $AppFailure.policyDenied({
     required String message,
@@ -58,7 +76,13 @@ abstract class $AppFailure {
     bool isRetryable = false,
     String? code,
     String reason = 'permission',
-  }) => $PolicyDeniedFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code, reason: reason);
+  }) => $PolicyDeniedFailure(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+    reason: reason,
+  );
 
   factory $AppFailure.notFound({
     required String message,
@@ -67,7 +91,14 @@ abstract class $AppFailure {
     String? code,
     String? resourceType,
     String? resourceId,
-  }) => $NotFoundFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code, resourceType: resourceType, resourceId: resourceId);
+  }) => $NotFoundFailure(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+    resourceType: resourceType,
+    resourceId: resourceId,
+  );
 
   factory $AppFailure.conflict({
     required String message,
@@ -76,14 +107,26 @@ abstract class $AppFailure {
     String? code,
     Map<String, Object?>? localPatchWire,
     Map<String, Object?>? remotePatchWire,
-  }) => $ConflictFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code, localPatchWire: localPatchWire, remotePatchWire: remotePatchWire);
+  }) => $ConflictFailure(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+    localPatchWire: localPatchWire,
+    remotePatchWire: remotePatchWire,
+  );
 
   factory $AppFailure.cancelled({
     required String message,
     String? traceId,
     bool isRetryable = false,
     String? code,
-  }) => $CancelledFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code);
+  }) => $CancelledFailure(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+  );
 
   factory $AppFailure.interrupted({
     required String message,
@@ -91,7 +134,13 @@ abstract class $AppFailure {
     bool isRetryable = true,
     String? code,
     String? intentDigest,
-  }) => $InterruptedFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code, intentDigest: intentDigest);
+  }) => $InterruptedFailure(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+    intentDigest: intentDigest,
+  );
 
   factory $AppFailure.storage({
     required String message,
@@ -99,7 +148,13 @@ abstract class $AppFailure {
     bool isRetryable = false,
     String? code,
     String layer = 'cache',
-  }) => $StorageFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code, layer: layer);
+  }) => $StorageFailure(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+    layer: layer,
+  );
 
   factory $AppFailure.unexpected({
     required String message,
@@ -108,7 +163,14 @@ abstract class $AppFailure {
     String? code,
     String? cause,
     String? stackTrace,
-  }) => $UnexpectedFailure(message: message, traceId: traceId, isRetryable: isRetryable, code: code, cause: cause, stackTrace: stackTrace);
+  }) => $UnexpectedFailure(
+    message: message,
+    traceId: traceId,
+    isRetryable: isRetryable,
+    code: code,
+    cause: cause,
+    stackTrace: stackTrace,
+  );
 
   /// Classify an arbitrary [error] into the most specific [AppFailure] variant.
   ///
@@ -123,7 +185,9 @@ abstract class $AppFailure {
     final lower = message.toLowerCase();
 
     bool hasStatus(int code) => RegExp(
-      r'(?:^|\s|:)' '$code' r'(?:$|\s|:)',
+      r'(?:^|\s|:)'
+      '$code'
+      r'(?:$|\s|:)',
     ).hasMatch(lower);
 
     if (lower.contains('socketexception') ||
@@ -156,7 +220,10 @@ abstract class $AppFailure {
         lower.contains('unauthenticated') ||
         lower.contains('invalid token') ||
         lower.contains('token expired')) {
-      return $AppFailure.policyDenied(message: message, reason: 'unauthenticated');
+      return $AppFailure.policyDenied(
+        message: message,
+        reason: 'unauthenticated',
+      );
     }
     if (hasStatus(403) || lower.contains('forbidden')) {
       return $AppFailure.policyDenied(message: message, reason: 'forbidden');

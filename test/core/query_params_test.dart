@@ -18,7 +18,7 @@ void main() {
     });
 
     test('should work with null filter and params', () {
-      const queryParams = QueryParams<int>.fromTrusted();
+      final queryParams = QueryParams<int>.fromTrusted();
       expect(queryParams.filter, isNull);
       expect(queryParams.params, isNull);
     });
@@ -124,7 +124,7 @@ void main() {
       final map = queryParams.toWire((_) => {});
       expect(map['filter'], isNotNull);
       expect(map['params'], isNotNull);
-      expect(map['params']['includeDeleted'], isTrue);
+      expect((map['params'] as Map)['includeDeleted'], isTrue);
     });
   });
 }

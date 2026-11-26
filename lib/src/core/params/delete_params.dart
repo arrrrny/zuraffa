@@ -23,23 +23,19 @@ abstract class $DeleteParams<I extends Object> implements Params {
   Map<String, dynamic>? get params;
 }
 
-/// Trust-boundary wire codec for [DeleteParams] (v3 generic value types get no
-/// generated codec).
-extension DeleteParamsWireCodec<I extends Object> on DeleteParams<I> {
-  /// Serialize to a wire map; [toI] encodes the id.
-  Map<String, dynamic> toWire(Object? Function(I value) toI) => {
-    'params': params,
-    'id': toI(id),
-  };
-}
+/// Serialize a [DeleteParams] to a wire map; [toI] encodes the id.
+///
+/// Hand-written rather than the generated `toWire` — see [createParamsToWire].
+Map<String, dynamic> deleteParamsToWire<I extends Object>(
+  DeleteParams<I> params, {
+  required Object? Function(I value) toI,
+}) => {'params': params.params, 'id': toI(params.id)};
 
 /// Decode a [DeleteParams] from a wire map.
 DeleteParams<I> deleteParamsFromWire<I extends Object>(
   Map<String, dynamic> raw,
   I Function(Object? json) fromI,
-) {
-  return DeleteParams<I>.fromTrusted(
-    params: raw['params'] as Map<String, dynamic>?,
-    id: fromI(raw['id']),
-  );
-}
+) => DeleteParams<I>.fromTrusted(
+  params: raw['params'] as Map<String, dynamic>?,
+  id: fromI(raw['id']),
+);

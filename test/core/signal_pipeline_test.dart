@@ -142,7 +142,7 @@ void main() {
 
     test('emitFailure sets error state', () {
       final sr = SignalResult<int>.success(0);
-      sr.emitFailure(networkFailure('timeout'));
+      sr.emitFailure(AppFailure.network(message: 'timeout'));
 
       expect(sr.isFailure, true);
       expect(sr.error, isA<NetworkFailure>());
@@ -169,7 +169,7 @@ void main() {
       sr.onSuccess(values.add);
 
       sr.emitSuccess(10);
-      sr.emitFailure(unexpectedFailure('unexpected failure'));
+      sr.emitFailure(AppFailure.unexpected(message: 'unexpected failure'));
       sr.emitSuccess(20);
 
       expect(values, [10, 20]);
@@ -183,7 +183,7 @@ void main() {
       sr.onFailure(errors.add);
 
       sr.emitSuccess(1);
-      sr.emitFailure(networkFailure('server error occurred'));
+      sr.emitFailure(AppFailure.network(message: 'server error occurred'));
       sr.emitSuccess(2);
 
       expect(errors.length, 1);
@@ -212,7 +212,7 @@ void main() {
 
       expect(mapped.data, '5');
 
-      sr.emitFailure(networkFailure('network error on map'));
+      sr.emitFailure(AppFailure.network(message: 'network error on map'));
       expect(mapped.isFailure, true);
     });
 
@@ -273,7 +273,7 @@ void main() {
       expect(sr.data, 15);
 
       // updateData is a no-op on failure
-      sr.emitFailure(networkFailure('update skipped for failure'));
+      sr.emitFailure(AppFailure.network(message: 'update skipped for failure'));
       sr.updateData((v) => v + 1);
       expect(sr.isFailure, true);
     });

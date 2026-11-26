@@ -37,14 +37,17 @@ final class UpdateParams<I, P> implements ZorphyValueBase {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is UpdateParams &&
-        this.id == other.id &&
-        this.data == other.data &&
+        UpdateParams._zorphyCollectionEquals(this.id, other.id) &&
+        UpdateParams._zorphyCollectionEquals(this.data, other.data) &&
         UpdateParams._zorphyCollectionEquals(this.params, other.params);
   }
 
   @override
-  int get hashCode =>
-      Object.hashAll([id, data, UpdateParams._zorphyCollectionHash(params)]);
+  int get hashCode => Object.hashAll([
+    UpdateParams._zorphyCollectionHash(id),
+    UpdateParams._zorphyCollectionHash(data),
+    UpdateParams._zorphyCollectionHash(params),
+  ]);
 
   @override
   String toString() => 'UpdateParams(id: $id, data: $data, params: $params)';

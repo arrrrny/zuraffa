@@ -365,7 +365,7 @@ Future<void> main() async {
     stderr.writeln('BOOT-FAIL: InventoryDataSource resolved to \${ds.runtimeType}');
     exit(1);
   }
-  final record = await ds.get(const QueryParams<Inventory>.fromTrusted());
+  final record = await ds.get(QueryParams<Inventory>.fromTrusted());
   stderr.writeln('BOOT-OK: \${ds.runtimeType} served \${record.id}');
 }
 ''');

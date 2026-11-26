@@ -44,7 +44,7 @@ class ServerOnlyReporter extends FailureReporter {
 void main() {
   group('FailureReport', () {
     test('creates with required fields', () {
-      final failure = networkFailure('test error');
+      final failure = AppFailure.network(message: 'test error');
       final report = FailureReport(
         failure: failure,
         timestamp: DateTime(2024, 1, 1),
@@ -57,7 +57,7 @@ void main() {
     });
 
     test('creates with optional fields', () {
-      final failure = networkFailure('offline');
+      final failure = AppFailure.network(message: 'offline');
       final trace = StackTrace.current;
       final report = FailureReport(
         failure: failure,
@@ -72,7 +72,7 @@ void main() {
 
     test('toString includes type and message', () {
       final report = FailureReport(
-        failure: networkFailure('server down'),
+        failure: AppFailure.network(message: 'server down'),
         timestamp: DateTime(2024, 1, 1),
       );
 
@@ -85,23 +85,44 @@ void main() {
     test('shouldReport defaults to true for most failures', () {
       final reporter = FakeFailureReporter();
 
-      expect(reporter.shouldReport(networkFailure('test')), isTrue);
-      expect(reporter.shouldReport(networkFailure('test')), isTrue);
-      expect(reporter.shouldReport(unexpectedFailure('test')), isTrue);
-      expect(reporter.shouldReport(boundaryViolationFailure('test')), isTrue);
+      expect(
+        reporter.shouldReport(AppFailure.network(message: 'test')),
+        isTrue,
+      );
+      expect(
+        reporter.shouldReport(AppFailure.network(message: 'test')),
+        isTrue,
+      );
+      expect(
+        reporter.shouldReport(AppFailure.unexpected(message: 'test')),
+        isTrue,
+      );
+      expect(
+        reporter.shouldReport(AppFailure.boundaryViolation(message: 'test')),
+        isTrue,
+      );
     });
 
     test('shouldReport defaults to false for CancelledFailure', () {
       final reporter = FakeFailureReporter();
 
-      expect(reporter.shouldReport(cancelledFailure('cancelled')), isFalse);
+      expect(
+        reporter.shouldReport(AppFailure.cancelled(message: 'cancelled')),
+        isFalse,
+      );
     });
 
     test('shouldReport can be overridden', () {
       final reporter = ServerOnlyReporter();
 
-      expect(reporter.shouldReport(networkFailure('test')), isTrue);
-      expect(reporter.shouldReport(timeoutFailure('test')), isFalse);
+      expect(
+        reporter.shouldReport(AppFailure.network(message: 'test')),
+        isTrue,
+      );
+      expect(
+        reporter.shouldReport(AppFailure.timeout(message: 'test')),
+        isFalse,
+      );
     });
   });
 
@@ -214,7 +235,7 @@ void main() {
 
       queue.enqueue(
         FailureReport(
-          failure: networkFailure('test'),
+          failure: AppFailure.network(message: 'test'),
           timestamp: DateTime.now(),
         ),
       );
@@ -240,7 +261,7 @@ void main() {
       for (var i = 0; i < 5; i++) {
         queue.enqueue(
           FailureReport(
-            failure: networkFailure('error $i'),
+            failure: AppFailure.network(message: 'error $i'),
             timestamp: DateTime.now(),
           ),
         );
@@ -271,7 +292,7 @@ void main() {
       for (var i = 0; i < 5; i++) {
         queue.enqueue(
           FailureReport(
-            failure: networkFailure('error $i'),
+            failure: AppFailure.network(message: 'error $i'),
             timestamp: DateTime.now(),
           ),
         );
@@ -298,7 +319,7 @@ void main() {
       // This should be enqueued (NetworkFailure)
       queue.enqueue(
         FailureReport(
-          failure: networkFailure('server error'),
+          failure: AppFailure.network(message: 'server error'),
           timestamp: DateTime.now(),
         ),
       );
@@ -306,7 +327,7 @@ void main() {
       // This should NOT be enqueued (TimeoutFailure, reporter doesn't want it)
       queue.enqueue(
         FailureReport(
-          failure: timeoutFailure('network error'),
+          failure: AppFailure.timeout(message: 'network error'),
           timestamp: DateTime.now(),
         ),
       );
@@ -335,7 +356,7 @@ void main() {
 
       queue.enqueue(
         FailureReport(
-          failure: networkFailure('late error'),
+          failure: AppFailure.network(message: 'late error'),
           timestamp: DateTime.now(),
         ),
       );
@@ -351,7 +372,7 @@ void main() {
 
       queue.enqueue(
         FailureReport(
-          failure: cancelledFailure('cancelled'),
+          failure: AppFailure.cancelled(message: 'cancelled'),
           timestamp: DateTime.now(),
         ),
       );
@@ -403,14 +424,14 @@ void main() {
 
     test('reportFailure is fire-and-forget when no reporters', () {
       // Should not throw
-      registry.reportFailure(networkFailure('test'));
+      registry.reportFailure(AppFailure.network(message: 'test'));
     });
 
     test('reportFailure enqueues to queue', () async {
       final reporter = FakeFailureReporter();
       await registry.register(reporter);
 
-      registry.reportFailure(networkFailure('test error'));
+      registry.reportFailure(AppFailure.network(message: 'test error'));
 
       expect(registry.queue, isNotNull);
       expect(registry.queue!.length, 1);
@@ -421,8 +442,8 @@ void main() {
       final reporter = FakeFailureReporter();
       await registry.register(reporter);
 
-      registry.reportFailure(networkFailure('error 1'));
-      registry.reportFailure(networkFailure('error 2'));
+      registry.reportFailure(AppFailure.network(message: 'error 1'));
+      registry.reportFailure(AppFailure.network(message: 'error 2'));
 
       await registry.flush();
 
@@ -435,7 +456,7 @@ void main() {
       final reporter = FakeFailureReporter();
       await registry.register(reporter);
 
-      registry.reportFailure(networkFailure('test'));
+      registry.reportFailure(AppFailure.network(message: 'test'));
 
       await registry.dispose();
 
@@ -489,7 +510,7 @@ void main() {
 
       await registry.register(reporter);
 
-      registry.reportFailure(networkFailure('test error'));
+      registry.reportFailure(AppFailure.network(message: 'test error'));
       await registry.flush();
 
       // Reporter should have retried and then succeeded
@@ -509,7 +530,7 @@ void main() {
 
       await registry.register(reporter);
 
-      registry.reportFailure(networkFailure('doomed error'));
+      registry.reportFailure(AppFailure.network(message: 'doomed error'));
       await registry.flush();
 
       // Should have tried once and given up

@@ -37,7 +37,7 @@ void main() {
 
     test('Failure → status:error with failure block', () {
       final result = Result<String, AppFailure>.failure(
-        unexpectedFailure('something broke'),
+        AppFailure.unexpected(message: 'something broke'),
       );
 
       final response = ZuraffaApiBridge.serializeResult(
@@ -53,7 +53,7 @@ void main() {
 
     test('Failure contains runtimeType name in failure.type', () {
       final result = Result<String, AppFailure>.failure(
-        notFoundFailure('item missing'),
+        AppFailure.notFound(message: 'item missing'),
       );
 
       final response = ZuraffaApiBridge.serializeResult(
