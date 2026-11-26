@@ -137,13 +137,19 @@ dart compile exe bin/zfa.dart -o "$WORK/zfa" >/dev/null 2>&1 || {
 # deliberately NOT in the slice: the datasource DI registration files
 # import package:zuraffa/simulation.dart, a floor-registered surface
 # the [di-refusal] leg proves the gate refuses on a core lacking it.
-generate_slice() { # <consumer> <zfa binary>
-  (cd "$1" && "$2" entity create -n Todo >/dev/null)
-  (cd "$1" && dart run build_runner build >/dev/null 2>&1)
-  (cd "$1" && "$2" make Todo \
+generate_slice() { # <consumer> <zfa binary> <label>
+  local consumer="$1" zfa="$2" label="$3"
+  (cd "$consumer" && "$zfa" entity create -n Todo >/dev/null)
+  local build_log="$WORK/build-$label.log"
+  if ! (cd "$consumer" && dart run build_runner build > "$build_log" 2>&1); then
+    echo "   FATAL: the scaffolded entity did not build on the $label core:" >&2
+    tail -n 25 "$build_log" >&2
+    return 1
+  fi
+  (cd "$consumer" && "$zfa" make Todo \
       --methods=get,create \
       --with=repository,datasource,usecase >/dev/null)
-  (cd "$1" && dart run build_runner build >/dev/null 2>&1)
+  (cd "$consumer" && dart run build_runner build > "$build_log" 2>&1)
 }
 
 run_leg() { # <core> <label>
@@ -152,7 +158,7 @@ run_leg() { # <core> <label>
   make_consumer "$core" "$consumer" yes
   echo "-- leg <$label>: core=$core"
   (cd "$consumer" && dart pub get >/dev/null 2>&1)
-  generate_slice "$consumer" "$WORK/zfa"
+  generate_slice "$consumer" "$WORK/zfa" "$label"
 
   # Floor-stamped receipt proof (issue #1197).
   local receipt
@@ -168,7 +174,8 @@ assert r['min_core_version'] == sys.argv[2], f"receipt floor {r['min_core_versio
 print(f"   receipt stamp ok: min_core_version={r['min_core_version']} generated_against_core={r.get('generated_against_core')}")
 PY
 
-  if (cd "$consumer" && dart analyze >/dev/null 2> "$WORK/analyze-$label.txt"); then
+  # `dart analyze` reports on stdout; keep it so a red leg says why.
+  if (cd "$consumer" && dart analyze > "$WORK/analyze-$label.txt" 2>&1); then
     echo "   dart analyze: CLEAN against $label core"
   else
     echo "   dart analyze: FAILED against $label core:" >&2
@@ -188,7 +195,16 @@ major_refusal_leg() {
   materialize "$PREV_TAG" "$core"
   make_consumer "$core" "$consumer" no
   (cd "$consumer" && dart pub get >/dev/null 2>&1)
-  (cd "$consumer" && "$WORK/zfa" entity create -n Todo >/dev/null)
+  # The entity is written by hand: `zfa entity create` needs the builder
+  # packages this consumer deliberately does not declare, and the leg's
+  # subject is `make` refusing with an entity present.
+  mkdir -p "$consumer/lib/src/domain/entities/todo"
+  cat > "$consumer/lib/src/domain/entities/todo/todo.dart" <<'DART'
+abstract class $Todo {
+  String get id;
+  String get title;
+}
+DART
   local before after
   before="$(cd "$consumer" && find lib -type f | sort)"
   set +e

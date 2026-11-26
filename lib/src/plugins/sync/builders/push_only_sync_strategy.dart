@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:meta/meta.dart';
-
 import 'package:zuraffa/zuraffa.dart';
 
 /// Default push-only synchronization strategy.
