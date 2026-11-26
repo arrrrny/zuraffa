@@ -261,14 +261,20 @@ class MockValueBuilder {
     }
 
     if (fields.isEmpty) {
-      return List.generate(3, (_) => refer(entityName).call(const []));
+      return List.generate(
+        3,
+        (_) => refer(entityName).property('fromTrusted').call(const []),
+      );
     }
 
     return List.generate(
       3,
-      (i) => refer(
-        entityName,
-      ).call(const [], generateConstructorCallArgs(fields, seed: baseSeed + i)),
+      (i) => refer(entityName)
+          .property('fromTrusted')
+          .call(
+            const [],
+            generateConstructorCallArgs(fields, seed: baseSeed + i),
+          ),
     );
   }
 
@@ -513,8 +519,8 @@ class MockValueBuilder {
         return literalList([literalBool(true), literalBool(false)]);
       default:
         return literalList([
-          refer(cleanListType).call(const []),
-          refer(cleanListType).call(const []),
+          refer(cleanListType).property('fromTrusted').call(const []),
+          refer(cleanListType).property('fromTrusted').call(const []),
         ]);
     }
   }

@@ -394,7 +394,7 @@ class EntityAnalyzer {
         !hasCrudSurface(typeName, outputDir, fileSystem: fs);
   }
 
-  /// Issue #1931: a non-CRUD entity (no `id` / `copyWithField` /
+  /// Issue #1931: a non-CRUD entity (no `id` / `copyWith` /
   /// `<Type>Patch`) is NOT automatically "fixture-only" when it declares
   /// a `<Type>DataSource` interface carrying at least one method. Such an
   /// interface is exactly what makes a hand-authored mock datasource
@@ -499,18 +499,22 @@ class EntityAnalyzer {
 
   /// True when [typeName] declares the CRUD surface the generated
   /// datasource / mock-datasource body calls (issue #1747): a `<Type>Patch`
-  /// companion, a `copyWithField` method, and a resolvable identity field.
+  /// companion (the `update` write), a `<Type>Fields` registry with
+  /// `copyWith` (the `toggle` write — `field.set` routes through `copyWith`),
+  /// and a resolvable identity field.
   ///
   /// A plain DTO or value class carries none of these, so emitting the
   /// class-shaped CRUD stack for it writes code the analyzer cannot compile
-  /// (`<Type>Patch` isn't a type, `.id` isn't defined, `copyWithField` isn't
+  /// (`<Type>Patch` isn't a type, `.id` isn't defined, `<Type>Fields` isn't
   /// defined) while the mock certification still reports `(conforms)`.
   ///
   /// The probe reads the entity source AND the `part` it declares — a
-  /// zorphy entity's concrete class, its `copyWithField`, and its
-  /// `<Type>Patch` all live in the generated shared part
+  /// zorphy entity's concrete class, its `copyWith`, its `<Type>Fields`
+  /// registry and its `<Type>Patch` all live in the generated shared part
   /// (`lib/_br_/…/<library>.part.dart`), which [_findEntitySourcePathSync]
-  /// deliberately skips as a declaration site.
+  /// deliberately skips as a declaration site. All three are what the v3
+  /// generator emits for an identity-bearing `@ZorphyEntity`; v2's
+  /// `copyWithField` no longer exists and is deliberately not probed.
   static bool hasCrudSurface(
     String typeName,
     String outputDir, {
@@ -534,12 +538,24 @@ class EntityAnalyzer {
     // A value object is explicitly identity-free — never a CRUD entity.
     if (EntityFieldResolver.detectsValueObject(surface)) return false;
 
+    final escaped = RegExp.escape(typeName);
     if (!RegExp(
-      r'\b(?:class|mixin|typedef)\s+' + RegExp.escape(typeName) + r'Patch\b',
+      r'\b(?:class|mixin|typedef)\s+' + escaped + r'Patch\b',
     ).hasMatch(surface)) {
       return false;
     }
-    if (!RegExp(r'\bcopyWithField\b').hasMatch(surface)) return false;
+    // The toggle write surface: the generated `<Type>Fields` registry, whose
+    // entries rebuild through the entity's `copyWith`. Either name present
+    // is the v3 evidence; a hand-written class carrying one but not the
+    // other is still a CRUD surface only if it can both rebuild and be
+    // addressed by field.
+    final hasFieldsRegistry = RegExp(
+      r'\bclass\s+' + escaped + r'Fields\b',
+    ).hasMatch(surface);
+    if (!hasFieldsRegistry) return false;
+    if (!RegExp(r'\b' + escaped + r'\s+copyWith\s*\(').hasMatch(surface)) {
+      return false;
+    }
 
     return _hasIdentityField(surface);
   }

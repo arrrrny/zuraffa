@@ -15,6 +15,7 @@ import '../../../utils/entity_utils.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/entity_analyzer.dart';
 import '../../../utils/project_flavor.dart';
+import '../../../utils/crud_method_vocabulary.dart';
 
 /// Generates repository interfaces for the domain layer.
 ///
@@ -411,7 +412,7 @@ class RepositoryInterfaceGenerator {
           );
           break;
         case 'toggle':
-          final fieldEnum = 'Field<${config.name}, dynamic>';
+          final fieldEnum = toggleFieldType(config.name);
           methods.add(
             _buildMethod(
               name: 'toggle',

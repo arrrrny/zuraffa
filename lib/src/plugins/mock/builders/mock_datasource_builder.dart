@@ -17,6 +17,7 @@ import '../../../utils/method_shape_parser.dart';
 import '../../../utils/project_flavor.dart';
 import '../services/mock_staleness_detector.dart';
 import 'mock_type_helper.dart';
+import '../../../utils/crud_method_vocabulary.dart';
 
 /// Generates the certified mock datasource that implements
 /// `<Entity>DataSource`.
@@ -170,12 +171,19 @@ class MockDataSourceBuilder {
           ))
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
+          // The entity's v3 shared part re-exports `<Entity>MockData`, which
+          // the mock-data file also declares: hide it here so the mock-data
+          // file's own declaration wins and the import is never ambiguous.
+          hide: ['${entityName}MockData'],
         ),
       for (final snake in foreignEntitySnakes)
         if (fileSystem.existsSync(
           '$outputDir/domain/entities/$snake/$snake.dart',
         ))
-          Directive.import('../../../domain/entities/$snake/$snake.dart'),
+          Directive.import(
+            '../../../domain/entities/$snake/$snake.dart',
+            hide: ['${StringUtils.convertToPascalCase(snake)}MockData'],
+          ),
       if (fileSystem.existsSync(
         '$outputDir/data/mock/${entitySnake}_mock_data.dart',
       ))
@@ -827,9 +835,7 @@ class MockDataSourceBuilder {
       case 'toggle':
         expectedReturns = entityName;
         expectedUseCase = 'usecase';
-        expectedParamsType =
-            'ToggleParams<${config.idFieldType}, '
-            'Field<$entityName, dynamic>>';
+        expectedParamsType = toggleParamsType(entityName, config.idFieldType);
         break;
       case 'delete':
         expectedReturns = 'void';
@@ -1360,7 +1366,7 @@ class MockDataSourceBuilder {
                   .statement,
               declareFinal('updated')
                   .assign(
-                    refer('params').property('data').property('applyTo').call([
+                    refer('params').property('data').property('apply').call([
                       refer('existing'),
                     ]),
                   )
@@ -1377,8 +1383,13 @@ class MockDataSourceBuilder {
             final orElse = Method(
               (m) => m
                 ..lambda = true
-                ..body = refer('notFoundFailure')
-                    .call([literalString('$entityName not found in mock data')])
+                ..body = refer('AppFailure')
+                    .property('notFound')
+                    .call([], {
+                      'message': literalString(
+                        '$entityName not found in mock data',
+                      ),
+                    })
                     .thrown
                     .code,
             ).closure;
@@ -1408,7 +1419,7 @@ class MockDataSourceBuilder {
                   .statement,
               declareFinal('updated')
                   .assign(
-                    refer('params').property('data').property('applyTo').call([
+                    refer('params').property('data').property('apply').call([
                       refer('existing'),
                     ]),
                   )
@@ -1454,7 +1465,7 @@ class MockDataSourceBuilder {
           // toggle in its methods list). Without this case the builder
           // silently dropped toggle, producing a class that failed
           // `implements` with `non_abstract_class_inherits_abstract_member`.
-          final toggleFieldEnum = 'Field<$entityName, dynamic>';
+          final toggleFieldEnum = toggleFieldType(entityName);
           final toggleParamsType =
               'ToggleParams<${config.idFieldType}, $toggleFieldEnum>';
           final isNoParamsToggle = config.idFieldType == 'NoParams';
@@ -1482,8 +1493,8 @@ class MockDataSourceBuilder {
                   .statement,
               declareFinal('updated')
                   .assign(
-                    refer('existing').property('copyWithField').call([
-                      refer('params').property('field'),
+                    refer('params').property('field').property('set').call([
+                      refer('existing'),
                       refer('params').property('value'),
                     ]),
                   )
@@ -1495,13 +1506,19 @@ class MockDataSourceBuilder {
               refer('updated').returned.statement,
             ]);
           } else {
-            // #463: persist toggles — locate by id, apply the field flip via
-            // copyWithField, and replace the entry in the backing collection.
+            // #463: persist toggles — locate by id, write the field through
+            // the descriptor (`field.set`), and replace the entry in the
+            // backing collection.
             final orElse = Method(
               (m) => m
                 ..lambda = true
-                ..body = refer('notFoundFailure')
-                    .call([literalString('$entityName not found in mock data')])
+                ..body = refer('AppFailure')
+                    .property('notFound')
+                    .call([], {
+                      'message': literalString(
+                        '$entityName not found in mock data',
+                      ),
+                    })
                     .thrown
                     .code,
             ).closure;
@@ -1531,8 +1548,8 @@ class MockDataSourceBuilder {
                   .statement,
               declareFinal('updated')
                   .assign(
-                    refer('existing').property('copyWithField').call([
-                      refer('params').property('field'),
+                    refer('params').property('field').property('set').call([
+                      refer('existing'),
                       refer('params').property('value'),
                     ]),
                   )
@@ -1595,13 +1612,18 @@ class MockDataSourceBuilder {
               ]).statement,
             ]);
           } else {
-            // #463: persist deletes — locate by id (throws notFoundFailure
+            // #463: persist deletes — locate by id (throws AppFailure.notFound
             // when absent) and remove the entry from the backing collection.
             final orElse = Method(
               (m) => m
                 ..lambda = true
-                ..body = refer('notFoundFailure')
-                    .call([literalString('$entityName not found in mock data')])
+                ..body = refer('AppFailure')
+                    .property('notFound')
+                    .call([], {
+                      'message': literalString(
+                        '$entityName not found in mock data',
+                      ),
+                    })
                     .thrown
                     .code,
             ).closure;

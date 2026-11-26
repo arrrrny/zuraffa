@@ -14,6 +14,7 @@ import '../../../utils/entity_utils.dart';
 import '../../../utils/project_flavor.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../datasource_provenance.dart';
+import '../../../utils/crud_method_vocabulary.dart';
 
 /// Generates remote data source implementations.
 class RemoteDataSourceBuilder {
@@ -257,7 +258,7 @@ class RemoteDataSourceBuilder {
           );
           break;
         case 'toggle':
-          final fieldEnum = 'Field<${config.name}, dynamic>';
+          final fieldEnum = toggleFieldType(config.name);
           methods.add(
             Method(
               (m) => m

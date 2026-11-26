@@ -15,6 +15,7 @@ import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/entity_analyzer.dart';
 import '../../../utils/project_flavor.dart';
+import '../../../utils/crud_method_vocabulary.dart';
 
 part 'implementation_generator_append.dart';
 part 'implementation_generator_cached.dart';

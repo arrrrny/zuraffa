@@ -283,7 +283,7 @@ extension ControllerPluginMethods on ControllerPlugin {
     String entityCamel,
     bool withState,
   ) {
-    final fieldEnum = 'Field<$entityName, dynamic>';
+    final fieldEnum = toggleFieldType(entityName);
     final hasListMethod =
         config.methods.contains('getList') ||
         config.methods.contains('watchList');

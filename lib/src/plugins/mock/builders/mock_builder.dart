@@ -577,7 +577,7 @@ class MockBuilder {
 
     if (!config.generateMockDataOnly) {
       // Issue #1037: an enum entity is a value type — no id, no Patch, no
-      // copyWithField — so the class-shaped CRUD datasource/provider
+      // `<Type>Fields` (copyWith) — so the class-shaped CRUD datasource/provider
       // surface cannot compile against it (the entity lives under
       // entities/enums/, not the canonical class path). The mock-data
       // section above already emitted enum-value fixtures; emitting the
@@ -597,7 +597,7 @@ class MockBuilder {
       }
       if (!config.hasService) {
         // Issue #1747: a non-enum type may still be no CRUD entity at all —
-        // a plain DTO or value class declares no `id`, no `copyWithField`,
+        // a plain DTO or value class declares no `id`, no `copyWith`,
         // and no `<Type>Patch` companion, so the class-shaped datasource
         // body below cannot compile against it (the #1037 enum lie in a
         // different shape), while the mock certification still reports
@@ -629,7 +629,7 @@ class MockBuilder {
             EntityAnalyzer.methodsRequireCrudSurface(config.methods)) {
           print(
             'ℹ️  $targetEntity declares no CRUD surface (no id / '
-            'copyWithField / ${targetEntity}Patch) — mock data generated; '
+            'copyWith / ${targetEntity}Patch / ${targetEntity}Fields) — mock data generated; '
             'skipping the CRUD datasource/provider surface (issue #1747).',
           );
           return files;

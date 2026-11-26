@@ -103,7 +103,7 @@ extension RepositoryImplementationGeneratorCached
             ..body = _buildCacheAwareUpdateBody(baseCacheKey),
         );
       case 'toggle':
-        final fieldEnum = 'Field<${config.name}, dynamic>';
+        final fieldEnum = toggleFieldType(config.name);
         return Method(
           (m) => m
             ..name = 'toggle'

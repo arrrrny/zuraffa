@@ -69,9 +69,9 @@ extension LocalDataSourceBuilderCrud on LocalDataSourceBuilder {
         ..statements.add(
           declareFinal('updated')
               .assign(
-                refer('params').property('data').property('applyTo').call([
-                  refer('existing'),
-                ]),
+                refer(
+                  'params',
+                ).property('data').property('apply').call([refer('existing')]),
               )
               .statement,
         )
@@ -113,9 +113,9 @@ extension LocalDataSourceBuilderCrud on LocalDataSourceBuilder {
         ..statements.add(
           declareFinal('updated')
               .assign(
-                refer('params').property('data').property('applyTo').call([
-                  refer('existing'),
-                ]),
+                refer(
+                  'params',
+                ).property('data').property('apply').call([refer('existing')]),
               )
               .statement,
         )
@@ -247,8 +247,8 @@ extension LocalDataSourceBuilderCrud on LocalDataSourceBuilder {
       b.statements.add(
         declareFinal('updated')
             .assign(
-              refer('existing').property('copyWithField').call([
-                refer('params').property('field'),
+              refer('params').property('field').property('set').call([
+                refer('existing'),
                 refer('params').property('value'),
               ]),
             )

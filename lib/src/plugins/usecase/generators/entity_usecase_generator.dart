@@ -15,6 +15,7 @@ import '../../../utils/source_interface_guard.dart';
 import '../../../utils/stale_usecase_test_cleaner.dart';
 import '../../../utils/string_utils.dart';
 import '../usecase_verdicts.dart';
+import '../../../utils/crud_method_vocabulary.dart';
 
 /// Generates entity-based use cases for the domain layer.
 class EntityUseCaseGenerator {
@@ -454,7 +455,7 @@ class EntityUseCaseGenerator {
         break;
       case 'toggle':
         className = 'Toggle${entityName}UseCase';
-        final fieldEnum = 'Field<$entityName, dynamic>';
+        final fieldEnum = toggleFieldType(entityName);
         baseClass = TypeReference(
           (t) => t
             ..symbol = 'UseCase'

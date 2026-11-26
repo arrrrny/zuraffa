@@ -512,9 +512,7 @@ extension TestBuilderEntity on TestBuilder {
       make('getList', 'Future<List<$e>>', [('params', 'ListQueryParams<$e>')]),
       make('create', 'Future<$e>', [('entity', e)]),
       make('update', 'Future<$e>', [('params', 'UpdateParams<$id, $patch>')]),
-      make('toggle', 'Future<$e>', [
-        ('params', 'ToggleParams<$id, Field<$e, dynamic>>'),
-      ]),
+      make('toggle', 'Future<$e>', [('params', toggleParamsType(e, id))]),
       make('delete', 'Future<Map<String, dynamic>>', [
         ('params', 'DeleteParams<$id>'),
       ]),
@@ -540,8 +538,8 @@ extension TestBuilderEntity on TestBuilder {
     // The legacy mocktail toggle tests hardcoded `value: true`, which only
     // "passed" because the repository was mocked to return Success
     // unconditionally. With native mocks the datasource actually runs
-    // `copyWithField(field, value)`; the value's runtime type must match the
-    // toggled (id/query) field's declared type or `copyWithField` throws
+    // `field.set(existing, value)`; the value's runtime type must match the
+    // toggled (id/query) field's declared type or `set` throws
     // ArgumentError and the use case returns Failure. Emit a type-correct
     // sample value for the id field type so the success path stays green.
     Expression toggleSampleValue(String type) {
@@ -588,11 +586,14 @@ extension TestBuilderEntity on TestBuilder {
             });
         break;
       case 'toggle':
-        paramsExpr = refer('ToggleParams<$id, Field<$e, dynamic>>')
+        paramsExpr = refer(toggleParamsType(e, id))
             .property('fromTrusted')
             .call([], {
               'id': refer('t$e').property(config.idField),
-              'field': refer('${e}Fields').property(qf),
+              // Erased on purpose: the typed `<E>Fields.<qf>` constant is not a
+              // `ZorphyField<E, Object?>` (invariant V); `asObject` is the
+              // write-capable carrier the toggle writes through (zorphy#301).
+              'field': refer('${e}Fields').property(qf).property('asObject'),
               'value': toggleSampleValue(config.queryFieldType),
             });
         break;

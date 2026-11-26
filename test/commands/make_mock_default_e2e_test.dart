@@ -277,7 +277,7 @@ environment:
 dependencies:
   zuraffa:
     path: ${jsonEncode(projectRoot)}
-  zorphy_annotation: ^2.3.0
+  zorphy_annotation: ^3.0.0-dev.3
 dev_dependencies:
   build_runner: ^2.15.2
 ''');
@@ -300,11 +300,10 @@ dev_dependencies:
       await File(p.join(entityDir.path, '$snake.dart')).writeAsString('''
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 
-part '$snake.zorphy.dart';
-part '$snake.g.dart';
+part '../../../../_br_/src/domain/entities/$snake/$snake.part.dart';
 
 /// Inventory entity
-@Zorphy(generateJson: true, generateCompareTo: true)
+@ZorphyEntity(principalKey: #id)
 abstract class \$Inventory {
   String get id;
 }

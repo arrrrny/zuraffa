@@ -7,9 +7,12 @@ part '../../../_br_/src/core/params/toggle_params.part.dart';
 /// Parameters for toggling a boolean field of an entity.
 ///
 /// The type parameter [I] represents the ID type (e.g., `String`, `int`).
-/// The type parameter [F] represents the field enum type.
+/// The type parameter [F] represents the field descriptor type — in v3 a
+/// `ZorphyField<E, Object?>` (a `<E>Fields` entry, value-erased via
+/// `asObject`, zorphy#301), the write-capable descriptor the datasource
+/// applies through `field.set(existing, value)`.
 ///
-/// Example: `ToggleParams<int, TodoFields>(id: 123, field: TodoFields.isCompleted, value: true)`
+/// Example: `ToggleParams<int, ZorphyField<Todo, Object?>>(id: 123, field: TodoFields.isCompleted.asObject, value: true)`
 @ZorphyValue()
 @Deprecated(
   'Replaced in v8 by ZfaQuery<T> and concrete @ZorphyIntent classes in ZFA-008/ZFA-017',
@@ -25,9 +28,9 @@ abstract class $ToggleParams<I extends Object, F> implements Params {
 
   /// The target value for the field.
   ///
-  /// Typed `dynamic` (not `bool`) because generated native-mock usecase
+  /// Typed `Object?` (not `bool`) because generated native-mock usecase
   /// tests pass a type-correct sample of the toggled field's declared type
-  /// into `copyWithField(field, value)`; narrowing to `bool` would reject
+  /// into `field.set(existing, value)`; narrowing to `bool` would reject
   /// `String`/`int`/`double` id-field samples at compile time.
   Object? get value;
 

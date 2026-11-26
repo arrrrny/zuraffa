@@ -12,6 +12,7 @@ import '../../../models/parsed_usecase_info.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/method_extractor.dart';
 import '../../../utils/project_flavor.dart';
+import '../../../utils/crud_method_vocabulary.dart';
 
 /// Generates provider implementation classes.
 ///
@@ -597,7 +598,7 @@ class ProviderBuilder {
       // Signature mirrors the service builder's toggle case exactly.
       case 'toggle':
         returnType = refer('Future<$entityName>');
-        final fieldEnum = 'Field<$entityName, dynamic>';
+        final fieldEnum = toggleFieldType(entityName);
         parameters.add(
           Parameter(
             (p) => p

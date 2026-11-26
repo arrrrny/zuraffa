@@ -18,6 +18,7 @@ import '../../utils/string_utils.dart';
 import '../../utils/project_flavor.dart';
 import 'builders/presenter_class_builder.dart';
 import 'capabilities/create_presenter_capability.dart';
+import '../../utils/crud_method_vocabulary.dart';
 
 class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
@@ -675,7 +676,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     ParsedUseCaseInfo info,
     String entityName,
   ) {
-    final fieldEnum = 'Field<$entityName, dynamic>';
+    final fieldEnum = toggleFieldType(entityName);
     // #302: forward `toggleValue` (not `value`) into the ToggleParams.value
     // field. The toggle-value parameter is renamed to `toggleValue` below so
     // it can never collide with `config.idField` (which resolves to `value`

@@ -26,6 +26,7 @@ import '../../../models/generator_config.dart';
 import '../../../utils/entity_utils.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/crud_method_vocabulary.dart';
 
 class FailingMockProviderBuilder {
   final String outputDir;
@@ -220,7 +221,7 @@ class FailingMockProviderBuilder {
       case 'toggle':
         return build(
           returns: 'Future<$entityName>',
-          paramsType: 'ToggleParams<$idType, Field<$entityName, dynamic>>',
+          paramsType: toggleParamsType(entityName, idType),
         );
       case 'delete':
         return build(

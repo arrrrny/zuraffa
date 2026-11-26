@@ -586,14 +586,16 @@ class MockContractTestWriter {
       final idField = _idFieldName(entityName, outputDir) ?? 'id';
       final fields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
       final value = _toggleSampleValue(fields[idField]);
+      // The registry's own erased descriptor for the id field — a real
+      // write path (`set`), never a fabricated query-only `Field` (zorphy#301).
       return '$t.fromTrusted(id: $idValue, field: '
-          "const Field<$entityName, dynamic>('$idField'), value: $value)";
+          '${entityName}Fields.$idField.asObject, value: $value)';
     }
     return null;
   }
 
-  /// A type-correct sample value for the toggled field — the generated
-  /// `copyWithField` casts the value to the field's declared type, so a
+  /// A type-correct sample value for the toggled field — the erased field
+  /// descriptor's `set` casts the value to the field's declared type, so a
   /// mistyped (or null) value throws (same convention the test plugin's
   /// `toggleSampleValue` uses).
   String _toggleSampleValue(String? fieldType) {
