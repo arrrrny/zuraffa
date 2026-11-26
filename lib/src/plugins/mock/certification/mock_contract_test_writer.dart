@@ -544,7 +544,8 @@ class MockContractTestWriter {
     if (t.startsWith('InitializationParams')) {
       // v3 generated params classes expose only `fromTrusted`; the unnamed
       // constructor was removed by the zorphy v3 migration (#2179).
-      return 'const InitializationParams.fromTrusted(timeout: Duration.zero)';
+      // `fromTrusted` is not const (the params Map is defensively copied).
+      return 'InitializationParams.fromTrusted(timeout: Duration.zero)';
     }
     if (t == entityName) {
       // Only synthesize a sample when the mock data fixture exists;

@@ -99,9 +99,15 @@ void main() {
     );
     expect(viewFile.existsSync(), isTrue);
 
+    // `--no-fatal-infos`: under Flutter 3.47 the view's
+    // `package:flutter/material.dart` import is a deprecation INFO
+    // (`deprecated_member_use`) — a generated-output contract change tracked
+    // in #2182, not a defect in the cluster under test. This gate is about
+    // compile ERRORS in the generated code.
     final result = await Process.run(flutterExe, [
       'analyze',
       '--no-fatal-warnings',
+      '--no-fatal-infos',
       p.join('presentation', 'pages', 'product'),
     ], workingDirectory: projectRoot.path);
     final output = '${result.stdout}${result.stderr}';

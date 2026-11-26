@@ -574,20 +574,28 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   Method _buildGetListMethod(ParsedUseCaseInfo info, String entityName) {
     final callExpression = refer('_${info.fieldName}')
         .property('call')
-        .call([refer('params')], {'cancelToken': refer('cancelToken')});
+        .call(
+          [
+            refer('params').ifNullThen(
+              refer('ListQueryParams<$entityName>.fromTrusted').call([]),
+            ),
+          ],
+          {'cancelToken': refer('cancelToken')},
+        );
 
     return Method(
       (m) => m
         ..name = 'get${entityName}List'
         ..returns = refer('Future<Result<List<$entityName>, AppFailure>>')
         ..optionalParameters.addAll([
+          // `fromTrusted` is not const (the `params` Map is defensively
+          // copied) and a default parameter value must be — so the default
+          // is `null` and an omitted query is built at call time.
           Parameter(
             (p) => p
               ..name = 'params'
-              ..type = refer('ListQueryParams<$entityName>')
-              ..defaultTo = refer(
-                'ListQueryParams<$entityName>.fromTrusted',
-              ).constInstance([]).code,
+              ..type = refer('ListQueryParams<$entityName>?')
+              ..defaultTo = const Code('null'),
           ),
           _cancelTokenParam(),
         ])
@@ -784,20 +792,28 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   Method _buildWatchListMethod(ParsedUseCaseInfo info, String entityName) {
     final callExpression = refer('_${info.fieldName}')
         .property('call')
-        .call([refer('params')], {'cancelToken': refer('cancelToken')});
+        .call(
+          [
+            refer('params').ifNullThen(
+              refer('ListQueryParams<$entityName>.fromTrusted').call([]),
+            ),
+          ],
+          {'cancelToken': refer('cancelToken')},
+        );
 
     return Method(
       (m) => m
         ..name = 'watch${entityName}List'
         ..returns = refer('Stream<Result<List<$entityName>, AppFailure>>')
         ..optionalParameters.addAll([
+          // `fromTrusted` is not const (the `params` Map is defensively
+          // copied) and a default parameter value must be — so the default
+          // is `null` and an omitted query is built at call time.
           Parameter(
             (p) => p
               ..name = 'params'
-              ..type = refer('ListQueryParams<$entityName>')
-              ..defaultTo = refer(
-                'ListQueryParams<$entityName>.fromTrusted',
-              ).constInstance([]).code,
+              ..type = refer('ListQueryParams<$entityName>?')
+              ..defaultTo = const Code('null'),
           ),
           _cancelTokenParam(),
         ])
