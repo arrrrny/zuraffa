@@ -139,6 +139,57 @@ dependencies:
     expect(content, contains('super.onDisposed();'));
   });
 
+  test(
+    'BUG-2180: a get-only controller omits the unused entity import',
+    () async {
+      final files = await buildPlugin().generate(
+        GeneratorConfig(
+          name: 'Product',
+          methods: ['get'],
+          generateController: true,
+          outputDir: outputDir,
+        ),
+      );
+
+      final content = File(files.single.path).readAsStringSync();
+      // A get-only controller references no entity type (no create/update/
+      // toggle signature, no ListQueryParams<Entity>, no withState initial
+      // field), so the #284 unconditional entity import was an unused_import
+      // warning in the generated file (broke the view compile gate).
+      expect(
+        content,
+        isNot(
+          contains("import '../../../domain/entities/product/product.dart';"),
+        ),
+        reason:
+            'a get-only controller must not import the entity — it is unused '
+            '(BUG-1188/#2180). The entity import is only for create/update/'
+            'toggle/getList/watchList signatures or a withState initial field.',
+      );
+      // The presenter import (which IS referenced) stays.
+      expect(content, contains("import 'product_presenter.dart';"));
+    },
+  );
+
+  test('BUG-2180: an update controller keeps the entity import', () async {
+    final files = await buildPlugin().generate(
+      GeneratorConfig(
+        name: 'Product',
+        methods: ['get', 'update'],
+        generateController: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    final content = File(files.single.path).readAsStringSync();
+    // updateProduct takes ProductPatch, so the entity file IS referenced.
+    expect(
+      content,
+      contains("import '../../../domain/entities/product/product.dart';"),
+    );
+    expect(content, contains('ProductPatch data,'));
+  });
+
   test('pure-Dart flavor targets are skipped with no output', () async {
     await File('${tempDir.path}/pubspec.yaml').writeAsString('''
 name: controller_pure_dart_fixture

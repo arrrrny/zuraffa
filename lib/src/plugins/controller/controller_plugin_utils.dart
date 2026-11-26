@@ -67,16 +67,36 @@ extension ControllerPluginUtils on ControllerPlugin {
       '${config.nameSnake}_presenter.dart',
     ];
 
-    // #284: Always import the entity so ProductPatch/ProductFields and other
-    // generated entity types are in scope for the controller's method
-    // signatures (updateProduct takes ProductPatch, toggleProduct takes
-    // ProductFields).  Previously this was only added inside the
-    // `withState && !noEntity` block, leaving entity-based controllers
-    // without the entity import when withState was false.
+    // #284: import the entity so the generated entity types are in scope for
+    // the controller's method signatures (updateProduct takes ProductPatch,
+    // toggleProduct takes ProductFields, createProduct takes Product,
+    // getProductList/watchProductList take ListQueryParams<Product>) and for
+    // the withState `initial<Product>` field.
+    //
+    // #2180: the import is emitted ONLY when the generated code actually
+    // references an entity type. A get/delete/watch/watchRecord-only
+    // controller (no state) references none of them — the #284 unconditional
+    // import was an `unused_import` warning in that generated file (it broke
+    // the view compile gate's `flutter analyze`). The entity REFERENCING
+    // methods are create/update/toggle (entity / Patch / Fields in the
+    // signature) and getList/watchList (ListQueryParams<Entity>); get,
+    // delete, watch and watchRecord reference only the id/query field types.
     if (!config.noEntity) {
-      imports.add(
-        '../../../domain/entities/${config.nameSnake}/${config.nameSnake}.dart',
-      );
+      final referencesEntity =
+          withState ||
+          config.methods.any(
+            (m) =>
+                m == 'create' ||
+                m == 'update' ||
+                m == 'toggle' ||
+                m == 'getList' ||
+                m == 'watchList',
+          );
+      if (referencesEntity) {
+        imports.add(
+          '../../../domain/entities/${config.nameSnake}/${config.nameSnake}.dart',
+        );
+      }
       // #321: the controller's method signatures reference the id field
       // type directly (UpdateParams<IdType, Patch>,
       // ToggleParams<IdType, Field>, DeleteParams<IdType>, ...). When the
