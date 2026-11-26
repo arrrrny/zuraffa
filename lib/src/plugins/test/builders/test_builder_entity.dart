@@ -201,14 +201,22 @@ extension TestBuilderEntity on TestBuilder {
       );
     }
 
-    if (targetFile != null) {
-      directives.add(Directive.import(toPackageImport(targetFile.path)));
-    } else {
-      directives.add(
-        Directive.import(
-          'package:$packageName/src/domain/$targetDir/${useService ? targetSnake : '${targetSnake}_$targetSuffix'}.dart',
-        ),
-      );
+    // #2187: for a repository target the abstract
+    // `domain/repositories/<e>_repository.dart` import is never referenced by
+    // the generated test — it instantiates only the concrete
+    // `Data<Entity>Repository` (imported below). Emitting it is an
+    // unused_import warning in every usecase test, so the target import is
+    // emitted for a service target only; a repository target drops it.
+    if (useService) {
+      if (targetFile != null) {
+        directives.add(Directive.import(toPackageImport(targetFile.path)));
+      } else {
+        directives.add(
+          Directive.import(
+            'package:$packageName/src/domain/$targetDir/$targetSnake.dart',
+          ),
+        );
+      }
     }
 
     directives.add(Directive.import(toPackageImport(useCaseFile.path)));
@@ -365,15 +373,22 @@ extension TestBuilderEntity on TestBuilder {
           );
 
           final groupBody = Block((g) {
-            g.statements.add(
-              declareFinal('t$entityName')
-                  .assign(
-                    refer(
-                      '${entityName}MockData',
-                    ).property('sample$entityName'),
-                  )
-                  .statement,
-            );
+            // #2187: only the methods whose params expression embeds the
+            // sample (get/create/update/toggle/delete, and the default) use
+            // `t<Entity>`; getList/watchList build a bare
+            // `ListQueryParams<Entity>()` and never reference it, so declaring
+            // the local for them is an unused_local_variable warning.
+            if (_methodUsesSampleEntity(method)) {
+              g.statements.add(
+                declareFinal('t$entityName')
+                    .assign(
+                      refer(
+                        '${entityName}MockData',
+                      ).property('sample$entityName'),
+                    )
+                    .statement,
+              );
+            }
             g.statements.addAll(
               _nativeTestCode(config, method, entityName, isStream),
             );
@@ -469,6 +484,15 @@ extension TestBuilderEntity on TestBuilder {
       fileSystem: fileSystem,
     );
   }
+
+  /// Whether the generated test for [method] references the `t<Entity>` sample
+  /// local in its params expression. `getList`/`watchList` construct a bare
+  /// `ListQueryParams<Entity>()` and never touch it; every other method embeds
+  /// `t<Entity>` (as the entity itself or as an id/field value). #2187.
+  bool _methodUsesSampleEntity(String method) => switch (method) {
+    'getList' || 'watchList' => false,
+    _ => true,
+  };
 
   /// Builds the `Throwing{Entity}DataSource` method overrides. Every datasource
   /// method throws, giving the failure-path test a repository that always fails.

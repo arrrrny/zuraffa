@@ -137,6 +137,16 @@ abstract class SampleRepository {
 
   group('entity native-mock tests', () {
     Future<void> writeEntityFixture(String method) async {
+      // generateForMethod resolves the usecase source by a method-specific
+      // filename: the list methods map to `get_product_list_usecase.dart` /
+      // `watch_product_list_usecase.dart`, everything else to
+      // `<method>_product_usecase.dart` (#2187 regression coverage needs the
+      // real file so generation is not skipped as missing-dependency).
+      final useCaseFileName = switch (method) {
+        'getList' || 'list' => 'get_product_list_usecase.dart',
+        'watchList' => 'watch_product_list_usecase.dart',
+        _ => '${method}_product_usecase.dart',
+      };
       await writeSource(
         'domain/entities/product/product.dart',
         'class Product { String uuid = "1"; bool active = false; }',
@@ -146,7 +156,7 @@ abstract class SampleRepository {
         'abstract class ProductRepository {}',
       );
       await writeSource(
-        'domain/usecases/product/${method}_product_usecase.dart',
+        'domain/usecases/product/$useCaseFileName',
         'class ${method[0].toUpperCase()}${method.substring(1)}ProductUseCase {}',
       );
       await writeSource(
@@ -216,6 +226,69 @@ abstract class SampleRepository {
         final generated = await builder.generateForMethod(config(), 'get');
 
         expect(generated.action, 'skipped');
+      },
+    );
+
+    // #2187: the generated usecase test must analyze warning-clean. It only
+    // ever instantiates the concrete Data<Entity>Repository, so the abstract
+    // domain/repositories/<e>_repository.dart import is unused; and the
+    // getList/watchList params expression is a bare ListQueryParams<Entity>()
+    // that never references the t<Entity> sample local.
+    test(
+      '#2187 omits the unused abstract-repository import for every method',
+      () async {
+        for (final method in [
+          'get',
+          'getList',
+          'create',
+          'update',
+          'toggle',
+          'delete',
+        ]) {
+          await writeEntityFixture(method);
+          final generated = await builder.generateForMethod(config(), method);
+          final content = generated.content!;
+
+          expect(
+            content,
+            isNot(contains('domain/repositories/product_repository.dart')),
+            reason: '$method must not import the abstract repository',
+          );
+          // The concrete data repository import stays.
+          expect(
+            content,
+            contains('data/repositories/data_product_repository.dart'),
+          );
+        }
+      },
+    );
+
+    test(
+      '#2187 declares t<Entity> only when the method references it',
+      () async {
+        for (final method in ['getList', 'watchList']) {
+          await writeEntityFixture(method);
+          final generated = await builder.generateForMethod(config(), method);
+          final content = generated.content!;
+
+          expect(
+            content,
+            isNot(contains('final tProduct')),
+            reason: '$method never references the t<Entity> sample local',
+          );
+        }
+
+        for (final method in ['get', 'create', 'update', 'toggle', 'delete']) {
+          await writeEntityFixture(method);
+          final generated = await builder.generateForMethod(config(), method);
+          final content = generated.content!;
+
+          expect(
+            content,
+            contains('final tProduct'),
+            reason: '$method references the t<Entity> sample local',
+          );
+        }
       },
     );
   });
