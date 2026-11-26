@@ -336,7 +336,7 @@ void main() {
       ProductState().copyWith(product: product) == crud1);
   check('crud: hashCode agrees with ==',
       ProductState().copyWith(product: product).hashCode == crud1.hashCode);
-  const boom = ServerFailure('boom');
+  final boom = networkFailure('boom');
   final crud2 = crud1.copyWith(error: boom);
   check('crud: hasError tracks the error', crud2.hasError);
   check('crud: copyWith carries the error', crud2.error == boom);

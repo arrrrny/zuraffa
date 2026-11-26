@@ -18,7 +18,7 @@ void main() {
     test(
       'carries the typed contract from core (the context is the carrier)',
       () {
-        final contract = FeatureContract(
+        final contract = FeatureContract.fromTrusted(
           id: 'login',
           displayName: 'Login',
           entities: ['User'],

@@ -1,719 +1,511 @@
-/// Failure types for Clean Architecture
+import 'package:zorphy_annotation/zorphy_annotation.dart';
+
+part '../../_br_/src/core/failure.part.dart';
+
+/// Polymorphic application failure taxonomy (v8, ZFA-001).
 ///
-/// A sealed class hierarchy representing different types of failures
-/// that can occur in the application. Using sealed classes enables
-/// exhaustive pattern matching in switch expressions.
+/// A closed `@ZorphyUnion` of ten sibling variants. Every variant exposes
+/// [message], [traceId] and [isRetryable]; the union root supplies the
+/// trust-boundary `fromWire`/`toWire` codec and discriminator dispatch.
 ///
-/// Example:
-/// ```dart
-/// void handleFailure(AppFailure failure) {
-///   switch (failure) {
-///     case ServerFailure(:final statusCode):
-///       print('Server error: $statusCode');
-///     case NetworkFailure():
-///       print('Check your connection');
-///     case ValidationFailure(:final fieldErrors):
-///       print('Invalid input: $fieldErrors');
-///     case NotFoundFailure():
-///       print('Resource not found');
-///     case UnauthorizedFailure():
-///       print('Please login');
-///     case ForbiddenFailure():
-///       print('Access denied');
-///     case CacheFailure():
-///       print('Cache error');
-///     case TimeoutFailure():
-///       print('Request timed out');
-///     case CancellationFailure():
-///       print('Operation cancelled');
-///     case ConflictFailure():
-///       print('Conflict detected');
-///     case UnknownFailure():
-///       print('Something went wrong');
-///   }
-/// }
-/// ```
-sealed class AppFailure implements Exception {
-  /// Human-readable error message
-  final String message;
+/// The v2 taxonomy's seventeen concrete classes were folded into these ten
+/// variants (see the deprecated forwarding factories below and the migration
+/// table on issue #2149). Construct a variant through its factory
+/// (`AppFailure.network(...)`, `AppFailure.timeout(...)`, …) or decode one
+/// with [AppFailure.fromWire].
+@ZorphyUnion()
+abstract class $AppFailure {
+  /// Human-readable error message.
+  String get message;
 
-  /// Machine-readable error code (e.g. a GraphQL error type name such as
-  /// `InsufficientStockError`). Optional; most failures are identified by
-  /// [message] alone.
-  final String? code;
+  /// Correlation id of the trace that produced this failure, when known.
+  String? get traceId;
 
-  /// Stack trace from where the failure originated
-  final StackTrace? stackTrace;
-
-  /// The original error/exception that caused this failure
-  final Object? cause;
-
-  const AppFailure(this.message, {this.code, this.stackTrace, this.cause});
-
-  /// Create a generic failure with a default message.
-  factory AppFailure.create() => const UnknownFailure.create();
-
-  /// Create an [AppFailure] from any error
-  ///
-  /// Attempts to intelligently classify the error based on its type and message.
-  factory AppFailure.from(Object error, [StackTrace? stackTrace]) {
-    // Already an AppFailure, return as-is
-    if (error is AppFailure) {
-      return error;
-    }
-
-    // Try each failure type's factory in order of specificity
-    return NetworkFailure.from(error, stackTrace) ??
-        TimeoutFailure.from(error, stackTrace) ??
-        NotFoundFailure.from(error, stackTrace) ??
-        UnauthorizedFailure.from(error, stackTrace) ??
-        ForbiddenFailure.from(error, stackTrace) ??
-        ValidationFailure.from(error, stackTrace) ??
-        ConflictFailure.from(error, stackTrace) ??
-        ServerFailure.from(error, stackTrace) ??
-        CacheFailure.from(error, stackTrace) ??
-        UnknownFailure.from(error, stackTrace);
-  }
-
-  /// Create a server error failure
-  const factory AppFailure.server(
-    String message, {
-    int? statusCode,
-    StackTrace? stackTrace,
-    Object? cause,
-  }) = ServerFailure;
-
-  /// Create a network failure
-  const factory AppFailure.network(
-    String message, {
-    StackTrace? stackTrace,
-    Object? cause,
-  }) = NetworkFailure;
-
-  /// Create a cache failure
-  const factory AppFailure.cache(
-    String message, {
-    StackTrace? stackTrace,
-    Object? cause,
-  }) = CacheFailure;
-
-  /// Create a validation failure
-  const factory AppFailure.validation(
-    String message, {
-    Map<String, List<String>>? fieldErrors,
-    StackTrace? stackTrace,
-    Object? cause,
-  }) = ValidationFailure;
-
-  /// Create a not found failure
-  const factory AppFailure.notFound(
-    String message, {
-    String? resourceId,
-    String? resourceType,
-    StackTrace? stackTrace,
-    Object? cause,
-  }) = NotFoundFailure;
-
-  /// Create an unauthorized failure
-  const factory AppFailure.unauthorized(
-    String message, {
-    StackTrace? stackTrace,
-    Object? cause,
-  }) = UnauthorizedFailure;
-
-  /// Create a forbidden failure
-  const factory AppFailure.forbidden(
-    String message, {
-    String? requiredPermission,
-    StackTrace? stackTrace,
-    Object? cause,
-  }) = ForbiddenFailure;
-
-  /// Create a policy-denied failure
-  ///
-  /// Raised when a runtime policy rule blocks an operation — for example a
-  /// reaction cascade that has crossed its `maxCascadeDepth` loop guard.
-  factory AppFailure.policyDenied({
-    String message = 'Operation denied by policy',
-    required String policyRule,
-    StackTrace? stackTrace,
-    Object? cause,
-  }) => PolicyDeniedFailure(
-    message,
-    policyRule: policyRule,
-    stackTrace: stackTrace,
-    cause: cause,
-  );
-
-  /// Create a conflict failure
-  const factory AppFailure.conflict(
-    String message, {
-    String? conflictType,
-    StackTrace? stackTrace,
-    Object? cause,
-  }) = ConflictFailure;
-
-  /// Create a timeout failure
-  const factory AppFailure.timeout(
-    String message, {
-    Duration? timeout,
-    StackTrace? stackTrace,
-    Object? cause,
-  }) = TimeoutFailure;
-
-  /// Create a cancellation failure
-  const factory AppFailure.cancellation([String message]) = CancellationFailure;
-
-  /// Create an unknown failure
-  const factory AppFailure.unknown(
-    String message, {
-    StackTrace? stackTrace,
-    Object? cause,
-  }) = UnknownFailure;
-
-  /// Create a state failure
-  const factory AppFailure.state(
-    String message, {
-    StackTrace? stackTrace,
-    Object? cause,
-  }) = StateFailure;
-
-  /// Create a type failure
-  const factory AppFailure.type(
-    String message, {
-    StackTrace? stackTrace,
-    Object? cause,
-  }) = TypeFailure;
-
-  /// Create an unimplemented failure
-  const factory AppFailure.unimplemented(
-    String message, {
-    StackTrace? stackTrace,
-    Object? cause,
-  }) = UnimplementedFailure;
-
-  /// Create an unsupported failure
-  const factory AppFailure.unsupported(
-    String message, {
-    StackTrace? stackTrace,
-    Object? cause,
-  }) = UnsupportedFailure;
-
-  /// Create a platform failure
-  const factory AppFailure.platform(
-    String message, {
-    String? code,
-    dynamic details,
-    StackTrace? stackTrace,
-    Object? cause,
-  }) = PlatformFailure;
-
-  @override
-  String toString() => '$runtimeType: $message';
+  /// Whether the failed operation may be retried unchanged.
+  @ZorphyDomainBool()
+  bool get isRetryable;
 }
 
-/// Server-related failures (5xx HTTP errors)
-///
-/// Use when the server returns an error status code (500-599)
-/// or when the server response indicates an internal error.
-final class ServerFailure extends AppFailure {
-  /// HTTP status code if available
+@ZorphyValue()
+class $NetworkFailure implements $AppFailure {
+  @override
+  final String message;
+  @override
+  final String? traceId;
+  @override
+  @ZorphyDomainBool()
+  final bool isRetryable;
+
+  /// HTTP status code carried over from the v2 `ServerFailure.statusCode`.
   final int? statusCode;
 
-  const ServerFailure(
-    super.message, {
+  const $NetworkFailure({
+    required this.message,
+    this.traceId,
+    this.isRetryable = false,
     this.statusCode,
-    super.code,
-    super.stackTrace,
-    super.cause,
   });
+}
 
-  /// Create a server failure with a default message.
-  const ServerFailure.create() : statusCode = null, super('Server error');
-
-  /// Factory that creates a ServerFailure if the error matches,
-  /// otherwise returns null
-  static ServerFailure? from(Object error, StackTrace? stackTrace) {
-    final message = error.toString().trim().toLowerCase();
-
-    // Check for HTTP status codes (must be followed by space, end of line, or common HTTP patterns)
-    // We use a stricter regex to ensure we match "500" as a code, not just part of a string
-    final hasStatusCode = RegExp(
-      r'(?:^|\s|:)(500|502|503|504)(?:$|\s|:)',
-    ).hasMatch(message);
-
-    if (hasStatusCode ||
-        message.contains('internal server error') ||
-        message.contains('bad gateway') ||
-        message.contains('service unavailable')) {
-      return ServerFailure(
-        error.toString(),
-        stackTrace: stackTrace,
-        cause: error,
-      );
-    }
-    return null;
-  }
-
+@ZorphyValue()
+class $TimeoutFailure implements $AppFailure {
   @override
-  String toString() => statusCode != null
-      ? 'ServerFailure($statusCode): $message'
-      : 'ServerFailure: $message';
-}
-
-/// Network-related failures
-///
-/// Use when there are connection issues, DNS failures,
-/// or the device is offline.
-final class NetworkFailure extends AppFailure {
-  const NetworkFailure(
-    super.message, {
-    super.code,
-    super.stackTrace,
-    super.cause,
-  });
-
-  /// Create a network failure with a default message.
-  const NetworkFailure.create() : super('Network error');
-
-  /// Factory that creates a NetworkFailure if the error matches,
-  /// otherwise returns null
-  static NetworkFailure? from(Object error, StackTrace? stackTrace) {
-    final message = error.toString().toLowerCase();
-
-    // More precise matching for network errors
-    // We avoid generic words like "connection" unless paired with specific failure modes
-    if (message.contains('socketexception') ||
-        (message.contains('connection') &&
-            (message.contains('refused') ||
-                message.contains('reset') ||
-                message.contains('closed') ||
-                message.contains('timeout') ||
-                message.contains('error'))) ||
-        message.contains('network is unreachable') ||
-        message.contains('no internet') ||
-        message.contains('no address associated') ||
-        message.contains('failed host lookup') ||
-        message.contains('handshakeexception')) {
-      return NetworkFailure(
-        error.toString(),
-        stackTrace: stackTrace,
-        cause: error,
-      );
-    }
-    return null;
-  }
-}
-
-/// Cache-related failures
-///
-/// Use when there are issues reading from or writing to local storage,
-/// or when cached data is corrupted or expired.
-final class CacheFailure extends AppFailure {
-  const CacheFailure(
-    super.message, {
-    super.code,
-    super.stackTrace,
-    super.cause,
-  });
-
-  /// Factory that creates a CacheFailure if the error matches,
-  /// otherwise returns null
-  static CacheFailure? from(Object error, StackTrace? stackTrace) {
-    final message = error.toString().toLowerCase();
-
-    if (message.contains('hiveerror') ||
-        message.contains('sqflite') ||
-        (message.contains('database') && message.contains('exception')) ||
-        (message.contains('cache') && message.contains('exception'))) {
-      return CacheFailure(
-        error.toString(),
-        stackTrace: stackTrace,
-        cause: error,
-      );
-    }
-    return null;
-  }
-}
-
-/// Validation failures
-///
-/// Use when input data fails validation rules.
-/// Optionally includes field-specific error messages.
-final class ValidationFailure extends AppFailure {
-  /// Map of field names to their error messages
-  final Map<String, List<String>>? fieldErrors;
-
-  const ValidationFailure(
-    super.message, {
-    this.fieldErrors,
-    super.code,
-    super.stackTrace,
-    super.cause,
-  });
-
-  /// Factory that creates a ValidationFailure if the error matches,
-  /// otherwise returns null
-  static ValidationFailure? from(Object error, StackTrace? stackTrace) {
-    final message = error.toString().toLowerCase();
-
-    // Use strict check for type names in string if possible, or specific phrases
-    if (message.contains('formatexception') ||
-        message.contains('argumenterror') ||
-        message.contains('rangeerror') ||
-        message.contains('invalid argument') ||
-        message.contains('validation failed')) {
-      return ValidationFailure(
-        error.toString(),
-        stackTrace: stackTrace,
-        cause: error,
-      );
-    }
-    return null;
-  }
-
-  /// Check if a specific field has errors
-  bool hasErrorFor(String field) => fieldErrors?.containsKey(field) ?? false;
-
-  /// Get errors for a specific field
-  List<String> errorsFor(String field) => fieldErrors?[field] ?? const [];
-
-  /// Get the first error for a field, or null
-  String? firstErrorFor(String field) => errorsFor(field).firstOrNull;
-
+  final String message;
   @override
-  String toString() {
-    if (fieldErrors != null && fieldErrors!.isNotEmpty) {
-      return 'ValidationFailure: $message - $fieldErrors';
-    }
-    return 'ValidationFailure: $message';
-  }
-}
-
-/// Not found failures (404 HTTP errors)
-///
-/// Use when a requested resource does not exist.
-final class NotFoundFailure extends AppFailure {
-  /// The identifier of the resource that was not found
-  final String? resourceId;
-
-  /// The type of resource that was not found
-  final String? resourceType;
-
-  const NotFoundFailure(
-    super.message, {
-    this.resourceId,
-    this.resourceType,
-    super.code,
-    super.stackTrace,
-    super.cause,
-  });
-
-  /// Factory that creates a NotFoundFailure if the error matches,
-  /// otherwise returns null
-  static NotFoundFailure? from(Object error, StackTrace? stackTrace) {
-    final message = error.toString().toLowerCase();
-
-    // Check for HTTP status code 404
-    final hasStatusCode = RegExp(r'(?:^|\s|:)404(?:$|\s|:)').hasMatch(message);
-
-    if (hasStatusCode ||
-        (message.contains('not found') && !message.contains('exception')) ||
-        message.contains('does not exist')) {
-      return NotFoundFailure(
-        error.toString(),
-        stackTrace: stackTrace,
-        cause: error,
-      );
-    }
-    return null;
-  }
-
+  final String? traceId;
   @override
-  String toString() {
-    if (resourceType != null && resourceId != null) {
-      return 'NotFoundFailure: $resourceType with id $resourceId not found';
-    }
-    return 'NotFoundFailure: $message';
-  }
-}
-
-/// Unauthorized failures (401 HTTP errors)
-///
-/// Use when authentication is required but missing or invalid.
-/// The user needs to login or refresh their credentials.
-final class UnauthorizedFailure extends AppFailure {
-  const UnauthorizedFailure(
-    super.message, {
-    super.code,
-    super.stackTrace,
-    super.cause,
-  });
-
-  /// Factory that creates an UnauthorizedFailure if the error matches,
-  /// otherwise returns null
-  static UnauthorizedFailure? from(Object error, StackTrace? stackTrace) {
-    final message = error.toString().toLowerCase();
-
-    // Check for HTTP status code 401
-    final hasStatusCode = RegExp(r'(?:^|\s|:)401(?:$|\s|:)').hasMatch(message);
-
-    if (hasStatusCode ||
-        message.contains('unauthorized') ||
-        message.contains('unauthenticated') ||
-        message.contains('invalid token') ||
-        message.contains('token expired')) {
-      return UnauthorizedFailure(
-        error.toString(),
-        stackTrace: stackTrace,
-        cause: error,
-      );
-    }
-    return null;
-  }
-}
-
-/// Forbidden failures (403 HTTP errors)
-///
-/// Use when the user is authenticated but lacks permission
-/// to access the requested resource.
-final class ForbiddenFailure extends AppFailure {
-  /// The permission that was required but not granted
-  final String? requiredPermission;
-
-  const ForbiddenFailure(
-    super.message, {
-    this.requiredPermission,
-    super.code,
-    super.stackTrace,
-    super.cause,
-  });
-
-  /// Factory that creates a ForbiddenFailure if the error matches,
-  /// otherwise returns null
-  static ForbiddenFailure? from(Object error, StackTrace? stackTrace) {
-    final message = error.toString().toLowerCase();
-
-    // Check for HTTP status code 403
-    final hasStatusCode = RegExp(r'(?:^|\s|:)403(?:$|\s|:)').hasMatch(message);
-
-    if (hasStatusCode || message.contains('forbidden')) {
-      return ForbiddenFailure(
-        error.toString(),
-        stackTrace: stackTrace,
-        cause: error,
-      );
-    }
-    return null;
-  }
-}
-
-/// Policy-denied failures
-///
-/// Use when a runtime policy rule blocks an operation — for example a reaction
-/// cascade that has crossed its `maxCascadeDepth` loop guard.
-final class PolicyDeniedFailure extends AppFailure {
-  /// The policy rule that denied the operation (e.g. `maxCascadeDepth`).
-  final String policyRule;
-
-  const PolicyDeniedFailure(
-    super.message, {
-    required this.policyRule,
-    super.stackTrace,
-    super.cause,
-  }) : super(code: 'policyDenied');
-
-  @override
-  String toString() => 'PolicyDeniedFailure($policyRule): $message';
-}
-
-/// Conflict failures (409 HTTP errors)
-///
-/// Use when the request conflicts with the current state of the resource,
-/// such as duplicate entries or version conflicts.
-final class ConflictFailure extends AppFailure {
-  /// The type of conflict
-  final String? conflictType;
-
-  const ConflictFailure(
-    super.message, {
-    this.conflictType,
-    super.code,
-    super.stackTrace,
-    super.cause,
-  });
-
-  /// Factory that creates a ConflictFailure if the error matches,
-  /// otherwise returns null
-  static ConflictFailure? from(Object error, StackTrace? stackTrace) {
-    final message = error.toString().toLowerCase();
-
-    // Check for HTTP status code 409
-    final hasStatusCode = RegExp(r'(?:^|\s|:)409(?:$|\s|:)').hasMatch(message);
-
-    if (hasStatusCode ||
-        message.contains('conflict') ||
-        message.contains('duplicate') ||
-        message.contains('already exists')) {
-      return ConflictFailure(
-        error.toString(),
-        stackTrace: stackTrace,
-        cause: error,
-      );
-    }
-    return null;
-  }
-}
-
-/// Timeout failures
-///
-/// Use when an operation takes too long to complete.
-final class TimeoutFailure extends AppFailure {
-  /// The duration that was exceeded
+  @ZorphyDomainBool()
+  final bool isRetryable;
   final Duration? timeout;
 
-  const TimeoutFailure(
-    super.message, {
+  const $TimeoutFailure({
+    required this.message,
+    this.traceId,
+    this.isRetryable = true,
     this.timeout,
-    super.code,
-    super.stackTrace,
-    super.cause,
   });
+}
 
-  /// Factory that creates a TimeoutFailure if the error matches,
-  /// otherwise returns null
-  static TimeoutFailure? from(Object error, StackTrace? stackTrace) {
-    final message = error.toString().toLowerCase();
-
-    if (message.contains('timeout') ||
-        message.contains('timed out') ||
-        message.contains('deadline exceeded')) {
-      return TimeoutFailure(
-        error.toString(),
-        stackTrace: stackTrace,
-        cause: error,
-      );
-    }
-    return null;
-  }
-
+@ZorphyValue()
+class $BoundaryViolationFailure implements $AppFailure {
   @override
-  String toString() {
-    if (timeout != null) {
-      return 'TimeoutFailure: $message (timeout: ${timeout!.inSeconds}s)';
-    }
-    return 'TimeoutFailure: $message';
-  }
-}
-
-/// Cancellation failures
-///
-/// Use when an operation is explicitly cancelled by the user or system.
-/// This is typically not shown as an error to the user.
-final class CancellationFailure extends AppFailure {
-  const CancellationFailure([super.message = 'Operation was cancelled'])
-    : super(stackTrace: null, cause: null);
-}
-
-/// Platform failures
-///
-/// Use when a platform-specific error occurs (e.g. Flutter PlatformException).
-final class PlatformFailure extends AppFailure {
-  final dynamic details;
-
-  const PlatformFailure(
-    super.message, {
-    super.code,
-    this.details,
-    super.stackTrace,
-    super.cause,
-  });
-
+  final String message;
   @override
-  String toString() => 'PlatformFailure($code): $message';
+  final String? traceId;
+  @override
+  @ZorphyDomainBool()
+  final bool isRetryable;
+  final List<FieldViolation> violations;
+
+  const $BoundaryViolationFailure({
+    required this.message,
+    this.traceId,
+    this.isRetryable = false,
+    this.violations = const [],
+  });
 }
 
-/// Unknown/generic failures
-///
-/// Use as a fallback when the error type cannot be determined.
-/// Prefer using more specific failure types when possible.
-final class UnknownFailure extends AppFailure {
-  const UnknownFailure(
-    super.message, {
-    super.code,
-    super.stackTrace,
-    super.cause,
+@ZorphyValue()
+class $PolicyDeniedFailure implements $AppFailure {
+  @override
+  final String message;
+  @override
+  final String? traceId;
+  @override
+  @ZorphyDomainBool()
+  final bool isRetryable;
+  final String reason;
+
+  const $PolicyDeniedFailure({
+    required this.message,
+    this.traceId,
+    this.isRetryable = false,
+    this.reason = 'permission',
   });
+}
 
-  /// Create an unknown failure with a default message.
-  const UnknownFailure.create() : super('Unexpected error');
+@ZorphyValue()
+class $NotFoundFailure implements $AppFailure {
+  @override
+  final String message;
+  @override
+  final String? traceId;
+  @override
+  @ZorphyDomainBool()
+  final bool isRetryable;
+  final String? resourceType;
+  final String? resourceId;
 
-  /// Factory that always creates an UnknownFailure
-  /// This is the fallback when no other failure type matches
-  static UnknownFailure from(Object error, StackTrace? stackTrace) {
-    return UnknownFailure(
-      error.toString(),
-      stackTrace: stackTrace,
-      cause: error,
-    );
+  const $NotFoundFailure({
+    required this.message,
+    this.traceId,
+    this.isRetryable = false,
+    this.resourceType,
+    this.resourceId,
+  });
+}
+
+@ZorphyValue()
+class $ConflictFailure implements $AppFailure {
+  @override
+  final String message;
+  @override
+  final String? traceId;
+  @override
+  @ZorphyDomainBool()
+  final bool isRetryable;
+  final Map<String, Object?>? localPatchWire;
+  final Map<String, Object?>? remotePatchWire;
+
+  const $ConflictFailure({
+    required this.message,
+    this.traceId,
+    this.isRetryable = false,
+    this.localPatchWire,
+    this.remotePatchWire,
+  });
+}
+
+@ZorphyValue()
+class $CancelledFailure implements $AppFailure {
+  @override
+  final String message;
+  @override
+  final String? traceId;
+  @override
+  @ZorphyDomainBool()
+  final bool isRetryable;
+
+  const $CancelledFailure({
+    required this.message,
+    this.traceId,
+    this.isRetryable = false,
+  });
+}
+
+@ZorphyValue()
+class $InterruptedFailure implements $AppFailure {
+  @override
+  final String message;
+  @override
+  final String? traceId;
+  @override
+  @ZorphyDomainBool()
+  final bool isRetryable;
+  final String? intentDigest;
+
+  const $InterruptedFailure({
+    required this.message,
+    this.traceId,
+    this.isRetryable = true,
+    this.intentDigest,
+  });
+}
+
+@ZorphyValue()
+class $StorageFailure implements $AppFailure {
+  @override
+  final String message;
+  @override
+  final String? traceId;
+  @override
+  @ZorphyDomainBool()
+  final bool isRetryable;
+  final String layer;
+
+  const $StorageFailure({
+    required this.message,
+    this.traceId,
+    this.isRetryable = false,
+    this.layer = 'cache',
+  });
+}
+
+@ZorphyValue()
+class $UnexpectedFailure implements $AppFailure {
+  @override
+  final String message;
+  @override
+  final String? traceId;
+  @override
+  @ZorphyDomainBool()
+  final bool isRetryable;
+
+  /// Stringified originating error/cause carried over from v2 (diagnostic).
+  final String? cause;
+
+  /// Stringified stack trace carried over from v2 (diagnostic).
+  final String? stackTrace;
+
+  const $UnexpectedFailure({
+    required this.message,
+    this.traceId,
+    this.isRetryable = false,
+    this.cause,
+    this.stackTrace,
+  });
+}
+
+/// Positional-message constructors for the ten [AppFailure] variants.
+///
+/// These exist so the v2 call sites (`ServerFailure(...)`, `AppFailure.network(...)`,
+/// …) migrate by a pure prefix rename: each helper's named-parameter set is a
+/// SUPERSET of the old constructor/factory arguments, so legacy arguments
+/// (`statusCode`, `stackTrace`, `cause`, `code`, `conflictType`, …) are
+/// accepted and ignored rather than rewritten. The generated `@ZorphyUnion`
+/// root cannot carry static factories, so these top-level helpers are the
+/// construction API.
+NetworkFailure networkFailure(
+  String message, {
+  int? statusCode,
+  StackTrace? stackTrace,
+  Object? cause,
+  String? code,
+  String? traceId,
+  bool isRetryable = false,
+  dynamic details,
+}) => NetworkFailure.fromTrusted(
+  message: message,
+  traceId: traceId,
+  isRetryable: isRetryable,
+  statusCode: statusCode,
+);
+
+/// See [networkFailure].
+TimeoutFailure timeoutFailure(
+  String message, {
+  Duration? timeout,
+  StackTrace? stackTrace,
+  Object? cause,
+  String? code,
+  String? traceId,
+  bool isRetryable = true,
+}) => TimeoutFailure.fromTrusted(
+  message: message,
+  traceId: traceId,
+  isRetryable: isRetryable,
+  timeout: timeout,
+);
+
+/// See [networkFailure].
+BoundaryViolationFailure boundaryViolationFailure(
+  String message, {
+  Map<String, List<String>>? fieldErrors,
+  List<FieldViolation> violations = const [],
+  StackTrace? stackTrace,
+  Object? cause,
+  String? code,
+  String? traceId,
+  bool isRetryable = false,
+}) => BoundaryViolationFailure.fromTrusted(
+  message: message,
+  traceId: traceId,
+  isRetryable: isRetryable,
+  violations: fieldErrors == null
+      ? violations
+      : [
+          for (final entry in fieldErrors.entries)
+            for (final msg in entry.value)
+              FieldViolation(
+                path: '/${entry.key}',
+                expected: 'string',
+                actual: msg,
+              ),
+        ],
+);
+
+/// See [networkFailure].
+PolicyDeniedFailure policyDeniedFailure(
+  String message, {
+  String? requiredPermission,
+  String? policyRule,
+  String reason = 'permission',
+  StackTrace? stackTrace,
+  Object? cause,
+  String? code,
+  String? traceId,
+  bool isRetryable = false,
+}) => PolicyDeniedFailure.fromTrusted(
+  message: message,
+  traceId: traceId,
+  isRetryable: isRetryable,
+  reason: policyRule != null && policyRule.toLowerCase().contains('cascade')
+      ? 'cascadeDepth'
+      : reason,
+);
+
+/// See [networkFailure].
+NotFoundFailure notFoundFailure(
+  String message, {
+  String? resourceType,
+  String? resourceId,
+  StackTrace? stackTrace,
+  Object? cause,
+  String? code,
+  String? traceId,
+  bool isRetryable = false,
+}) => NotFoundFailure.fromTrusted(
+  message: message,
+  traceId: traceId,
+  isRetryable: isRetryable,
+  resourceType: resourceType,
+  resourceId: resourceId,
+);
+
+/// See [networkFailure].
+ConflictFailure conflictFailure(
+  String message, {
+  String? conflictType,
+  Map<String, Object?>? localPatchWire,
+  Map<String, Object?>? remotePatchWire,
+  StackTrace? stackTrace,
+  Object? cause,
+  String? code,
+  String? traceId,
+  bool isRetryable = false,
+}) => ConflictFailure.fromTrusted(
+  message: message,
+  traceId: traceId,
+  isRetryable: isRetryable,
+  localPatchWire: localPatchWire,
+  remotePatchWire: remotePatchWire,
+);
+
+/// See [networkFailure].
+CancelledFailure cancelledFailure([
+  String message = 'Operation was cancelled',
+]) => CancelledFailure.fromTrusted(message: message, isRetryable: false);
+
+/// See [networkFailure].
+InterruptedFailure interruptedFailure(
+  String message, {
+  String? intentDigest,
+  StackTrace? stackTrace,
+  Object? cause,
+  String? code,
+  String? traceId,
+  bool isRetryable = true,
+}) => InterruptedFailure.fromTrusted(
+  message: message,
+  traceId: traceId,
+  isRetryable: isRetryable,
+  intentDigest: intentDigest,
+);
+
+/// See [networkFailure].
+StorageFailure storageFailure(
+  String message, {
+  String layer = 'cache',
+  StackTrace? stackTrace,
+  Object? cause,
+  String? code,
+  String? traceId,
+  bool isRetryable = false,
+}) => StorageFailure.fromTrusted(
+  message: message,
+  traceId: traceId,
+  isRetryable: isRetryable,
+  layer: layer,
+);
+
+/// See [networkFailure].
+UnexpectedFailure unexpectedFailure(
+  String message, {
+  StackTrace? stackTrace,
+  Object? cause,
+  String? code,
+  dynamic details,
+  String? traceId,
+  bool isRetryable = false,
+}) => UnexpectedFailure.fromTrusted(
+  message: message,
+  traceId: traceId,
+  isRetryable: isRetryable,
+  cause: cause?.toString(),
+  stackTrace: stackTrace?.toString(),
+);
+
+/// Classify an arbitrary [error] into the most specific [AppFailure] variant.
+///
+/// Replaces the v2 `AppFailure.from` body-factory (a body-logic factory cannot
+/// live on a generated union root). Detection order mirrors the v2 classifier.
+AppFailure appFailureFrom(Object error, [StackTrace? stackTrace]) {
+  if (error is AppFailure) return error;
+  final message = error.toString();
+  final lower = message.toLowerCase();
+
+  bool hasStatus(int code) => RegExp(
+    '(?:^|\\s|:)'
+    '$code'
+    r'(?:$|\s|:)',
+  ).hasMatch(lower);
+
+  // Network / server / service-unavailable / rate-limit → network.
+  if (lower.contains('socketexception') ||
+      (lower.contains('connection') &&
+          RegExp(r'refused|reset|closed|timeout|error').hasMatch(lower)) ||
+      lower.contains('network is unreachable') ||
+      lower.contains('no internet') ||
+      lower.contains('failed host lookup') ||
+      lower.contains('handshakeexception') ||
+      hasStatus(500) ||
+      hasStatus(502) ||
+      hasStatus(503) ||
+      hasStatus(504) ||
+      lower.contains('internal server error') ||
+      lower.contains('bad gateway') ||
+      lower.contains('service unavailable') ||
+      lower.contains('rate limit')) {
+    return networkFailure(message);
   }
+
+  // Timeout.
+  if (lower.contains('timeout') ||
+      lower.contains('timed out') ||
+      lower.contains('deadline exceeded')) {
+    return timeoutFailure(message);
+  }
+
+  // Validation / boundary violation.
+  if (lower.contains('formatexception') ||
+      lower.contains('argumenterror') ||
+      lower.contains('rangeerror') ||
+      lower.contains('invalid argument') ||
+      lower.contains('validation failed')) {
+    return boundaryViolationFailure(message);
+  }
+
+  // Policy denied (auth / forbidden).
+  if (hasStatus(401) ||
+      lower.contains('unauthorized') ||
+      lower.contains('unauthenticated') ||
+      lower.contains('invalid token') ||
+      lower.contains('token expired')) {
+    return policyDeniedFailure(message, reason: 'unauthenticated');
+  }
+  if (hasStatus(403) || lower.contains('forbidden')) {
+    return policyDeniedFailure(message, reason: 'forbidden');
+  }
+
+  // Not found.
+  if (hasStatus(404) ||
+      (lower.contains('not found') && !lower.contains('exception')) ||
+      lower.contains('does not exist')) {
+    return notFoundFailure(message);
+  }
+
+  // Conflict.
+  if (hasStatus(409) ||
+      lower.contains('conflict') ||
+      lower.contains('duplicate') ||
+      lower.contains('already exists')) {
+    return conflictFailure(message);
+  }
+
+  // Storage (cache / database).
+  if (lower.contains('hiveerror') ||
+      lower.contains('sqflite') ||
+      (lower.contains('database') && lower.contains('exception'))) {
+    return storageFailure(message, layer: 'database');
+  }
+  if (lower.contains('cache') && lower.contains('exception')) {
+    return storageFailure(message, layer: 'cache');
+  }
+
+  // Fallback.
+  return unexpectedFailure(message, cause: error, stackTrace: stackTrace);
 }
 
-/// State failures
-///
-/// Use when the application is in an invalid state for the requested operation.
-final class StateFailure extends AppFailure {
-  const StateFailure(
-    super.message, {
-    super.code,
-    super.stackTrace,
-    super.cause,
-  });
-}
-
-/// Type failures
-///
-/// Use when a value has an unexpected type.
-final class TypeFailure extends AppFailure {
-  const TypeFailure(super.message, {super.code, super.stackTrace, super.cause});
-}
-
-/// Unimplemented failures
-///
-/// Use when a requested feature or method is not yet implemented.
-final class UnimplementedFailure extends AppFailure {
-  const UnimplementedFailure(
-    super.message, {
-    super.code,
-    super.stackTrace,
-    super.cause,
-  });
-}
-
-/// Unsupported failures
-///
-/// Use when an operation is not supported by the current platform or configuration.
-final class UnsupportedFailure extends AppFailure {
-  const UnsupportedFailure(
-    super.message, {
-    super.code,
-    super.stackTrace,
-    super.cause,
-  });
-}
-
-/// Extension to convert exceptions to failures
+/// Extension to convert exceptions to failures.
 extension ExceptionToFailure on Exception {
-  /// Convert this exception to an [AppFailure]
-  AppFailure toFailure([StackTrace? stackTrace]) {
-    return AppFailure.from(this, stackTrace);
-  }
+  /// Convert this exception to an [AppFailure].
+  AppFailure toFailure([StackTrace? stackTrace]) =>
+      appFailureFrom(this, stackTrace);
 }
 
-/// Extension to convert errors to failures
+/// Extension to convert errors to failures.
 extension ErrorToFailure on Error {
-  /// Convert this error to an [AppFailure]
-  AppFailure toFailure([StackTrace? stackTrace]) {
-    return AppFailure.from(this, stackTrace ?? this.stackTrace);
-  }
+  /// Convert this error to an [AppFailure].
+  AppFailure toFailure([StackTrace? stackTrace]) =>
+      appFailureFrom(this, stackTrace ?? this.stackTrace);
 }

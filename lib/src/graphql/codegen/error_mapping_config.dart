@@ -118,10 +118,11 @@ class ErrorMappingConfig {
     final msg = message ?? errorTypeName;
 
     return switch (category) {
-      'business' || 'validation' => ValidationFailure(msg, code: errorTypeName),
-      'session' => UnauthorizedFailure(msg, code: errorTypeName),
-      'network' => NetworkFailure(msg, code: errorTypeName),
-      _ => UnknownFailure(msg, code: errorTypeName),
+      'business' ||
+      'validation' => boundaryViolationFailure(msg, code: errorTypeName),
+      'session' => policyDeniedFailure(msg, code: errorTypeName),
+      'network' => networkFailure(msg, code: errorTypeName),
+      _ => unexpectedFailure(msg, code: errorTypeName),
     };
   }
 }

@@ -11,6 +11,9 @@ part '../../../_br_/src/core/params/list_query_params.part.dart';
 /// The type parameter [T] represents the entity type being queried,
 /// enabling type-safe [Filter], [Field], and [Sort] references.
 @ZorphyValue()
+@Deprecated(
+  'Replaced in v8 by ZfaQuery<T> and concrete @ZorphyIntent classes in ZFA-008/ZFA-017',
+)
 abstract class $ListQueryParams<T> implements $$Params {
   const $ListQueryParams();
 
@@ -121,4 +124,40 @@ extension ListQueryParamsExtension on ListQueryParams {
 
     return parts.join();
   }
+}
+
+/// Trust-boundary wire codec for [ListQueryParams] (v3 generic value types get
+/// no generated codec).
+extension ListQueryParamsWireCodec<T> on ListQueryParams<T> {
+  /// Serialize to a wire map. [toElement] encodes a `T` element (unused here —
+  /// `filter`/`sort` use their converters).
+  Map<String, dynamic> toWire([Object? Function(T value)? toElement]) => {
+    'search': search,
+    'limit': limit,
+    'offset': offset,
+    'params': params,
+    if (filter != null) 'filter': FilterConverter.toJson(filter!),
+    if (sort != null) 'sort': SortConverter.toJson(sort!),
+  };
+}
+
+/// Decode a [ListQueryParams] from a wire map.
+ListQueryParams<T> listQueryParamsFromWire<T>(
+  Map<String, dynamic> raw,
+  T Function(Object? json) fromElement,
+) {
+  return ListQueryParams<T>.fromTrusted(
+    search: raw['search'] as String?,
+    limit: raw['limit'] as int?,
+    offset: raw['offset'] as int?,
+    params: raw['params'] as Map<String, dynamic>?,
+    filter: raw['filter'] != null
+        ? FilterConverter.fromJson(raw['filter'] as Map<String, dynamic>)
+              as Filter<T>?
+        : null,
+    sort: raw['sort'] != null
+        ? SortConverter.fromJson(raw['sort'] as Map<String, dynamic>)
+              as Sort<T>?
+        : null,
+  );
 }

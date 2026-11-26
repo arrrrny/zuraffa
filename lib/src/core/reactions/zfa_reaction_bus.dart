@@ -124,7 +124,7 @@ class ZfaReactionBus {
     } on AppFailure catch (failure) {
       return Result.failure(failure);
     } on CancellationTokenException catch (e) {
-      return Result.failure(AppFailure.cancellation(e.toString()));
+      return Result.failure(cancelledFailure(e.toString()));
     }
   }
 
@@ -145,7 +145,10 @@ class ZfaReactionBus {
     );
     if (child.cascadeDepth > maxCascadeDepth) {
       return Result.failure(
-        AppFailure.policyDenied(policyRule: 'maxCascadeDepth'),
+        policyDeniedFailure(
+          'Operation denied by policy',
+          policyRule: 'maxCascadeDepth',
+        ),
       );
     }
 

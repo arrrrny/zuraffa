@@ -12,6 +12,9 @@ part '../../../_br_/src/core/params/query_params.part.dart';
 /// The type parameter [T] represents the entity type being queried,
 /// enabling type-safe [Filter] references when the entity has filterable fields.
 @ZorphyValue()
+@Deprecated(
+  'Replaced in v8 by ZfaQuery<T> and concrete @ZorphyIntent classes in ZFA-008/ZFA-017',
+)
 abstract class $QueryParams<T> implements $$Params {
   const $QueryParams();
 
@@ -69,7 +72,7 @@ extension QueryParamsExtension<T> on Iterable<T> {
 
   /// Throws the [NotFoundFailure] for a query that matched nothing, naming what
   /// was searched so a miss is easy to triage from the log line alone.
-  Never _throwNotFound(String reason) => throw NotFoundFailure('No $T $reason');
+  Never _throwNotFound(String reason) => throw notFoundFailure('No $T $reason');
 }
 
 /// The JSON view of [item] when it exposes one, or null when it cannot be
@@ -161,4 +164,31 @@ extension NestedNullableIterableFilterToQueryExtension<TEntity, TElement>
     if (query.filter == null) return AlwaysMatch<TEntity>();
     return filter(query.filter!);
   }
+}
+
+/// Trust-boundary wire codec for [QueryParams] (v3: generic value types get no
+/// generated codec, so it is codec-parameterized and explicit).
+extension QueryParamsWireCodec<T> on QueryParams<T> {
+  /// Serialize to a wire map. [toElement] encodes a `T` element (unused by
+  /// `QueryParams` itself — `params` is already a map and `filter` uses
+  /// [FilterConverter] — but kept for parity with the v2 `toJson` signature).
+  Map<String, dynamic> toWire([Object? Function(T value)? toElement]) => {
+    'params': params,
+    if (filter != null) 'filter': FilterConverter.toJson(filter!),
+  };
+}
+
+/// Decode a [QueryParams] from a wire map produced by
+/// [QueryParamsWireCodec.toWire].
+QueryParams<T> queryParamsFromWire<T>(
+  Map<String, dynamic> raw,
+  T Function(Object? json) fromElement,
+) {
+  return QueryParams<T>.fromTrusted(
+    params: raw['params'] as Map<String, dynamic>?,
+    filter: raw['filter'] != null
+        ? FilterConverter.fromJson(raw['filter'] as Map<String, dynamic>)
+              as Filter<T>?
+        : null,
+  );
 }

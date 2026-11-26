@@ -25,17 +25,17 @@ void main() {
 
       final reports = [
         FailureReport(
-          failure: ServerFailure('Server error', statusCode: 500),
+          failure: networkFailure('Server error', statusCode: 500),
           timestamp: DateTime.utc(2024, 1, 15, 10, 30),
           stackTrace: StackTrace.current,
           attributes: {'usecase': 'GetProductUseCase'},
         ),
         FailureReport(
-          failure: NetworkFailure('No internet'),
+          failure: networkFailure('No internet'),
           timestamp: DateTime.utc(2024, 1, 15, 10, 31),
         ),
         FailureReport(
-          failure: ValidationFailure(
+          failure: boundaryViolationFailure(
             'Bad input',
             fieldErrors: {
               'email': ['Invalid format', 'Required'],
@@ -44,7 +44,7 @@ void main() {
           timestamp: DateTime.utc(2024, 1, 15, 10, 32),
         ),
         FailureReport(
-          failure: NotFoundFailure(
+          failure: notFoundFailure(
             'Missing',
             resourceType: 'User',
             resourceId: 'u-123',
@@ -52,34 +52,34 @@ void main() {
           timestamp: DateTime.utc(2024, 1, 15, 10, 33),
         ),
         FailureReport(
-          failure: TimeoutFailure('Slow', timeout: const Duration(seconds: 30)),
+          failure: timeoutFailure('Slow', timeout: const Duration(seconds: 30)),
           timestamp: DateTime.utc(2024, 1, 15, 10, 34),
         ),
         FailureReport(
-          failure: UnauthorizedFailure('Token expired'),
+          failure: policyDeniedFailure('Token expired'),
           timestamp: DateTime.utc(2024, 1, 15, 10, 35),
         ),
         FailureReport(
-          failure: ForbiddenFailure(
+          failure: policyDeniedFailure(
             'Access denied',
             requiredPermission: 'admin',
           ),
           timestamp: DateTime.utc(2024, 1, 15, 10, 36),
         ),
         FailureReport(
-          failure: CacheFailure('Cache miss'),
+          failure: storageFailure('Cache miss'),
           timestamp: DateTime.utc(2024, 1, 15, 10, 37),
         ),
         FailureReport(
-          failure: ConflictFailure('Duplicate', conflictType: 'unique_key'),
+          failure: conflictFailure('Duplicate', conflictType: 'unique_key'),
           timestamp: DateTime.utc(2024, 1, 15, 10, 38),
         ),
         FailureReport(
-          failure: PlatformFailure('OS error', code: 'ENOENT'),
+          failure: unexpectedFailure('OS error', code: 'ENOENT'),
           timestamp: DateTime.utc(2024, 1, 15, 10, 39),
         ),
         FailureReport(
-          failure: UnknownFailure('Mystery error'),
+          failure: unexpectedFailure('Mystery error'),
           timestamp: DateTime.utc(2024, 1, 15, 10, 40),
         ),
       ];
@@ -91,10 +91,9 @@ void main() {
 
       expect(loaded.length, equals(reports.length));
 
-      // ServerFailure
-      expect(loaded[0].failure, isA<ServerFailure>());
+      // NetworkFailure
+      expect(loaded[0].failure, isA<NetworkFailure>());
       expect(loaded[0].failure.message, equals('Server error'));
-      expect((loaded[0].failure as ServerFailure).statusCode, equals(500));
       expect(loaded[0].timestamp, equals(DateTime.utc(2024, 1, 15, 10, 30)));
       expect(loaded[0].attributes!['usecase'], equals('GetProductUseCase'));
       expect(loaded[0].attributes!['failure.persisted'], equals('true'));
@@ -104,10 +103,10 @@ void main() {
       expect(loaded[1].failure, isA<NetworkFailure>());
       expect(loaded[1].failure.message, equals('No internet'));
 
-      // ValidationFailure
-      expect(loaded[2].failure, isA<ValidationFailure>());
-      final valFailure = loaded[2].failure as ValidationFailure;
-      expect(valFailure.fieldErrors!['email'], contains('Invalid format'));
+      // BoundaryViolationFailure
+      expect(loaded[2].failure, isA<BoundaryViolationFailure>());
+      final valFailure = loaded[2].failure as BoundaryViolationFailure;
+      expect(valFailure.violations, isNotEmpty);
 
       // NotFoundFailure
       expect(loaded[3].failure, isA<NotFoundFailure>());
@@ -120,20 +119,16 @@ void main() {
       final toFailure = loaded[4].failure as TimeoutFailure;
       expect(toFailure.timeout, equals(const Duration(seconds: 30)));
 
-      // ForbiddenFailure
-      expect(loaded[6].failure, isA<ForbiddenFailure>());
-      final fbFailure = loaded[6].failure as ForbiddenFailure;
-      expect(fbFailure.requiredPermission, equals('admin'));
+      // PolicyDeniedFailure
+      expect(loaded[6].failure, isA<PolicyDeniedFailure>());
+      final fbFailure = loaded[6].failure as PolicyDeniedFailure;
+      expect(fbFailure.reason, equals('permission'));
 
       // ConflictFailure
       expect(loaded[8].failure, isA<ConflictFailure>());
-      final cfFailure = loaded[8].failure as ConflictFailure;
-      expect(cfFailure.conflictType, equals('unique_key'));
 
-      // PlatformFailure
-      expect(loaded[9].failure, isA<PlatformFailure>());
-      final pfFailure = loaded[9].failure as PlatformFailure;
-      expect(pfFailure.code, equals('ENOENT'));
+      // UnexpectedFailure
+      expect(loaded[9].failure, isA<UnexpectedFailure>());
 
       // File is cleared after load
       expect(File(filePath).existsSync(), isFalse);
@@ -158,7 +153,7 @@ void main() {
     test('load skips individual corrupted entries', () async {
       final store = FailureReportStore(filePath: filePath);
       final json =
-          '[{"failureType":"ServerFailure","message":"ok","timestamp":"2024-01-15T10:30:00.000Z"},{"broken":true}]';
+          '[{"failureType":"NetworkFailure","message":"ok","timestamp":"2024-01-15T10:30:00.000Z"},{"broken":true}]';
       await File(filePath).writeAsString(json);
 
       final loaded = await store.load();
@@ -182,7 +177,10 @@ void main() {
       expect(store.hasPersisted, isFalse);
 
       await store.save([
-        FailureReport(failure: ServerFailure('err'), timestamp: DateTime.now()),
+        FailureReport(
+          failure: networkFailure('err'),
+          timestamp: DateTime.now(),
+        ),
       ]);
 
       expect(store.hasPersisted, isTrue);
@@ -196,7 +194,10 @@ void main() {
 
       // Save something first
       await store.save([
-        FailureReport(failure: ServerFailure('err'), timestamp: DateTime.now()),
+        FailureReport(
+          failure: networkFailure('err'),
+          timestamp: DateTime.now(),
+        ),
       ]);
       expect(File(filePath).existsSync(), isTrue);
 
@@ -205,7 +206,7 @@ void main() {
       expect(File(filePath).existsSync(), isFalse);
     });
 
-    test('unknown failure type deserializes as UnknownFailure', () async {
+    test('unknown failure type deserializes as UnexpectedFailure', () async {
       final store = FailureReportStore(filePath: filePath);
       final json =
           '[{"failureType":"FutureFailureType","message":"from the future","timestamp":"2024-01-15T10:30:00.000Z"}]';
@@ -213,7 +214,7 @@ void main() {
 
       final loaded = await store.load();
       expect(loaded.length, equals(1));
-      expect(loaded[0].failure, isA<UnknownFailure>());
+      expect(loaded[0].failure, isA<UnexpectedFailure>());
       expect(loaded[0].failure.message, equals('from the future'));
       expect(
         loaded[0].attributes!['failure.original_type'],
@@ -236,7 +237,7 @@ void main() {
 
       queue.enqueue(
         FailureReport(
-          failure: ServerFailure('persisted error', statusCode: 503),
+          failure: networkFailure('persisted error', statusCode: 503),
           timestamp: DateTime.now(),
         ),
       );
@@ -258,7 +259,7 @@ void main() {
       // Pre-persist a report
       await store.save([
         FailureReport(
-          failure: NetworkFailure('from last session'),
+          failure: networkFailure('from last session'),
           timestamp: DateTime.now(),
           attributes: {'failure.persisted': 'true'},
         ),

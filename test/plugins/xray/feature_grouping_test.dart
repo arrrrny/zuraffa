@@ -341,7 +341,7 @@ routes:
     ..createSync(recursive: true)
     ..writeAsStringSync('class LoginButton {}\n');
 
-  return FeatureContract(
+  return FeatureContract.fromTrusted(
     id: featureId,
     displayName: 'Login UI',
     entities: const ['Login'],

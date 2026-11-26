@@ -43,7 +43,7 @@ void main() {
 
     test('contractHeader emits the full contract as comment anchors', () {
       final header = FeatureContractDecorators.contractHeader(
-        FeatureContract(
+        FeatureContract.fromTrusted(
           id: 'login',
           displayName: 'Login',
           entities: const ['User', 'Session'],
@@ -71,7 +71,7 @@ void main() {
 
     test('contractHeader omits unset surfaces', () {
       final header = FeatureContractDecorators.contractHeader(
-        FeatureContract(id: 'logout', displayName: 'Logout'),
+        FeatureContract.fromTrusted(id: 'logout', displayName: 'Logout'),
       );
 
       expect(header, contains("@FeatureContract(id: 'logout')"));

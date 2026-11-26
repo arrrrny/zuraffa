@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:logging/logging.dart';
+import 'package:zorphy_annotation/zorphy_annotation.dart';
 
 import 'failure.dart';
 import 'failure_reporter.dart';
@@ -137,10 +138,6 @@ class FailureReportStore {
       json['attributes'] = report.attributes;
     }
 
-    if (report.failure.cause != null) {
-      json['cause'] = report.failure.cause.toString();
-    }
-
     // Preserve failure-specific fields for richer OTel spans
     json['failureData'] = _failureDataToJson(report.failure);
 
@@ -149,28 +146,27 @@ class FailureReportStore {
 
   Map<String, dynamic> _failureDataToJson(AppFailure failure) {
     return switch (failure) {
-      ServerFailure(:final statusCode) => {'statusCode': statusCode},
       NetworkFailure() => {},
-      ValidationFailure(:final fieldErrors) => {'fieldErrors': fieldErrors},
+      TimeoutFailure(:final timeout) => {'timeoutMs': timeout?.inMilliseconds},
+      BoundaryViolationFailure(:final violations) => {
+        'violations': [
+          for (final v in violations)
+            {'path': v.path, 'expected': v.expected, 'actual': v.actual},
+        ],
+      },
+      PolicyDeniedFailure(:final reason) => {'reason': reason},
       NotFoundFailure(:final resourceType, :final resourceId) => {
         'resourceType': resourceType,
         'resourceId': resourceId,
       },
-      UnauthorizedFailure() => {},
-      ForbiddenFailure(:final requiredPermission) => {
-        'requiredPermission': requiredPermission,
+      ConflictFailure(:final localPatchWire, :final remotePatchWire) => {
+        'localPatchWire': localPatchWire,
+        'remotePatchWire': remotePatchWire,
       },
-      PolicyDeniedFailure(:final policyRule) => {'policyRule': policyRule},
-      TimeoutFailure(:final timeout) => {'timeoutMs': timeout?.inMilliseconds},
-      ConflictFailure(:final conflictType) => {'conflictType': conflictType},
-      CacheFailure() => {},
-      PlatformFailure(:final code) => {'code': code},
-      CancellationFailure() => {},
-      StateFailure() => {},
-      TypeFailure() => {},
-      UnimplementedFailure() => {},
-      UnsupportedFailure() => {},
-      UnknownFailure() => {},
+      CancelledFailure() => {},
+      InterruptedFailure(:final intentDigest) => {'intentDigest': intentDigest},
+      StorageFailure(:final layer) => {'layer': layer},
+      UnexpectedFailure() => {},
     };
   }
 
@@ -207,47 +203,62 @@ class FailureReportStore {
     Map<String, dynamic> data,
   ) {
     return switch (type) {
-      'ServerFailure' => ServerFailure(
-        message,
-        statusCode: data['statusCode'] as int?,
-      ),
-      'NetworkFailure' => NetworkFailure(message),
-      'ValidationFailure' => ValidationFailure(
-        message,
-        fieldErrors: _reconstructFieldErrors(data['fieldErrors']),
-      ),
-      'NotFoundFailure' => NotFoundFailure(
-        message,
-        resourceType: data['resourceType'] as String?,
-        resourceId: data['resourceId'] as String?,
-      ),
-      'UnauthorizedFailure' => UnauthorizedFailure(message),
-      'ForbiddenFailure' => ForbiddenFailure(
-        message,
-        requiredPermission: data['requiredPermission'] as String?,
-      ),
-      'TimeoutFailure' => TimeoutFailure(
+      // v8 variant type names (what the store persists).
+      'NetworkFailure' => networkFailure(message),
+      'TimeoutFailure' => timeoutFailure(
         message,
         timeout: data['timeoutMs'] != null
             ? Duration(milliseconds: data['timeoutMs'] as int)
             : null,
       ),
-      'ConflictFailure' => ConflictFailure(
+      'BoundaryViolationFailure' => boundaryViolationFailure(
         message,
-        conflictType: data['conflictType'] as String?,
+        violations: _reconstructViolations(data['violations']),
       ),
-      'CacheFailure' => CacheFailure(message),
-      'PlatformFailure' => PlatformFailure(
+      'PolicyDeniedFailure' => policyDeniedFailure(
         message,
-        code: data['code'] as String?,
+        reason: (data['reason'] as String?) ?? 'permission',
       ),
-      'CancellationFailure' => CancellationFailure(message),
-      'StateFailure' => StateFailure(message),
-      'TypeFailure' => TypeFailure(message),
-      'UnimplementedFailure' => UnimplementedFailure(message),
-      'UnsupportedFailure' => UnsupportedFailure(message),
+      'NotFoundFailure' => notFoundFailure(
+        message,
+        resourceType: data['resourceType'] as String?,
+        resourceId: data['resourceId'] as String?,
+      ),
+      'ConflictFailure' => conflictFailure(
+        message,
+        localPatchWire: (data['localPatchWire'] as Map?)
+            ?.cast<String, Object?>(),
+        remotePatchWire: (data['remotePatchWire'] as Map?)
+            ?.cast<String, Object?>(),
+      ),
+      'CancelledFailure' => cancelledFailure(message),
+      'InterruptedFailure' => interruptedFailure(
+        message,
+        intentDigest: data['intentDigest'] as String?,
+      ),
+      'StorageFailure' => storageFailure(
+        message,
+        layer: (data['layer'] as String?) ?? 'cache',
+      ),
+      'UnexpectedFailure' => unexpectedFailure(message),
+      // Legacy v2 type names (back-compat with already-persisted reports).
+      'ServerFailure' => networkFailure(message),
+      'ValidationFailure' => boundaryViolationFailure(
+        message,
+        fieldErrors: _reconstructFieldErrors(data['fieldErrors']),
+      ),
+      'UnauthorizedFailure' => policyDeniedFailure(message),
+      'ForbiddenFailure' => policyDeniedFailure(message, reason: 'forbidden'),
+      'CacheFailure' => storageFailure(message),
+      'PlatformFailure' => unexpectedFailure(message),
+      'CancellationFailure' => cancelledFailure(message),
+      'StateFailure' => unexpectedFailure(message),
+      'TypeFailure' => unexpectedFailure(message),
+      'UnimplementedFailure' => unexpectedFailure(message),
+      'UnsupportedFailure' => unexpectedFailure(message),
+      'UnknownFailure' => unexpectedFailure(message),
       // Fallback — preserves the message even for unknown types
-      _ => UnknownFailure(message),
+      _ => unexpectedFailure(message),
     };
   }
 
@@ -262,5 +273,18 @@ class FailureReportStore {
       });
     }
     return null;
+  }
+
+  List<FieldViolation> _reconstructViolations(dynamic raw) {
+    if (raw is! List) return const [];
+    return [
+      for (final item in raw)
+        if (item is Map)
+          FieldViolation(
+            path: (item['path'] as String?) ?? '',
+            expected: (item['expected'] as String?) ?? '',
+            actual: (item['actual'] as String?) ?? '',
+          ),
+    ];
   }
 }

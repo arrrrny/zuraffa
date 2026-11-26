@@ -66,7 +66,7 @@ routes:
     }
   });
 
-  FeatureContract contract() => FeatureContract(
+  FeatureContract contract() => FeatureContract.fromTrusted(
     id: featureId,
     displayName: 'Login UI',
     entities: ['Login'],

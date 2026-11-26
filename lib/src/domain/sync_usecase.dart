@@ -59,7 +59,7 @@ abstract class SyncUseCase<T, Params> {
 
     // Convert common exceptions to appropriate failures
     if (error is ArgumentError) {
-      return ValidationFailure(
+      return boundaryViolationFailure(
         error.message?.toString() ?? 'Invalid argument',
         stackTrace: stackTrace,
         cause: error,
@@ -67,7 +67,7 @@ abstract class SyncUseCase<T, Params> {
     }
 
     if (error is StateError) {
-      return ValidationFailure(
+      return boundaryViolationFailure(
         error.message,
         stackTrace: stackTrace,
         cause: error,
@@ -75,7 +75,7 @@ abstract class SyncUseCase<T, Params> {
     }
 
     // Default to UnknownFailure for unexpected exceptions
-    return UnknownFailure(
+    return unexpectedFailure(
       error.toString(),
       stackTrace: stackTrace,
       cause: error,

@@ -65,7 +65,7 @@ abstract class StreamUseCase<T, Params> with Loggable {
     if (cancelToken?.isCancelled ?? false) {
       logger.info('$runtimeType cancelled before starting');
       yield Result.failure(
-        CancellationFailure(
+        cancelledFailure(
           cancelToken?.cancelReason ?? 'Operation was cancelled',
         ),
       );
@@ -85,7 +85,7 @@ abstract class StreamUseCase<T, Params> with Loggable {
         if (cancelToken?.isCancelled ?? false) {
           logger.info('$runtimeType cancelled during execution');
           yield Result.failure(
-            CancellationFailure(
+            cancelledFailure(
               cancelToken?.cancelReason ?? 'Operation was cancelled',
             ),
           );
@@ -98,19 +98,18 @@ abstract class StreamUseCase<T, Params> with Loggable {
       logger.fine('$runtimeType stream completed successfully');
     } on CancelledException catch (e) {
       logger.info('$runtimeType was cancelled: ${e.message}');
-      yield Result.failure(CancellationFailure(e.message));
+      yield Result.failure(cancelledFailure(e.message));
     } on AppFailure catch (e) {
       logger.warning('$runtimeType failed with AppFailure: $e');
       FailureReporterRegistry.instance.reportFailure(
         e,
-        stackTrace: e.stackTrace,
         attributes: {'usecase': '$runtimeType'},
       );
 
       yield Result.failure(e);
     } catch (e, stackTrace) {
       logger.severe('$runtimeType failed unexpectedly: $e', e, stackTrace);
-      final failure = AppFailure.from(e, stackTrace);
+      final failure = appFailureFrom(e, stackTrace);
       FailureReporterRegistry.instance.reportFailure(
         failure,
         stackTrace: stackTrace,

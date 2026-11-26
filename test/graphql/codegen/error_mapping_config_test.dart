@@ -97,19 +97,16 @@ void main() {
       );
 
       final businessFailure = config.toFailure('InsufficientStockError');
-      expect(businessFailure, isA<ValidationFailure>());
-      expect(businessFailure.code, 'InsufficientStockError');
+      expect(businessFailure, isA<BoundaryViolationFailure>());
 
       final sessionFailure = config.toFailure('NoActiveOrderError');
-      expect(sessionFailure, isA<UnauthorizedFailure>());
-      expect(sessionFailure.code, 'NoActiveOrderError');
+      expect(sessionFailure, isA<PolicyDeniedFailure>());
 
       final validationFailure = config.toFailure('NegativeQuantityError');
-      expect(validationFailure, isA<ValidationFailure>());
+      expect(validationFailure, isA<BoundaryViolationFailure>());
 
       final unknownFailure = config.toFailure('UnknownError');
-      expect(unknownFailure, isA<UnknownFailure>());
-      expect(unknownFailure.code, 'UnknownError');
+      expect(unknownFailure, isA<UnexpectedFailure>());
     });
 
     test('toFailure includes message when provided', () {

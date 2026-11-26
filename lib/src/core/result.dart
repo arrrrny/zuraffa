@@ -13,7 +13,7 @@
 ///     final user = await repository.get(id);
 ///     return Result.success(user);
 ///   } catch (e, stackTrace) {
-///     return Result.failure(AppFailure.from(e, stackTrace));
+///     return Result.failure(appFailureFrom(e, stackTrace));
 ///   }
 /// }
 ///

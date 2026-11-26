@@ -124,7 +124,7 @@ class FailingMockProviderBuilder {
       specLibrary.library(specs: [clazz], directives: directives),
       leadingComment:
           '// Mock failure preset (spec 1110, issue #1110): '
-          'every method throws ServerFailure.',
+          'every method throws networkFailure.',
     );
 
     return FileUtils.writeFile(
@@ -149,7 +149,7 @@ class FailingMockProviderBuilder {
     String method,
   ) {
     final idType = config.idFieldType;
-    final failure = refer('ServerFailure').constInstance([
+    final failure = refer('networkFailure').call([
       literalString(
         '$entityName mock failure (spec 1110 --fail preset): method $method',
       ),

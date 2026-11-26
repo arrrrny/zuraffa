@@ -4,8 +4,6 @@ import 'params.dart';
 
 part '../../../_br_/src/core/params/update_params.part.dart';
 
-
-
 /// Parameters for updating an entity.
 ///
 /// The type parameter [I] represents the ID type (e.g., `String`, `int`).
@@ -15,6 +13,9 @@ part '../../../_br_/src/core/params/update_params.part.dart';
 ///
 /// This allows strongly-typed IDs and patch data instead of using `dynamic`.
 @ZorphyValue()
+@Deprecated(
+  'Replaced in v8 by ZfaQuery<T> and concrete @ZorphyIntent classes in ZFA-008/ZFA-017',
+)
 abstract class $UpdateParams<I, P> implements $$Params {
   const $UpdateParams();
 
@@ -23,4 +24,32 @@ abstract class $UpdateParams<I, P> implements $$Params {
 
   /// The patch data to apply (Zorphy Patch or Partial map).
   P get data;
+
+  /// Optional additional parameters (inherited from the params base in v2;
+  /// declared explicitly under v3, whose codegen does not merge base fields).
+  @override
+  Map<String, dynamic>? get params;
+}
+
+/// Trust-boundary wire codec for [UpdateParams] (v3 generic value types get no
+/// generated codec).
+extension UpdateParamsWireCodec<I, P> on UpdateParams<I, P> {
+  /// Serialize to a wire map; [toI] encodes the id, [toP] the patch payload.
+  Map<String, dynamic> toWire(
+    Object? Function(I value) toI,
+    Object? Function(P value) toP,
+  ) => {'params': params, 'id': toI(id), 'data': toP(data)};
+}
+
+/// Decode an [UpdateParams] from a wire map.
+UpdateParams<I, P> updateParamsFromWire<I, P>(
+  Map<String, dynamic> raw,
+  I Function(Object? json) fromI,
+  P Function(Object? json) fromP,
+) {
+  return UpdateParams<I, P>.fromTrusted(
+    params: raw['params'] as Map<String, dynamic>?,
+    id: fromI(raw['id']),
+    data: fromP(raw['data']),
+  );
 }

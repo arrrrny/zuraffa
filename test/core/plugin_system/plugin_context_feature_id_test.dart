@@ -20,7 +20,7 @@ void main() {
   group('PluginContext.featureId (spec 1115 #5)', () {
     test('exposes the active contract id as a typed FeatureId', () {
       final ctx = context(
-        feature: FeatureContract(
+        feature: FeatureContract.fromTrusted(
           id: '004-login-ui',
           displayName: 'Login UI',
           entities: ['Login'],

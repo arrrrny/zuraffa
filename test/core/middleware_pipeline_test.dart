@@ -51,7 +51,7 @@ class FailingMiddleware implements ZfaMiddleware<TestIntent, String> {
   ) async {
     ctx.metadata['log'] = (ctx.metadata['log'] as List<String>? ?? [])
       ..add('fail-pre');
-    return Result.failure(AppFailure.validation('blocked'));
+    return Result.failure(boundaryViolationFailure('blocked'));
   }
 }
 
@@ -137,7 +137,7 @@ void main() {
       final result = await pipeline.execute(TestIntent('test'), ctx, handler);
 
       expect(result.isFailure, isTrue);
-      expect(result.getFailureOrNull(), isA<ValidationFailure>());
+      expect(result.getFailureOrNull(), isA<BoundaryViolationFailure>());
       expect(result.getFailureOrNull()?.message, equals('blocked'));
       // Handler never ran; outer `map` was bypassed so no 'outer-' prefix was
       // applied to the failure.

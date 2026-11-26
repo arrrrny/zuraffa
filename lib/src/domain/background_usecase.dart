@@ -166,7 +166,7 @@ abstract class BackgroundUseCase<T, Params> with Loggable {
       logger.info('$runtimeType cancelled before starting');
       return Stream.value(
         Result.failure(
-          CancellationFailure(
+          cancelledFailure(
             cancelToken?.cancelReason ?? 'Operation was cancelled',
           ),
         ),
@@ -196,7 +196,7 @@ abstract class BackgroundUseCase<T, Params> with Loggable {
       final subscription = cancelToken.onCancel.listen((_) {
         _controller?.add(
           Result.failure(
-            CancellationFailure(
+            cancelledFailure(
               cancelToken.cancelReason ?? 'Operation was cancelled',
             ),
           ),
@@ -254,7 +254,7 @@ abstract class BackgroundUseCase<T, Params> with Loggable {
       logger.fine('$runtimeType isolate spawned successfully');
     } catch (e, stackTrace) {
       logger.severe('$runtimeType failed to spawn isolate', e, stackTrace);
-      final failure = AppFailure.from(e, stackTrace);
+      final failure = appFailureFrom(e, stackTrace);
       FailureReporterRegistry.instance.reportFailure(
         failure,
         stackTrace: stackTrace,
@@ -276,7 +276,7 @@ abstract class BackgroundUseCase<T, Params> with Loggable {
           : null;
 
       logger.warning('$runtimeType isolate error', error, stackTrace);
-      final failure = AppFailure.from(error, stackTrace);
+      final failure = appFailureFrom(error, stackTrace);
       FailureReporterRegistry.instance.reportFailure(
         failure,
         stackTrace: stackTrace,
@@ -308,7 +308,7 @@ abstract class BackgroundUseCase<T, Params> with Loggable {
           message.error,
           message.stackTrace,
         );
-        final taskFailure = AppFailure.from(message.error!, message.stackTrace);
+        final taskFailure = appFailureFrom(message.error!, message.stackTrace);
         FailureReporterRegistry.instance.reportFailure(
           taskFailure,
           stackTrace: message.stackTrace,
@@ -330,7 +330,7 @@ abstract class BackgroundUseCase<T, Params> with Loggable {
           );
           _controller?.add(
             Result.failure(
-              UnknownFailure(
+              unexpectedFailure(
                 'Received data of unexpected type: ${message.data.runtimeType}',
               ),
             ),
