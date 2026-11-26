@@ -250,7 +250,15 @@ TreeFacts inspectTree(Element root) {
         widget is CircularProgressIndicator ||
         widget is LinearProgressIndicator ||
         widget is CupertinoActivityIndicator ||
-        widget is RefreshIndicator) {
+        widget is RefreshIndicator ||
+        // Legacy `package:flutter/material.dart` indicators are distinct
+        // types from the `material_ui` ones above. Flutter 3.47 deprecates
+        // that LIBRARY, so importing it — even prefixed or with `show` —
+        // reintroduces the `deprecated_member_use` info the generated-view
+        // compile gate fails on. Detect the legacy types by name here
+        // instead: this auditor is debug-only and needs no such import.
+        widget.runtimeType.toString() == 'CircularProgressIndicator' ||
+        widget.runtimeType.toString() == 'LinearProgressIndicator') {
       hasProgressIndicator = true;
     }
     final key = widget.key;
