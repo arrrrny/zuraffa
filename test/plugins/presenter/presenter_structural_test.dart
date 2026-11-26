@@ -139,7 +139,9 @@ dependencies:
       expect(content, contains('_getProduct.call('));
       expect(
         content,
-        contains('QueryParams<Product>(filter: Eq(ProductFields.id, id))'),
+        contains(
+          'QueryParams<Product>.fromTrusted(filter: Eq(ProductFields.id, id))',
+        ),
       );
     },
   );

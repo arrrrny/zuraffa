@@ -100,7 +100,10 @@ abstract class StreamUseCase<T, Params> with Loggable {
       logger.info('$runtimeType was cancelled: ${e.message}');
       yield Result.failure(cancelledFailure(e.message));
     } on AppFailure catch (e, stackTrace) {
-      logger.warning('$runtimeType failed with AppFailure: $e');
+      logger.warning(
+        '$runtimeType failed with AppFailure: '
+        '${e.runtimeType}(${e.message})',
+      );
       FailureReporterRegistry.instance.reportFailure(
         e,
         stackTrace: reportedFailureStackTrace(e, stackTrace),
@@ -124,7 +127,9 @@ abstract class StreamUseCase<T, Params> with Loggable {
   /// Override this method to implement the streaming logic.
   ///
   /// - Throw [AppFailure] subclasses for expected/recoverable errors
-  /// - Any other exception will be wrapped in [UnknownFailure]
+  /// - Any other exception is classified through `appFailureFrom` (for
+  ///   example, a deadline error becomes a [TimeoutFailure]); it is not
+  ///   wrapped in a single generic variant
   /// - Check `cancelToken?.isCancelled` for long gaps between emissions
   ///
   /// Each emitted value will be wrapped in [Success].

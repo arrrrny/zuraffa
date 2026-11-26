@@ -489,12 +489,6 @@ AppFailure appFailureFrom(Object error, [StackTrace? stackTrace]) {
       lower.contains('no address associated') ||
       lower.contains('handshakeexception') ||
       hasStatus(500) ||
-      hasStatus(502) ||
-      hasStatus(503) ||
-      hasStatus(504) ||
-      lower.contains('internal server error') ||
-      lower.contains('bad gateway') ||
-      lower.contains('service unavailable') ||
       lower.contains('rate limit')) {
     return networkFailure(message);
   }
@@ -543,6 +537,16 @@ AppFailure appFailureFrom(Object error, [StackTrace? stackTrace]) {
       lower.contains('duplicate') ||
       lower.contains('already exists')) {
     return conflictFailure(message);
+  }
+
+  // Server errors, checked after conflict as in the v2 chain.
+  if (hasStatus(502) ||
+      hasStatus(503) ||
+      hasStatus(504) ||
+      lower.contains('internal server error') ||
+      lower.contains('bad gateway') ||
+      lower.contains('service unavailable')) {
+    return networkFailure(message);
   }
 
   // Storage (cache / database).

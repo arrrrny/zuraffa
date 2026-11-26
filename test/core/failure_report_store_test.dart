@@ -129,6 +129,8 @@ void main() {
 
       // UnexpectedFailure
       expect(loaded[9].failure, isA<UnexpectedFailure>());
+      // The machine-readable code survives the save/load round trip (#2179).
+      expect(loaded[9].failure.code, equals('ENOENT'));
 
       // File is cleared after load
       expect(File(filePath).existsSync(), isFalse);

@@ -192,11 +192,17 @@ extension TestBuilderEntity on TestBuilder {
     }
 
     if (entityFile != null) {
-      directives.add(Directive.import(toPackageImport(entityFile.path)));
+      directives.add(
+        Directive.import(
+          toPackageImport(entityFile.path),
+          hide: ['${entityName}MockData'],
+        ),
+      );
     } else {
       directives.add(
         Directive.import(
           'package:$packageName/src/domain/entities/$entitySnake/$entitySnake.dart',
+          hide: ['${entityName}MockData'],
         ),
       );
     }
@@ -558,7 +564,7 @@ extension TestBuilderEntity on TestBuilder {
     switch (method) {
       case 'get':
       case 'watch':
-        paramsExpr = refer('QueryParams<$e>').call([], {
+        paramsExpr = refer('QueryParams<$e>').property('fromTrusted').call([], {
           'filter': refer(
             'Eq',
           ).call([refer('${e}Fields').property(qf), refer('t$e').property(qf)]),
@@ -566,28 +572,35 @@ extension TestBuilderEntity on TestBuilder {
         break;
       case 'getList':
       case 'watchList':
-        paramsExpr = refer('ListQueryParams<$e>').call([]);
+        paramsExpr = refer(
+          'ListQueryParams<$e>',
+        ).property('fromTrusted').call([]);
         break;
       case 'create':
         paramsExpr = refer('t$e');
         break;
       case 'update':
-        paramsExpr = refer('UpdateParams<$id, ${e}Patch>').call([], {
-          'id': refer('t$e').property(config.idField),
-          'data': refer('${e}Patch').call([]),
-        });
+        paramsExpr = refer('UpdateParams<$id, ${e}Patch>')
+            .property('fromTrusted')
+            .call([], {
+              'id': refer('t$e').property(config.idField),
+              'data': refer('${e}Patch').call([]),
+            });
         break;
       case 'toggle':
-        paramsExpr = refer('ToggleParams<$id, Field<$e, dynamic>>').call([], {
-          'id': refer('t$e').property(config.idField),
-          'field': refer('${e}Fields').property(qf),
-          'value': toggleSampleValue(config.queryFieldType),
-        });
+        paramsExpr = refer('ToggleParams<$id, Field<$e, dynamic>>')
+            .property('fromTrusted')
+            .call([], {
+              'id': refer('t$e').property(config.idField),
+              'field': refer('${e}Fields').property(qf),
+              'value': toggleSampleValue(config.queryFieldType),
+            });
         break;
       case 'delete':
-        paramsExpr = refer(
-          'DeleteParams<$id>',
-        ).call([], {'id': refer('t$e').property(config.idField)});
+        paramsExpr = refer('DeleteParams<$id>').property('fromTrusted').call(
+          [],
+          {'id': refer('t$e').property(config.idField)},
+        );
         break;
       default:
         paramsExpr = refer('t$e');

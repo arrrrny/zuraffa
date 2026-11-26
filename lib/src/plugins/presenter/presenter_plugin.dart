@@ -675,7 +675,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     // The ToggleParams constructor's `value:` named field is unaffected — it
     // is a class field name, not a parameter name.
     final toggleParams =
-        refer('ToggleParams<${config.idFieldType}, $fieldEnum>').call([], {
+        refer(
+          'ToggleParams<${config.idFieldType}, $fieldEnum>',
+        ).property('fromTrusted').call([], {
           'id': refer(config.idField),
           'field': refer('field'),
           'value': refer('toggleValue'),

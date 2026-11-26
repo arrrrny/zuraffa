@@ -572,7 +572,7 @@ class MockContractTestWriter {
     final idValue = _firstRecordIdExpr(entityName, outputDir);
     if (idValue == null) return null;
 
-    if (t.startsWith('DeleteParams<')) return '$t(id: $idValue)';
+    if (t.startsWith('DeleteParams<')) return '$t.fromTrusted(id: $idValue)';
     if (t.startsWith('UpdateParams<')) {
       final patch = _patchTypeFor(t);
       return '$t(id: $idValue, data: $patch())';
@@ -581,7 +581,7 @@ class MockContractTestWriter {
       final idField = _idFieldName(entityName, outputDir) ?? 'id';
       final fields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
       final value = _toggleSampleValue(fields[idField]);
-      return '$t(id: $idValue, field: '
+      return '$t.fromTrusted(id: $idValue, field: '
           "const Field<$entityName, dynamic>('$idField'), value: $value)";
     }
     return null;

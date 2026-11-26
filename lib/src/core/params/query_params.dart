@@ -93,7 +93,12 @@ Map<dynamic, dynamic>? _jsonViewOf(Object? item) {
       final view = value.toJson();
       return view is Map ? view : null;
     } on NoSuchMethodError {
-      return null;
+      try {
+        final view = value.toWire();
+        return view is Map ? view : null;
+      } on NoSuchMethodError {
+        return null;
+      }
     }
   }
 }

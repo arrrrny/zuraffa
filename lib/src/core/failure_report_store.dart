@@ -55,14 +55,17 @@ class FailureReportStore {
       // the WHOLE batch, so unrelated reports were never written and could be
       // dropped when the queue cleared on shutdown (review #2179). Convert
       // supported values to a JSON-safe shape, then isolate any report that
-      // still cannot be encoded.
-      final jsonList = <Map<String, dynamic>>[];
+      // still cannot be encoded. Encoding happens per report inside the try so
+      // a value `_jsonSafeValue` cannot rescue (e.g. `double.nan`, which is a
+      // `num` and passes through unchanged but `jsonEncode` rejects) skips
+      // only its own report instead of failing the whole batch.
+      final encoded = <String>[];
       var skipped = 0;
       for (final report in reports) {
         try {
-          jsonList.add(
-            _jsonSafeValue(_reportToJson(report)) as Map<String, dynamic>,
-          );
+          final json =
+              _jsonSafeValue(_reportToJson(report)) as Map<String, dynamic>;
+          encoded.add(jsonEncode(json));
         } catch (e, stackTrace) {
           skipped++;
           _logger.warning(
@@ -73,10 +76,10 @@ class FailureReportStore {
           );
         }
       }
-      await file.writeAsString(jsonEncode(jsonList));
+      await file.writeAsString('[${encoded.join(',')}]');
 
       _logger.fine(
-        'Persisted ${jsonList.length} failure reports to disk'
+        'Persisted ${encoded.length} failure reports to disk'
         '${skipped == 0 ? '' : ' ($skipped skipped as unserializable)'}',
       );
     } catch (e, stackTrace) {
@@ -190,7 +193,10 @@ class FailureReportStore {
   /// Fields shared by every variant, persisted so replay does not change a
   /// report's retry semantics or correlation id after a restart.
   Map<String, dynamic> _sharedFailureData(AppFailure failure) {
-    final data = <String, dynamic>{'isRetryable': failure.isRetryable};
+    final data = <String, dynamic>{
+      'isRetryable': failure.isRetryable,
+      'code': ?failure.code,
+    };
     final traceId = failure.traceId;
     if (traceId != null) data['traceId'] = traceId;
     return data;
@@ -278,6 +284,8 @@ class FailureReportStore {
   String? _storedTraceId(Map<String, dynamic> data) =>
       data['traceId'] as String?;
 
+  String? _storedCode(Map<String, dynamic> data) => data['code'] as String?;
+
   StackTrace? _storedStackTrace(Map<String, dynamic> data) {
     final value = data['stackTrace'] as String?;
     return value == null ? null : StackTrace.fromString(value);
@@ -295,6 +303,7 @@ class FailureReportStore {
         message,
         statusCode: data['statusCode'] as int?,
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       'TimeoutFailure' => timeoutFailure(
@@ -303,18 +312,21 @@ class FailureReportStore {
             ? Duration(milliseconds: data['timeoutMs'] as int)
             : null,
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: true),
       ),
       'BoundaryViolationFailure' => boundaryViolationFailure(
         message,
         violations: _reconstructViolations(data['violations']),
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       'PolicyDeniedFailure' => policyDeniedFailure(
         message,
         reason: (data['reason'] as String?) ?? 'permission',
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       'NotFoundFailure' => notFoundFailure(
@@ -322,6 +334,7 @@ class FailureReportStore {
         resourceType: data['resourceType'] as String?,
         resourceId: data['resourceId'] as String?,
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       'ConflictFailure' => conflictFailure(
@@ -331,23 +344,27 @@ class FailureReportStore {
         remotePatchWire: (data['remotePatchWire'] as Map?)
             ?.cast<String, Object?>(),
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       'CancelledFailure' => CancelledFailure.fromTrusted(
         message: message,
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       'InterruptedFailure' => interruptedFailure(
         message,
         intentDigest: data['intentDigest'] as String?,
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: true),
       ),
       'StorageFailure' => storageFailure(
         message,
         layer: (data['layer'] as String?) ?? 'cache',
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       'UnexpectedFailure' => unexpectedFailure(
@@ -355,6 +372,7 @@ class FailureReportStore {
         cause: data['cause'],
         stackTrace: _storedStackTrace(data),
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       // Legacy v2 type names (back-compat with already-persisted reports).
@@ -362,12 +380,14 @@ class FailureReportStore {
         message,
         statusCode: data['statusCode'] as int?,
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       'ValidationFailure' => boundaryViolationFailure(
         message,
         fieldErrors: _reconstructFieldErrors(data['fieldErrors']),
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       // A persisted 401 was an authentication failure in v2; keep that
@@ -376,17 +396,20 @@ class FailureReportStore {
         message,
         reason: 'unauthenticated',
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       'ForbiddenFailure' => policyDeniedFailure(
         message,
         reason: 'forbidden',
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       'CacheFailure' => storageFailure(
         message,
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       'PlatformFailure' => unexpectedFailure(
@@ -394,11 +417,13 @@ class FailureReportStore {
         cause: data['cause'],
         stackTrace: _storedStackTrace(data),
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       'CancellationFailure' => CancelledFailure.fromTrusted(
         message: message,
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       'StateFailure' => unexpectedFailure(
@@ -406,6 +431,7 @@ class FailureReportStore {
         cause: data['cause'],
         stackTrace: _storedStackTrace(data),
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       'TypeFailure' => unexpectedFailure(
@@ -413,6 +439,7 @@ class FailureReportStore {
         cause: data['cause'],
         stackTrace: _storedStackTrace(data),
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       'UnimplementedFailure' => unexpectedFailure(
@@ -420,6 +447,7 @@ class FailureReportStore {
         cause: data['cause'],
         stackTrace: _storedStackTrace(data),
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       'UnsupportedFailure' => unexpectedFailure(
@@ -427,6 +455,7 @@ class FailureReportStore {
         cause: data['cause'],
         stackTrace: _storedStackTrace(data),
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       'UnknownFailure' => unexpectedFailure(
@@ -434,6 +463,7 @@ class FailureReportStore {
         cause: data['cause'],
         stackTrace: _storedStackTrace(data),
         traceId: _storedTraceId(data),
+        code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),
       ),
       // Fallback — preserves the message even for unknown types
