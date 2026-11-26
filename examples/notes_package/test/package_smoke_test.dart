@@ -7,7 +7,7 @@ void main() {
   test('params-only query selects the second Note by its wire ID', () {
     const first = Note.fromTrusted(id: 'first', body: 'First note');
     const second = Note.fromTrusted(id: 'second', body: 'Second note');
-    const params = QueryParams<Note>.fromTrusted(params: {'id': 'second'});
+    final params = QueryParams<Note>.fromTrusted(params: {'id': 'second'});
 
     expect([first, second].query(params), same(second));
   });
