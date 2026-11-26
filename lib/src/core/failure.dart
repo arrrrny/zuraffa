@@ -129,6 +129,22 @@ sealed class AppFailure implements Exception {
     Object? cause,
   }) = ForbiddenFailure;
 
+  /// Create a policy-denied failure
+  ///
+  /// Raised when a runtime policy rule blocks an operation — for example a
+  /// reaction cascade that has crossed its `maxCascadeDepth` loop guard.
+  factory AppFailure.policyDenied({
+    String message = 'Operation denied by policy',
+    required String policyRule,
+    StackTrace? stackTrace,
+    Object? cause,
+  }) => PolicyDeniedFailure(
+    message,
+    policyRule: policyRule,
+    stackTrace: stackTrace,
+    cause: cause,
+  );
+
   /// Create a conflict failure
   const factory AppFailure.conflict(
     String message, {
@@ -490,6 +506,25 @@ final class ForbiddenFailure extends AppFailure {
     }
     return null;
   }
+}
+
+/// Policy-denied failures
+///
+/// Use when a runtime policy rule blocks an operation — for example a reaction
+/// cascade that has crossed its `maxCascadeDepth` loop guard.
+final class PolicyDeniedFailure extends AppFailure {
+  /// The policy rule that denied the operation (e.g. `maxCascadeDepth`).
+  final String policyRule;
+
+  const PolicyDeniedFailure(
+    super.message, {
+    required this.policyRule,
+    super.stackTrace,
+    super.cause,
+  }) : super(code: 'policyDenied');
+
+  @override
+  String toString() => 'PolicyDeniedFailure($policyRule): $message';
 }
 
 /// Conflict failures (409 HTTP errors)

@@ -160,6 +160,7 @@ class FailureReportStore {
       ForbiddenFailure(:final requiredPermission) => {
         'requiredPermission': requiredPermission,
       },
+      PolicyDeniedFailure(:final policyRule) => {'policyRule': policyRule},
       TimeoutFailure(:final timeout) => {'timeoutMs': timeout?.inMilliseconds},
       ConflictFailure(:final conflictType) => {'conflictType': conflictType},
       CacheFailure() => {},

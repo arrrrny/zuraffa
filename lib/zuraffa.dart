@@ -391,6 +391,11 @@ export 'src/core/context/cancellation_token.dart';
 export 'src/core/context/telemetry_span.dart';
 export 'src/core/context/zfa_cost_ledger.dart';
 
+/// ZfaReaction / ZfaReactionBus — typed, decoupled use case choreography with
+/// a `cascadeDepth` loop guard.
+export 'src/core/reactions/zfa_reaction.dart';
+export 'src/core/reactions/zfa_reaction_bus.dart';
+
 /// TelemetryMesh — global trace/span coordinator and auto-instrumentation.
 export 'src/core/otel_log_exporter.dart' show OtelLogExporter;
 export 'src/core/trace_observer.dart' show TraceObserver;
