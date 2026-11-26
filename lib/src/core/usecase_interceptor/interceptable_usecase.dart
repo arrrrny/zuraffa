@@ -19,7 +19,7 @@ import '../context/zuraffa_context.dart';
 /// [SignalResult]. Interceptors can:
 ///
 /// - **Observe** by subscribing to the returned [SignalResult]
-///   via `onSuccess`/`onFailure` (fire-and-forget, like the Hook system).
+///   via `onSuccess`/`onFailure` (fire-and-forget).
 /// - **Short-circuit** by returning a pre-built [SignalResult.success]
 ///   or [SignalResult.failure] instead of calling `next`.
 /// - **Transform** by calling `next`, then using `map` on the

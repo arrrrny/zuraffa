@@ -2,11 +2,9 @@ library;
 
 import 'dart:async';
 
-import 'src/core/failure_hooks.dart';
+import 'src/core/artifact_publisher.dart';
 import 'src/core/failure_reporter.dart';
 import 'src/core/failure_reporter_registry.dart';
-import 'src/core/hook.dart';
-import 'src/core/hook_registry.dart';
 import 'src/core/otel_log_exporter.dart';
 import 'src/core/retry_policy.dart';
 import 'src/core/uncaught_error_funnel.dart';
@@ -214,15 +212,6 @@ export 'src/core/retry_policy.dart' show ReportRetryPolicy;
 /// artifacts (HTML, images, files) for any reason (failure, scan, debug).
 export 'src/core/artifact_publisher.dart'
     show ArtifactPublisher, ArtifactHook, ArtifactContext;
-
-/// UseCase Hook system — intercept any UseCase at pre/success/failure phases
-export 'src/core/hook.dart'
-    show Hook, HookPhase, HookContext, HookErrorPolicy, HookVetoException;
-export 'src/core/hook_registry.dart' show HookRegistry;
-
-/// Failure hooks — backward-compatible layer delegating to ArtifactPublisher.
-export 'src/core/failure_hooks.dart'
-    show FailureHook, FailureHookManager, FailureContext;
 
 /// Uncaught-error funnel — the family-wide capture contract
 /// ([captureUncaught], [installUncaughtErrorHandlers],
@@ -1200,36 +1189,6 @@ class Zuraffa {
   }
 
   // ============================================================
-  // Hooks (generic)
-  // ============================================================
-
-  /// Register a generic hook.
-  ///
-  /// Hooks intercept UseCase execution at pre/success/failure phases.
-  /// Multiple hooks can be registered simultaneously and all will fire.
-  ///
-  /// ## Example
-  /// ```dart
-  /// Zuraffa.registerHook(EngagementHook(repository));
-  /// ```
-  static void registerHook(Hook hook) {
-    HookRegistry.instance.register(hook);
-  }
-
-  /// Unregister a hook by ID.
-  static void unregisterHook(String id) {
-    HookRegistry.instance.unregister(id);
-  }
-
-  /// Enable/disable all hooks globally.
-  ///
-  /// Set to `false` to instantly disable all hooks (GDPR compliance,
-  /// debug mode, performance profiling).
-  static set hooksEnabled(bool value) {
-    HookRegistry.instance.isEnabled = value;
-  }
-
-  // ============================================================
   // Interceptors (UseCase pipeline)
   // ============================================================
 
@@ -1265,31 +1224,6 @@ class Zuraffa {
   /// Clear all registered interceptors.
   static void clearInterceptors() {
     interceptorRegistry.clear();
-  }
-
-  // ============================================================
-  // Backward-compatible Failure Hooks
-  // ============================================================
-
-  /// Register a failure hook that reacts to errors.
-  ///
-  /// @deprecated Use [registerArtifactHook] with [ArtifactHook] instead.
-  static void registerFailureHook(FailureHook hook) {
-    FailureHookManager().register(hook);
-  }
-
-  /// Unregister a failure hook by its [id].
-  ///
-  /// @deprecated Use [unregisterArtifactHook] instead.
-  static void unregisterFailureHook(String id) {
-    FailureHookManager().unregister(id);
-  }
-
-  /// Dispose all artifact and failure hooks.
-  ///
-  /// Call this on app shutdown alongside [disposeFailureReporters].
-  static void disposeFailureHooks() {
-    ArtifactPublisher.instance.dispose();
   }
 
   static void _defaultLogHandler(LogRecord record) {

@@ -99,6 +99,20 @@ Mono-version fleet alignment to 7.3.2: outbound send port lands in zuraffa_inten
 ## [7.3.0] - 2026-10-28
 
 ### Removed
+- **BREAKING (v8.0.0): the legacy untyped hook system is deleted** (issue
+  #2176, ZFA-005 follow-up to #2174). `Hook`, `HookPhase`, `HookContext`,
+  `HookErrorPolicy`, `HookVetoException` (`lib/src/core/hook.dart`),
+  `HookRegistry` (`lib/src/core/hook_registry.dart`), and the backward-
+  compatible `FailureHook` / `FailureHookManager` / `FailureContext`
+  (`lib/src/core/failure_hooks.dart`) are gone, along with the
+  `Zuraffa.registerHook` / `unregisterHook` / `hooksEnabled` /
+  `registerFailureHook` / `unregisterFailureHook` / `disposeFailureHooks`
+  static shims and the pre/success/failure dispatch calls in `UseCase` and
+  `StreamUseCase`. Consumers migrate to the typed onion `ZfaMiddleware` /
+  `MiddlewarePipeline` / `ZfaContext` / `NextUseCase` contract exported from
+  the public barrel (added by #2174). `UseCase.call` now runs `execute`
+  with cancellation and error wrapping only — no hook metadata bag, no
+  blocking/veto pre phase.
 - **nocterm is no longer a dependency of `zuraffa`** (issue #393, completes the
   #1661 trim): the TUI runtime (screens, widgets, theme, key bindings, tty
   guard, DI resolver, use-case bindings) and the `zfa tdd theater` replay TUI
