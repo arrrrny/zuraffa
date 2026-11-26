@@ -87,7 +87,7 @@ void main() {
       expect(
         content,
         contains(
-          'ToggleParams<String, Field<Barcode, dynamic>>(\n'
+          'ToggleParams<String, Field<Barcode, dynamic>>.fromTrusted(\n'
           '        id: value,\n'
           '        field: field,\n'
           '        value: toggleValue,',

@@ -632,9 +632,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final dataType = config.useZorphy
         ? '${entityName}Patch'
         : 'Partial<$entityName>';
-    final updateParams = refer(
-      'UpdateParams<${config.idFieldType}, $dataType>',
-    ).call([], {'id': refer(config.idField), 'data': refer('data')});
+    final updateParams = refer('UpdateParams<${config.idFieldType}, $dataType>')
+        .property('fromTrusted')
+        .call([], {'id': refer(config.idField), 'data': refer('data')});
     final callExpression = refer('_${info.fieldName}')
         .property('call')
         .call([updateParams], {'cancelToken': refer('cancelToken')});
@@ -718,7 +718,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   Method _buildDeleteMethod(GeneratorConfig config, ParsedUseCaseInfo info) {
     final deleteParams = refer(
       'DeleteParams<${config.idFieldType}>',
-    ).call([], {'id': refer(config.idField)});
+    ).property('fromTrusted').call([], {'id': refer(config.idField)});
     final callExpression = refer('_${info.fieldName}')
         .property('call')
         .call([deleteParams], {'cancelToken': refer('cancelToken')});

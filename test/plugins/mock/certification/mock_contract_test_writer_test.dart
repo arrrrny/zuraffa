@@ -153,7 +153,7 @@ abstract class LoginDataSource with Loggable, FailureHandler {
         // update: id from the first mock record + parameterless patch.
         expect(
           source.contains(
-            'UpdateParams<String, LoginPatch>(id: '
+            'UpdateParams<String, LoginPatch>.fromTrusted(id: '
             'LoginMockData.logins.first.id, data: LoginPatch())',
           ),
           isTrue,

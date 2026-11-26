@@ -8,7 +8,7 @@
 // compilation — the certification goes red (the certification is live).
 import 'package:test/test.dart';
 import 'package:zuraffa/mock.dart';
-import '../../../lib/src/domain/entities/login/login.dart';
+import '../../../lib/src/domain/entities/login/login.dart' hide 'LoginMockData';
 import '../../../lib/src/data/datasources/login/login_datasource.dart';
 import '../../../lib/src/data/datasources/login/login_mock_datasource.dart';
 
@@ -37,7 +37,7 @@ final value = await dataSource.get(QueryParams<Login>.fromTrusted());
           dataSource.update;
       expect(update$, isNotNull);
       // Behavioral: the fake returns typed default data (no throw).
-final value = await dataSource.update(UpdateParams<String, LoginPatch>(id: LoginMockData.logins.first.id, data: LoginPatch()));
+final value = await dataSource.update(UpdateParams<String, LoginPatch>.fromTrusted(id: LoginMockData.logins.first.id, data: LoginPatch()));
       expect(value, isA<Login>());
     });
 
@@ -47,7 +47,7 @@ final value = await dataSource.update(UpdateParams<String, LoginPatch>(id: Login
           dataSource.toggle;
       expect(toggle$, isNotNull);
       // Behavioral: the fake returns typed default data (no throw).
-final value = await dataSource.toggle(ToggleParams<String, Field<Login, dynamic>>(id: LoginMockData.logins.first.id, field: const Field<Login, dynamic>('id'), value: 'toggled'));
+final value = await dataSource.toggle(ToggleParams<String, Field<Login, dynamic>>.fromTrusted(id: LoginMockData.logins.first.id, field: const Field<Login, dynamic>('id'), value: 'toggled'));
       expect(value, isA<Login>());
     });
   });

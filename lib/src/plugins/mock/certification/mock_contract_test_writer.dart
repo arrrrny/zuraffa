@@ -363,12 +363,16 @@ class MockContractTestWriter {
       ..writeln("import 'package:zuraffa/mock.dart';");
 
     if (entityPath != null && File(entityPath).existsSync()) {
-      buffer.writeln("import '${rel(entityPath)}';");
+      buffer.writeln(
+        "import '${rel(entityPath)}' hide '${entityName}MockData';",
+      );
     }
     for (final name
         in importedEntities.where((n) => n != entityName).toList()..sort()) {
       final path = _entityFile(name, outputDir);
-      if (path != null) buffer.writeln("import '${rel(path)}';");
+      if (path != null) {
+        buffer.writeln("import '${rel(path)}' hide '${name}MockData';");
+      }
     }
     buffer.writeln("import '${rel(interfacePath)}';");
     buffer.writeln("import '${rel(mockPath)}';");
@@ -575,7 +579,7 @@ class MockContractTestWriter {
     if (t.startsWith('DeleteParams<')) return '$t.fromTrusted(id: $idValue)';
     if (t.startsWith('UpdateParams<')) {
       final patch = _patchTypeFor(t);
-      return '$t(id: $idValue, data: $patch())';
+      return '$t.fromTrusted(id: $idValue, data: $patch())';
     }
     if (t.startsWith('ToggleParams<')) {
       final idField = _idFieldName(entityName, outputDir) ?? 'id';
