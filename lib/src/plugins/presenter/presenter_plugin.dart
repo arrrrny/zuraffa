@@ -540,10 +540,13 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final paramsExpression = config.queryFieldType == 'NoParams'
         ? refer('NoParams').constInstance([])
         : refer('QueryParams<$entityName>').property('fromTrusted').call([], {
-            'filter': refer('Eq').call([
-              refer('${entityName}Fields').property(config.queryField),
-              refer(config.queryField),
-            ]),
+            // v3: the field descriptor IS the predicate builder
+            // (`<E>Fields.<f>.equals(v)` -> ZorphyFilter), the type
+            // QueryParams.filter carries.
+            'filter': refer('${entityName}Fields')
+                .property(config.queryField)
+                .property('equals')
+                .call([refer(config.queryField)]),
           });
 
     final callExpression = refer('_${info.fieldName}')
@@ -758,10 +761,13 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final paramsExpression = config.queryFieldType == 'NoParams'
         ? refer('NoParams').constInstance([])
         : refer('QueryParams<$entityName>').property('fromTrusted').call([], {
-            'filter': refer('Eq').call([
-              refer('${entityName}Fields').property(config.queryField),
-              refer(config.queryField),
-            ]),
+            // v3: the field descriptor IS the predicate builder
+            // (`<E>Fields.<f>.equals(v)` -> ZorphyFilter), the type
+            // QueryParams.filter carries.
+            'filter': refer('${entityName}Fields')
+                .property(config.queryField)
+                .property('equals')
+                .call([refer(config.queryField)]),
           });
 
     final callExpression = refer('_${info.fieldName}')
@@ -832,10 +838,13 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final paramsExpression = config.queryFieldType == 'NoParams'
         ? refer('NoParams').constInstance([])
         : refer('QueryParams<$entityName>').property('fromTrusted').call([], {
-            'filter': refer('Eq').call([
-              refer('${entityName}Fields').property(config.queryField),
-              refer(config.queryField),
-            ]),
+            // v3: the field descriptor IS the predicate builder
+            // (`<E>Fields.<f>.equals(v)` -> ZorphyFilter), the type
+            // QueryParams.filter carries.
+            'filter': refer('${entityName}Fields')
+                .property(config.queryField)
+                .property('equals')
+                .call([refer(config.queryField)]),
           });
 
     final getCall = refer('_${info.fieldName}')

@@ -3566,12 +3566,12 @@ abstract final class NetworkFailureFields {
         set: _setStatusCode,
       );
 
-  static const List<ZorphyField<NetworkFailure, Object?>> all = [
-    message,
-    traceId,
-    isRetryable,
-    code,
-    statusCode,
+  static final List<ZorphyField<NetworkFailure, Object?>> all = [
+    message.asObject,
+    traceId.asObject,
+    isRetryable.asObject,
+    code.asObject,
+    statusCode.asObject,
   ];
 
   static String _getMessage(NetworkFailure root) => root.message;
@@ -3653,12 +3653,12 @@ abstract final class TimeoutFailureFields {
         set: _setTimeout,
       );
 
-  static const List<ZorphyField<TimeoutFailure, Object?>> all = [
-    message,
-    traceId,
-    isRetryable,
-    code,
-    timeout,
+  static final List<ZorphyField<TimeoutFailure, Object?>> all = [
+    message.asObject,
+    traceId.asObject,
+    isRetryable.asObject,
+    code.asObject,
+    timeout.asObject,
   ];
 
   static String _getMessage(TimeoutFailure root) => root.message;
@@ -3740,12 +3740,12 @@ abstract final class BoundaryViolationFailureFields {
     set: _setViolations,
   );
 
-  static const List<ZorphyField<BoundaryViolationFailure, Object?>> all = [
-    message,
-    traceId,
-    isRetryable,
-    code,
-    violations,
+  static final List<ZorphyField<BoundaryViolationFailure, Object?>> all = [
+    message.asObject,
+    traceId.asObject,
+    isRetryable.asObject,
+    code.asObject,
+    violations.asObject,
   ];
 
   static String _getMessage(BoundaryViolationFailure root) => root.message;
@@ -3839,12 +3839,12 @@ abstract final class PolicyDeniedFailureFields {
         set: _setReason,
       );
 
-  static const List<ZorphyField<PolicyDeniedFailure, Object?>> all = [
-    message,
-    traceId,
-    isRetryable,
-    code,
-    reason,
+  static final List<ZorphyField<PolicyDeniedFailure, Object?>> all = [
+    message.asObject,
+    traceId.asObject,
+    isRetryable.asObject,
+    code.asObject,
+    reason.asObject,
   ];
 
   static String _getMessage(PolicyDeniedFailure root) => root.message;
@@ -3945,13 +3945,13 @@ abstract final class NotFoundFailureFields {
         set: _setResourceId,
       );
 
-  static const List<ZorphyField<NotFoundFailure, Object?>> all = [
-    message,
-    traceId,
-    isRetryable,
-    code,
-    resourceType,
-    resourceId,
+  static final List<ZorphyField<NotFoundFailure, Object?>> all = [
+    message.asObject,
+    traceId.asObject,
+    isRetryable.asObject,
+    code.asObject,
+    resourceType.asObject,
+    resourceId.asObject,
   ];
 
   static String _getMessage(NotFoundFailure root) => root.message;
@@ -4049,13 +4049,13 @@ abstract final class ConflictFailureFields {
     set: _setRemotePatchWire,
   );
 
-  static const List<ZorphyField<ConflictFailure, Object?>> all = [
-    message,
-    traceId,
-    isRetryable,
-    code,
-    localPatchWire,
-    remotePatchWire,
+  static final List<ZorphyField<ConflictFailure, Object?>> all = [
+    message.asObject,
+    traceId.asObject,
+    isRetryable.asObject,
+    code.asObject,
+    localPatchWire.asObject,
+    remotePatchWire.asObject,
   ];
 
   static String _getMessage(ConflictFailure root) => root.message;
@@ -4139,11 +4139,11 @@ abstract final class CancelledFailureFields {
         set: _setCode,
       );
 
-  static const List<ZorphyField<CancelledFailure, Object?>> all = [
-    message,
-    traceId,
-    isRetryable,
-    code,
+  static final List<ZorphyField<CancelledFailure, Object?>> all = [
+    message.asObject,
+    traceId.asObject,
+    isRetryable.asObject,
+    code.asObject,
   ];
 
   static String _getMessage(CancelledFailure root) => root.message;
@@ -4220,12 +4220,12 @@ abstract final class InterruptedFailureFields {
         set: _setIntentDigest,
       );
 
-  static const List<ZorphyField<InterruptedFailure, Object?>> all = [
-    message,
-    traceId,
-    isRetryable,
-    code,
-    intentDigest,
+  static final List<ZorphyField<InterruptedFailure, Object?>> all = [
+    message.asObject,
+    traceId.asObject,
+    isRetryable.asObject,
+    code.asObject,
+    intentDigest.asObject,
   ];
 
   static String _getMessage(InterruptedFailure root) => root.message;
@@ -4315,12 +4315,12 @@ abstract final class StorageFailureFields {
         set: _setLayer,
       );
 
-  static const List<ZorphyField<StorageFailure, Object?>> all = [
-    message,
-    traceId,
-    isRetryable,
-    code,
-    layer,
+  static final List<ZorphyField<StorageFailure, Object?>> all = [
+    message.asObject,
+    traceId.asObject,
+    isRetryable.asObject,
+    code.asObject,
+    layer.asObject,
   ];
 
   static String _getMessage(StorageFailure root) => root.message;
@@ -4411,13 +4411,13 @@ abstract final class UnexpectedFailureFields {
         set: _setStackTrace,
       );
 
-  static const List<ZorphyField<UnexpectedFailure, Object?>> all = [
-    message,
-    traceId,
-    isRetryable,
-    code,
-    cause,
-    stackTrace,
+  static final List<ZorphyField<UnexpectedFailure, Object?>> all = [
+    message.asObject,
+    traceId.asObject,
+    isRetryable.asObject,
+    code.asObject,
+    cause.asObject,
+    stackTrace.asObject,
   ];
 
   static String _getMessage(UnexpectedFailure root) => root.message;

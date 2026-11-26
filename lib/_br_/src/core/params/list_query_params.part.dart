@@ -22,9 +22,9 @@ final class ListQueryParams<T> implements ZorphyValueBase {
 
   final String? search;
 
-  final Filter<T>? filter;
+  final ZorphyFilter<T>? filter;
 
-  final Sort<T>? sort;
+  final ZorphySort<T>? sort;
 
   final int? limit;
 
@@ -42,8 +42,10 @@ final class ListQueryParams<T> implements ZorphyValueBase {
   }) {
     return ListQueryParams<T>.fromTrusted(
       search: identical(search, _sentinel) ? this.search : search as String?,
-      filter: identical(filter, _sentinel) ? this.filter : filter as Filter<T>?,
-      sort: identical(sort, _sentinel) ? this.sort : sort as Sort<T>?,
+      filter: identical(filter, _sentinel)
+          ? this.filter
+          : filter as ZorphyFilter<T>?,
+      sort: identical(sort, _sentinel) ? this.sort : sort as ZorphySort<T>?,
       limit: identical(limit, _sentinel) ? this.limit : limit as int?,
       offset: identical(offset, _sentinel) ? this.offset : offset as int?,
       params: identical(params, _sentinel)
@@ -128,14 +130,14 @@ final class ListQueryParams<T> implements ZorphyValueBase {
       _search = _boundaryAs<String>(raw_search, '/search', violations);
     }
     final Object? raw_filter = raw['filter'];
-    Filter<T>? _filter;
+    ZorphyFilter<T>? _filter;
     if (raw_filter != null) {
-      _filter = _boundaryAs<Filter<T>>(raw_filter, '/filter', violations);
+      _filter = _boundaryAs<ZorphyFilter<T>>(raw_filter, '/filter', violations);
     }
     final Object? raw_sort = raw['sort'];
-    Sort<T>? _sort;
+    ZorphySort<T>? _sort;
     if (raw_sort != null) {
-      _sort = _boundaryAs<Sort<T>>(raw_sort, '/sort', violations);
+      _sort = _boundaryAs<ZorphySort<T>>(raw_sort, '/sort', violations);
     }
     final Object? raw_limit = raw['limit'];
     int? _limit;

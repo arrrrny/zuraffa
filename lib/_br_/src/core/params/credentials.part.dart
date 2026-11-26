@@ -228,7 +228,7 @@ abstract final class CredentialsFields {
         set: _setParams,
       );
 
-  static const List<ZorphyField<Credentials, Object?>> all = [params];
+  static final List<ZorphyField<Credentials, Object?>> all = [params.asObject];
 
   static Map<String, dynamic>? _getParams(Credentials root) => root.params;
 

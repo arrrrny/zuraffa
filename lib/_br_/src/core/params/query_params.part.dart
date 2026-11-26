@@ -14,7 +14,7 @@ final class QueryParams<T> implements ZorphyValueBase {
   QueryParams.fromTrusted({this.filter, Map<String, dynamic>? params})
     : params = params == null ? null : Map<String, dynamic>.of(params);
 
-  final Filter<T>? filter;
+  final ZorphyFilter<T>? filter;
 
   final Map<String, dynamic>? params;
 
@@ -23,7 +23,9 @@ final class QueryParams<T> implements ZorphyValueBase {
     Object? params = _sentinel,
   }) {
     return QueryParams<T>.fromTrusted(
-      filter: identical(filter, _sentinel) ? this.filter : filter as Filter<T>?,
+      filter: identical(filter, _sentinel)
+          ? this.filter
+          : filter as ZorphyFilter<T>?,
       params: identical(params, _sentinel)
           ? this.params
           : params as Map<String, dynamic>?,
@@ -90,9 +92,9 @@ final class QueryParams<T> implements ZorphyValueBase {
   ) {
     final violations = <FieldViolation>[];
     final Object? raw_filter = raw['filter'];
-    Filter<T>? _filter;
+    ZorphyFilter<T>? _filter;
     if (raw_filter != null) {
-      _filter = _boundaryAs<Filter<T>>(raw_filter, '/filter', violations);
+      _filter = _boundaryAs<ZorphyFilter<T>>(raw_filter, '/filter', violations);
     }
     final Object? raw_params = raw['params'];
     Map<String, dynamic>? _params;

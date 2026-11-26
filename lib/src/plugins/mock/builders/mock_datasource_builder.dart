@@ -180,10 +180,7 @@ class MockDataSourceBuilder {
         if (fileSystem.existsSync(
           '$outputDir/domain/entities/$snake/$snake.dart',
         ))
-          Directive.import(
-            '../../../domain/entities/$snake/$snake.dart',
-            hide: ['${StringUtils.convertToPascalCase(snake)}MockData'],
-          ),
+          Directive.import('../../../domain/entities/$snake/$snake.dart'),
       if (fileSystem.existsSync(
         '$outputDir/data/mock/${entitySnake}_mock_data.dart',
       ))

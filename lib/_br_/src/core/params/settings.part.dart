@@ -225,7 +225,7 @@ abstract final class SettingsFields {
         set: _setParams,
       );
 
-  static const List<ZorphyField<Settings, Object?>> all = [params];
+  static final List<ZorphyField<Settings, Object?>> all = [params.asObject];
 
   static Map<String, dynamic>? _getParams(Settings root) => root.params;
 

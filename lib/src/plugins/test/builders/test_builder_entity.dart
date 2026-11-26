@@ -476,11 +476,16 @@ extension TestBuilderEntity on TestBuilder {
     );
   }
 
-  /// Builds the `Throwing{Entity}DataSource` method overrides. Every datasource
-  /// method throws, giving the failure-path test a repository that always fails.
-  /// All eight canonical signatures are overridden so the class satisfies
+  /// Builds the `Throwing{Entity}DataSource` members. Every datasource method
+  /// throws, giving the failure-path test a repository that always fails.
+  /// All eight canonical signatures are declared so the class satisfies
   /// `implements {Entity}DataSource` for any entity regardless of which subset
   /// of methods its use case actually exercises.
+  ///
+  /// No `@override`: the set is a superset of what any given generated
+  /// interface declares, and `@override` on a member the interface does not
+  /// carry is `override_on_non_overriding_member`. An implementing member
+  /// needs no annotation; a non-overriding one must not have one.
   List<Method> _throwingDataSourceMethods(GeneratorConfig config) {
     final e = config.name;
     final id = config.idFieldType;
@@ -492,7 +497,6 @@ extension TestBuilderEntity on TestBuilder {
           (b) => b
             ..name = name
             ..returns = refer(ret)
-            ..annotations.add(refer('override'))
             ..requiredParameters.addAll(
               params.map(
                 (p) => Parameter(
@@ -562,10 +566,13 @@ extension TestBuilderEntity on TestBuilder {
     switch (method) {
       case 'get':
       case 'watch':
+        // v3: the field descriptor builds the predicate (`<E>Fields.<f>
+        // .equals(v)` -> ZorphyFilter); a v2 `Eq(Field, v)` cannot take a
+        // ZorphyField.
         paramsExpr = refer('QueryParams<$e>').property('fromTrusted').call([], {
           'filter': refer(
-            'Eq',
-          ).call([refer('${e}Fields').property(qf), refer('t$e').property(qf)]),
+            '${e}Fields',
+          ).property(qf).property('equals').call([refer('t$e').property(qf)]),
         });
         break;
       case 'getList':

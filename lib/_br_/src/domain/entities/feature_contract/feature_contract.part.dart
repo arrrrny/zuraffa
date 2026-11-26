@@ -1018,14 +1018,14 @@ abstract final class FeatureContractFields {
         set: _setArgSchema,
       );
 
-  static const List<ZorphyField<FeatureContract, Object?>> all = [
-    id,
-    displayName,
-    entities,
-    boundary,
-    routes,
-    xrayLayer,
-    argSchema,
+  static final List<ZorphyField<FeatureContract, Object?>> all = [
+    id.asObject,
+    displayName.asObject,
+    entities.asObject,
+    boundary.asObject,
+    routes.asObject,
+    xrayLayer.asObject,
+    argSchema.asObject,
   ];
 
   static String _getId(FeatureContract root) => root.id;

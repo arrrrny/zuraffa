@@ -477,12 +477,12 @@ abstract final class InitializationParamsFields {
         set: _setParams,
       );
 
-  static const List<ZorphyField<InitializationParams, Object?>> all = [
-    timeout,
-    forceRefresh,
-    credentials,
-    settings,
-    params,
+  static final List<ZorphyField<InitializationParams, Object?>> all = [
+    timeout.asObject,
+    forceRefresh.asObject,
+    credentials.asObject,
+    settings.asObject,
+    params.asObject,
   ];
 
   static Duration _getTimeout(InitializationParams root) => root.timeout;

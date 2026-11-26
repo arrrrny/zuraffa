@@ -9,7 +9,8 @@ part '../../../_br_/src/core/params/list_query_params.part.dart';
 /// sorting, and pagination to list-based UseCases.
 ///
 /// The type parameter [T] represents the entity type being queried,
-/// enabling type-safe [Filter], [Field], and [Sort] references.
+/// enabling type-safe [ZorphyFilter], [ZorphyField], and [ZorphySort]
+/// references through the entity's `<T>Fields` registry.
 @ZorphyValue()
 @Deprecated(
   'Replaced in v8 by ZfaQuery<T> and concrete @ZorphyIntent classes in ZFA-008/ZFA-017',
@@ -20,23 +21,11 @@ abstract class $ListQueryParams<T> implements Params {
   /// A search string for filtering results.
   String? get search;
 
-  /// A type-safe filter to apply to the query.
-  @JsonKey(
-    includeFromJson: false,
-    includeToJson: false,
-    toJson: FilterConverter.toJson,
-    fromJson: FilterConverter.fromJson,
-  )
-  Filter<T>? get filter;
+  /// A type-safe predicate to apply to the query.
+  ZorphyFilter<T>? get filter;
 
   /// A type-safe sort specification.
-  @JsonKey(
-    includeFromJson: false,
-    includeToJson: false,
-    toJson: SortConverter.toJson,
-    fromJson: SortConverter.fromJson,
-  )
-  Sort<T>? get sort;
+  ZorphySort<T>? get sort;
 
   /// Maximum number of items to return.
   int? get limit;
@@ -50,12 +39,12 @@ abstract class $ListQueryParams<T> implements Params {
   Map<String, dynamic>? get params;
 }
 
-/// Extension methods for converting [Filter] to [ListQueryParams].
-extension FilterToListQueryExtension<T> on Filter<T> {
+/// Extension methods for converting a [ZorphyFilter] to [ListQueryParams].
+extension FilterToListQueryExtension<T> on ZorphyFilter<T> {
   /// Converts this filter to a [ListQueryParams] object.
   ListQueryParams<T> toListQuery({
     String? search,
-    Sort<T>? sort,
+    ZorphySort<T>? sort,
     int? limit,
     int? offset,
     Map<String, dynamic>? params,
@@ -71,18 +60,20 @@ extension FilterToListQueryExtension<T> on Filter<T> {
   }
 }
 
-/// Extension methods for converting a list of [Filter]s to a single [Filter] or [ListQueryParams].
-extension FilterListToListQueryExtension<T> on Iterable<Filter<T>> {
-  /// Combines multiple filters into a [ListQueryParams] object using an [And] filter.
+/// Extension methods for converting a list of [ZorphyFilter]s to a single
+/// filter or [ListQueryParams].
+extension FilterListToListQueryExtension<T> on Iterable<ZorphyFilter<T>> {
+  /// Combines multiple filters into a [ListQueryParams] object using a
+  /// conjunction.
   ListQueryParams<T> toListQuery({
     String? search,
-    Sort<T>? sort,
+    ZorphySort<T>? sort,
     int? limit,
     int? offset,
     Map<String, dynamic>? params,
   }) {
     return ListQueryParams<T>.fromTrusted(
-      filter: And<T>(toList()),
+      filter: ZorphyAnd<T>(toList()),
       search: search,
       sort: sort,
       limit: limit,
@@ -129,8 +120,8 @@ extension ListQueryParamsExtension on ListQueryParams {
 /// Serialize a [ListQueryParams] to a wire map.
 ///
 /// Hand-written for the same reason as [listQueryParamsFromWire]: the
-/// generated `toWire` stores `Filter<T>`/`Sort<T>` as objects, but a wire map
-/// must carry their JSON form ([FilterConverter.toJson],
+/// generated `toWire` stores `ZorphyFilter<T>`/`ZorphySort<T>` as objects,
+/// but a wire map must carry their JSON form ([FilterConverter.toJson],
 /// [SortConverter.toJson]).
 Map<String, dynamic> listQueryParamsToWire<T>(ListQueryParams<T> params) => {
   'search': params.search,
@@ -144,38 +135,29 @@ Map<String, dynamic> listQueryParamsToWire<T>(ListQueryParams<T> params) => {
 /// Decode a [ListQueryParams] from a wire map.
 ///
 /// This is deliberately hand-written rather than the generated `fromWire`:
-/// the generated codec boundary-casts `raw['filter']` to a `Filter<T>`, but a
-/// wire filter is a JSON map that must be BOUND to a typed field of `T` first.
-///
-/// [fields] / [resolveField] carry typed `Field<T, dynamic>` context so a
-/// decoded [Filter]/[Sort] binds to a field of [T]. Without them the converter
-/// builds a fallback `Field<dynamic, dynamic>` whose getter only reads
-/// `Map<String, dynamic>` entities and throws `StateError` for typed ones —
-/// the `as Filter<T>?` / `as Sort<T>?` cast cannot catch that (review #2179).
+/// the generated codec boundary-casts `raw['filter']` to a `ZorphyFilter<T>`,
+/// but a wire filter is a JSON map that must be BOUND to a typed field of `T`
+/// first. [resolveField] maps a field pointer to the entity's erased
+/// `ZorphyField<T, Object?>` — `<T>Fields.all.byPointer` is the canonical
+/// resolver; an unknown pointer or op throws [FormatException] rather than
+/// decoding into a predicate that cannot read the entity.
 ListQueryParams<T> listQueryParamsFromWire<T>(
   Map<String, dynamic> raw,
-  T Function(Object? json) fromElement, [
-  Map<String, Field<T, dynamic>>? fields,
-  FieldResolver<T>? resolveField,
-]) {
+  T Function(Object? json) fromElement,
+  FieldResolver<T> resolveField,
+) {
   return ListQueryParams<T>.fromTrusted(
     search: raw['search'] as String?,
     limit: raw['limit'] as int?,
     offset: raw['offset'] as int?,
     params: raw['params'] as Map<String, dynamic>?,
-    filter: raw['filter'] != null
-        ? FilterConverter.fromJsonTyped<T>(
-            raw['filter'] as Map<String, dynamic>,
-            fields,
-            resolveField,
-          )
-        : null,
-    sort: raw['sort'] != null
-        ? SortConverter.fromJsonTyped<T>(
-            raw['sort'] as Map<String, dynamic>,
-            fields,
-            resolveField,
-          )
-        : null,
+    filter: FilterConverter.fromJsonTyped<T>(
+      raw['filter'] as Map<String, dynamic>?,
+      resolveField,
+    ),
+    sort: SortConverter.fromJsonTyped<T>(
+      raw['sort'] as Map<String, dynamic>?,
+      resolveField,
+    ),
   );
 }
