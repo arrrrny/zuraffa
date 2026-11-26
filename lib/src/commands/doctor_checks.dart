@@ -11,7 +11,7 @@
 ///                      pubspec doesn't declare (issue #1190); offers the
 ///                      exact `pub add` one-liner and heals it under --fix
 /// - `artifacts`      — build_runner partial outputs (entity source without
-///                      sibling `.g.dart`/`.zorphy.dart`)
+///                      generated part)
 /// - `baseline-cache` — `specs/*/tdd/run-baseline.json` readable, schema-valid,
 ///                      fresh (mirrors `RunBaselineCache`'s fail-safe nulls but
 ///                      reports WHY instead of silently falling back)

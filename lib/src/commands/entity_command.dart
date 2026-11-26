@@ -9,6 +9,7 @@ import 'package:zorphy/zorphy.dart';
 import '../config/zfa_config.dart';
 import '../core/plugin_system/capability_invocation_wrapper.dart';
 import '../core/project/receipt_store.dart';
+import '../utils/zorphy_annotations.dart';
 import '../utils/entity_field_injector.dart';
 import '../utils/entity_type_validator.dart';
 import '../utils/entity_utils.dart';
@@ -1824,6 +1825,12 @@ ${missing.map((d) => '   • $d').join('\n')}
     }
   }
 
+  /// Every `part '<uri>';` [src] declares, outside comments.
+  static List<String> _declaredPartUris(String src) => RegExp(
+    r"^\s*part\s+'([^']+)'\s*;",
+    multiLine: true,
+  ).allMatches(stripComments(src)).map((m) => m.group(1)!).toList();
+
   Future<void> _handleValidate(List<String> subArgs) async {
     // Scan entity dirs for missing generated files
     final dir = Directory(fixedEntityOutput);
@@ -1838,17 +1845,22 @@ ${missing.map((d) => '   • $d').join('\n')}
       final mainFile = File(p.join(entity.path, '$name.dart'));
       if (!await mainFile.exists()) continue;
       final content = await mainFile.readAsString();
-      if (content.contains("part '$name.zorphy.dart'")) {
-        final zorphy = File(p.join(entity.path, '$name.zorphy.dart'));
-        if (!await zorphy.exists()) {
-          print('  MISSING: $name.zorphy.dart');
+      // The shared part a zorphy-annotated source declares, at the path
+      // build_runner writes it (the source's own path under `_br_/`).
+      if (declaresZorphyArchetype(content)) {
+        final library = p.relative(mainFile.path);
+        final part = File(sharedPartPath(library));
+        if (!await part.exists()) {
+          print('  MISSING: ${p.relative(part.path)}');
           issues++;
         }
       }
-      if (content.contains("part '$name.g.dart'")) {
-        final g = File(p.join(entity.path, '$name.g.dart'));
+      // A `.g.dart` is owed only when the source declares one.
+      for (final uri in _declaredPartUris(content)) {
+        if (!uri.endsWith('.g.dart')) continue;
+        final g = File(p.join(entity.path, uri));
         if (!await g.exists()) {
-          print('  MISSING: $name.g.dart');
+          print('  MISSING: $uri');
           issues++;
         }
       }

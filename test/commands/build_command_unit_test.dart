@@ -9,6 +9,7 @@ import 'package:test/test.dart';
 
 import 'package:zuraffa/src/commands/build_command.dart';
 import 'package:zuraffa/src/core/dependencies/dependency_wirer.dart';
+import 'package:zuraffa/src/utils/zorphy_annotations.dart';
 
 import '../helpers/project_root.dart';
 
@@ -19,6 +20,47 @@ import '../helpers/project_root.dart';
 /// These tests exercise the same logic in-process (no subprocess, no
 /// build_runner) so the self-healing + safety-net code paths get real line
 /// coverage on the road to 100% (zuraffa#276).
+
+/// Writes a zorphy v3 source at [libraryPath] (absolute, inside the test
+/// sandbox, e.g. `<sandbox>/lib/src/foo.dart`): a `@ZorphyEntity`
+/// declaring build_runner's shared part, with the URI derived by
+/// [sharedPartUri] so the fixture can never drift from the real `_br_/`
+/// convention. The library's project-relative path is everything after
+/// the sandbox's `lib/` segment.
+Future<void> writeV3Source(String libraryPath) async {
+  final file = File(libraryPath);
+  await file.parent.create(recursive: true);
+  await file.writeAsString(
+    "import 'package:zorphy_annotation/zorphy_annotation.dart';\n\n"
+    "part '${sharedPartUri(_projectRelative(libraryPath))}';\n\n"
+    '@ZorphyEntity(principalKey: #id)\n'
+    'abstract class \$Foo {\n  String get id;\n}\n',
+  );
+}
+
+/// Writes the shared part a source at [libraryPath] declares, at the path
+/// build_runner writes it (via [sharedPartPath]).
+Future<void> writeSharedPart(String libraryPath) async {
+  final root = _sandboxRoot(libraryPath);
+  final part = File(
+    p.join(root, sharedPartPath(_projectRelative(libraryPath))),
+  );
+  await part.parent.create(recursive: true);
+  await part.writeAsString('// generated');
+}
+
+/// The sandbox root of an absolute [libraryPath]: everything before its
+/// `lib` segment.
+String _sandboxRoot(String libraryPath) {
+  final segments = p.split(libraryPath);
+  final libIndex = segments.lastIndexOf('lib');
+  return p.joinAll(segments.sublist(0, libIndex));
+}
+
+/// [libraryPath] relative to its sandbox root (`lib/src/foo.dart`).
+String _projectRelative(String libraryPath) => p
+    .relative(libraryPath, from: _sandboxRoot(libraryPath))
+    .replaceAll(r'\', '/');
 
 /// Captures all `print()` output produced by [action] (sync) into a string.
 String capturePrintSync(void Function() action) {
@@ -75,22 +117,14 @@ void main() {
         expect(command.hasGeneratedOutputs(projectRoot: sandbox.path), isFalse);
       });
 
-      test('true when lib/ has a .zorphy.dart file', () async {
-        await Directory(
-          p.join(sandbox.path, 'lib/src'),
-        ).create(recursive: true);
-        await File(
-          p.join(sandbox.path, 'lib/src/foo.zorphy.dart'),
-        ).writeAsString('// generated');
-        expect(command.hasGeneratedOutputs(projectRoot: sandbox.path), isTrue);
-      });
-
       test(
-        'true when test/ has a .g.dart file (test/** generate_for)',
+        'true when lib/ has a build_runner shared part under _br_/',
         () async {
-          await Directory(p.join(sandbox.path, 'test')).create(recursive: true);
+          await Directory(
+            p.join(sandbox.path, 'lib/_br_/src'),
+          ).create(recursive: true);
           await File(
-            p.join(sandbox.path, 'test/foo.g.dart'),
+            p.join(sandbox.path, 'lib/_br_/src/foo.part.dart'),
           ).writeAsString('// generated');
           expect(
             command.hasGeneratedOutputs(projectRoot: sandbox.path),
@@ -98,6 +132,18 @@ void main() {
           );
         },
       );
+
+      test('a .part.dart outside _br_/ is source, not build output', () async {
+        // Only build_runner's reserved directory is its output; a
+        // hand-written part elsewhere must not count as generated.
+        await Directory(
+          p.join(sandbox.path, 'lib/src'),
+        ).create(recursive: true);
+        await File(
+          p.join(sandbox.path, 'lib/src/helper.part.dart'),
+        ).writeAsString('// hand-written');
+        expect(command.hasGeneratedOutputs(projectRoot: sandbox.path), isFalse);
+      });
     });
 
     group('hasZorphyAnnotatedSources', () {
@@ -108,7 +154,7 @@ void main() {
         );
       });
 
-      test('false when lib/ has no @Zorphy annotation', () async {
+      test('false when lib/ has no zorphy archetype', () async {
         await Directory(
           p.join(sandbox.path, 'lib/src'),
         ).create(recursive: true);
@@ -121,69 +167,72 @@ void main() {
         );
       });
 
-      test('true when a source carries @Zorphy(...)', () async {
+      test('true when a source carries @ZorphyEntity(...)', () async {
         await Directory(
           p.join(sandbox.path, 'lib/src'),
         ).create(recursive: true);
         await File(
           p.join(sandbox.path, 'lib/src/foo.dart'),
-        ).writeAsString('@Zorphy(generateJson: true)\nclass Foo {}');
+        ).writeAsString('@ZorphyEntity(principalKey: #id)\nclass \$Foo {}');
         expect(
           command.hasZorphyAnnotatedSources(projectRoot: sandbox.path),
           isTrue,
-        );
-      });
-
-      test('true when a source carries @ZorphyMixin', () async {
-        await Directory(
-          p.join(sandbox.path, 'lib/src'),
-        ).create(recursive: true);
-        await File(
-          p.join(sandbox.path, 'lib/src/foo.dart'),
-        ).writeAsString('@ZorphyMixin()\nmixin Foo {}');
-        expect(
-          command.hasZorphyAnnotatedSources(projectRoot: sandbox.path),
-          isTrue,
-        );
-      });
-
-      test('false when @Zorphy appears only in a // comment', () async {
-        await Directory(
-          p.join(sandbox.path, 'lib/src'),
-        ).create(recursive: true);
-        await File(
-          p.join(sandbox.path, 'lib/src/foo.dart'),
-        ).writeAsString('// uses @Zorphy annotation here\nclass Foo {}');
-        expect(
-          command.hasZorphyAnnotatedSources(projectRoot: sandbox.path),
-          isFalse,
-          reason: 'a comment mentioning @Zorphy must not count as a source',
         );
       });
 
       test(
-        'false when @Zorphy appears only after code on a // comment line',
+        'true when a source carries @ZorphyValue() (an embedded type)',
         () async {
           await Directory(
             p.join(sandbox.path, 'lib/src'),
           ).create(recursive: true);
           await File(
             p.join(sandbox.path, 'lib/src/foo.dart'),
-          ).writeAsString('class Foo {} // see @Zorphy for details');
+          ).writeAsString('@ZorphyValue()\nabstract class \$Foo {}');
           expect(
             command.hasZorphyAnnotatedSources(projectRoot: sandbox.path),
-            isFalse,
+            isTrue,
           );
         },
       );
 
-      test('skips generated .zorphy.dart files', () async {
+      test('false when an archetype appears only in a // comment', () async {
         await Directory(
           p.join(sandbox.path, 'lib/src'),
         ).create(recursive: true);
         await File(
-          p.join(sandbox.path, 'lib/src/foo.zorphy.dart'),
-        ).writeAsString('// @Zorphy mentioned in a generated file');
+          p.join(sandbox.path, 'lib/src/foo.dart'),
+        ).writeAsString('// uses @ZorphyEntity annotation here\nclass Foo {}');
+        expect(
+          command.hasZorphyAnnotatedSources(projectRoot: sandbox.path),
+          isFalse,
+          reason: 'a comment mentioning an archetype must not count',
+        );
+      });
+
+      test('false when an archetype appears only after code on a // comment '
+          'line', () async {
+        await Directory(
+          p.join(sandbox.path, 'lib/src'),
+        ).create(recursive: true);
+        await File(
+          p.join(sandbox.path, 'lib/src/foo.dart'),
+        ).writeAsString('class Foo {} // see @ZorphyEntity for details');
+        expect(
+          command.hasZorphyAnnotatedSources(projectRoot: sandbox.path),
+          isFalse,
+        );
+      });
+
+      test('skips files under build_runner output (_br_/)', () async {
+        // A generated part that merely textually contains an annotation
+        // must not be taken as an annotated SOURCE.
+        await Directory(
+          p.join(sandbox.path, 'lib/_br_/src'),
+        ).create(recursive: true);
+        await File(
+          p.join(sandbox.path, 'lib/_br_/src/foo.part.dart'),
+        ).writeAsString('// @ZorphyEntity mentioned in a generated file');
         expect(
           command.hasZorphyAnnotatedSources(projectRoot: sandbox.path),
           isFalse,
@@ -257,7 +306,7 @@ void main() {
         'returns true + a note when the project does not use zorphy (#1709)',
         () async {
           // A non-zuraffa package: its own build.yaml, a real pubspec with no
-          // zorphy dependency, and no @Zorphy sources.
+          // zorphy dependency, and no zorphy sources.
           final f = File(p.join(sandbox.path, 'build.yaml'));
           await f.writeAsString(
             'targets:\n  \$default:\n    builders:\n      slang_build_runner:\n        enabled: true\n',
@@ -276,7 +325,7 @@ void main() {
             result = await command.ensureBuildYaml(projectRoot: sandbox.path);
           });
           expect(result, isTrue);
-          expect(out, contains('no @Zorphy sources and no zorphy dependency'));
+          expect(out, contains('no zorphy sources and no zorphy dependency'));
           // The user's build.yaml must be left untouched.
           expect(f.readAsStringSync(), isNot(contains('zorphy:zorphy')));
         },
@@ -335,7 +384,7 @@ void main() {
           final out = capturePrintSync(
             () => command.reportBuildYamlDryRun(projectRoot: sandbox.path),
           );
-          expect(out, contains('no @Zorphy sources and no zorphy dependency'));
+          expect(out, contains('no zorphy sources and no zorphy dependency'));
           expect(out, contains('issue #1709'));
           expect(out, isNot(contains('build would write 0 outputs')));
         },
@@ -344,7 +393,7 @@ void main() {
 
     group('verifyOutputsOrFail (safety net — #276)', () {
       test(
-        'returns true when there are no @Zorphy sources (nothing to gen)',
+        'returns true when there are no zorphy sources (nothing to gen)',
         () {
           // Empty sandbox — no lib/, no sources.
           expect(
@@ -354,73 +403,57 @@ void main() {
         },
       );
 
+      test('returns true when annotated sources exist AND their shared part '
+          'exists', () async {
+        await Directory(
+          p.join(sandbox.path, 'lib/src'),
+        ).create(recursive: true);
+        await writeV3Source(p.join(sandbox.path, 'lib/src/foo.dart'));
+        await writeSharedPart(p.join(sandbox.path, 'lib/src/foo.dart'));
+        expect(command.verifyOutputsOrFail(projectRoot: sandbox.path), isTrue);
+      });
+
+      test('returns false + actionable error when annotated sources exist but '
+          '0 outputs', () async {
+        await Directory(
+          p.join(sandbox.path, 'lib/src'),
+        ).create(recursive: true);
+        await writeV3Source(p.join(sandbox.path, 'lib/src/foo.dart'));
+        // No shared part anywhere — the exact #276 regression.
+        bool? result;
+        final out = capturePrintSync(() {
+          result = command.verifyOutputsOrFail(projectRoot: sandbox.path);
+        });
+        expect(result, isFalse);
+        expect(out, contains('wrote 0 outputs'));
+        expect(out, contains('zorphy'));
+        expect(out, contains('generate_for'));
+        expect(out, contains('lib/src/**'));
+        expect(out, contains('zfa setup'));
+      });
+
       test(
-        'returns true when @Zorphy sources exist AND outputs exist',
+        'does not false-positive when an archetype appears only in a comment',
         () async {
           await Directory(
             p.join(sandbox.path, 'lib/src'),
           ).create(recursive: true);
           await File(
             p.join(sandbox.path, 'lib/src/foo.dart'),
-          ).writeAsString('@Zorphy()\nclass Foo {}');
-          await File(
-            p.join(sandbox.path, 'lib/src/foo.zorphy.dart'),
-          ).writeAsString('// generated');
+          ).writeAsString('// @ZorphyEntity()\nclass Foo {}');
           expect(
             command.verifyOutputsOrFail(projectRoot: sandbox.path),
             isTrue,
           );
         },
       );
-
-      test(
-        'returns false + actionable error when @Zorphy sources exist but 0 outputs',
-        () async {
-          await Directory(
-            p.join(sandbox.path, 'lib/src'),
-          ).create(recursive: true);
-          await File(
-            p.join(sandbox.path, 'lib/src/foo.dart'),
-          ).writeAsString('@Zorphy(generateJson: true)\nclass Foo {}');
-          // No .zorphy.dart / .g.dart anywhere — the exact #276 regression.
-          bool? result;
-          final out = capturePrintSync(() {
-            result = command.verifyOutputsOrFail(projectRoot: sandbox.path);
-          });
-          expect(result, isFalse);
-          expect(out, contains('wrote 0 outputs'));
-          expect(out, contains('@Zorphy'));
-          expect(out, contains('generate_for'));
-          expect(out, contains('lib/src/**'));
-          expect(out, contains('zfa setup'));
-        },
-      );
-
-      test(
-        'does not false-positive when @Zorphy is only in a comment',
-        () async {
-          await Directory(
-            p.join(sandbox.path, 'lib/src'),
-          ).create(recursive: true);
-          await File(
-            p.join(sandbox.path, 'lib/src/foo.dart'),
-          ).writeAsString('// @Zorphy\nclass Foo {}');
-          expect(
-            command.verifyOutputsOrFail(projectRoot: sandbox.path),
-            isTrue,
-          );
-        },
-      );
-
       test('#1322: 0 outputs + builder package missing from the dependency '
           'graph → names zorphy + prescribes `dart pub add --dev zorphy`, '
           'NOT the glob remedy', () async {
         await Directory(
           p.join(sandbox.path, 'lib/src'),
         ).create(recursive: true);
-        await File(
-          p.join(sandbox.path, 'lib/src/foo.dart'),
-        ).writeAsString('@Zorphy(generateJson: true)\nclass Foo {}');
+        await writeV3Source(p.join(sandbox.path, 'lib/src/foo.dart'));
         // The canonical build.yaml `zfa build` scaffolds, registering
         // zorphy:zorphy — with the correct globs. The real problem: the
         // zorphy builder package is not resolvable.
@@ -465,9 +498,7 @@ void main() {
         await Directory(
           p.join(sandbox.path, 'lib/src'),
         ).create(recursive: true);
-        await File(
-          p.join(sandbox.path, 'lib/src/foo.dart'),
-        ).writeAsString('@Zorphy(generateJson: true)\nclass Foo {}');
+        await writeV3Source(p.join(sandbox.path, 'lib/src/foo.dart'));
         await File(
           p.join(sandbox.path, 'build.yaml'),
         ).writeAsString(DependencyWirer.buildYamlContent);
@@ -568,12 +599,9 @@ void main() {
           ).create(recursive: true);
           await File(
             p.join(sandbox.path, 'lib/src/domain/entities/foo/foo.dart'),
-          ).writeAsString("part 'foo.zorphy.dart';\npart 'foo.g.dart';\n");
-          // .zorphy.dart exists but .g.dart is missing — exactly the
+          ).writeAsString("part 'foo.g.dart';\n");
+          // Only the .g.dart is missing — exactly the
           // json_serializable-failure-on-one-entity case from #379.
-          await File(
-            p.join(sandbox.path, 'lib/src/domain/entities/foo/foo.zorphy.dart'),
-          ).writeAsString('// generated');
           final output = capturePrintSync(
             () => command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
           );
@@ -585,13 +613,62 @@ void main() {
         },
       );
 
-      test('false when a declared .zorphy.dart part is missing', () async {
+      test('false when an annotated source declares its shared part and the '
+          'part is missing', () async {
+        await Directory(
+          p.join(sandbox.path, 'lib/src'),
+        ).create(recursive: true);
+        await writeV3Source(p.join(sandbox.path, 'lib/src/foo.dart'));
+        expect(
+          command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+          isFalse,
+        );
+      });
+
+      test('true when an annotated source declares its shared part and the '
+          'part exists', () async {
+        await Directory(
+          p.join(sandbox.path, 'lib/src'),
+        ).create(recursive: true);
+        await writeV3Source(p.join(sandbox.path, 'lib/src/foo.dart'));
+        await writeSharedPart(p.join(sandbox.path, 'lib/src/foo.dart'));
+        expect(
+          command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+          isTrue,
+        );
+      });
+
+      test(
+        'true when a source with NO archetype declares a shared part that '
+        'was never written (the builder contributes nothing to it)',
+        () async {
+          await Directory(
+            p.join(sandbox.path, 'lib/src'),
+          ).create(recursive: true);
+          // The stale-directive shape: a library that declares the shared
+          // part but carries no zorphy archetype. build_runner writes no
+          // part for it, so a missing one is not a broken build.
+          final lib = p.join(sandbox.path, 'lib/src/foo.dart');
+          await File(lib).writeAsString(
+            "import 'package:zorphy_annotation/zorphy_annotation.dart';\n\n"
+            "part '${sharedPartUri('lib/src/foo.dart')}';\n\n"
+            'class Foo {}\n',
+          );
+          expect(
+            command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+            isTrue,
+          );
+        },
+      );
+
+      test('false when a declared .g.dart part is missing (regardless of '
+          'archetype)', () async {
         await Directory(
           p.join(sandbox.path, 'lib/src'),
         ).create(recursive: true);
         await File(
           p.join(sandbox.path, 'lib/src/foo.dart'),
-        ).writeAsString("part 'foo.zorphy.dart';\n");
+        ).writeAsString("part 'foo.g.dart';\n");
         expect(
           command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
           isFalse,
@@ -608,7 +685,7 @@ void main() {
         await File(p.join(sandbox.path, 'lib/src/template.dart')).writeAsString(
           "String generate(String entityName) {\n"
           "  return '''\n"
-          "part '\$entityName.zorphy.dart';\n"
+          "part '\$entityName.g.dart';\n"
           "''';\n"
           "}\n",
         );
@@ -627,16 +704,13 @@ void main() {
         );
       });
 
-      test('true when all declared generated parts exist', () async {
+      test('true when every declared .g.dart part exists', () async {
         await Directory(
           p.join(sandbox.path, 'lib/src'),
         ).create(recursive: true);
         await File(
           p.join(sandbox.path, 'lib/src/foo.dart'),
-        ).writeAsString("part 'foo.zorphy.dart';\npart 'foo.g.dart';\n");
-        await File(
-          p.join(sandbox.path, 'lib/src/foo.zorphy.dart'),
-        ).writeAsString('// generated');
+        ).writeAsString("part 'foo.g.dart';\n");
         await File(
           p.join(sandbox.path, 'lib/src/foo.g.dart'),
         ).writeAsString('// generated');
@@ -653,7 +727,8 @@ void main() {
             p.join(sandbox.path, 'lib/src'),
           ).create(recursive: true);
           // A hand-written library with a missing helper part must NOT trip the
-          // check — only .zorphy.dart / .g.dart parts are verified.
+          // check — only generated parts (a shared part, .g.dart) are
+          // verified.
           await File(
             p.join(sandbox.path, 'lib/src/lib.dart'),
           ).writeAsString("part 'helper.dart';\n");
@@ -670,7 +745,7 @@ void main() {
         ).create(recursive: true);
         await File(
           p.join(sandbox.path, 'lib/src/foo.dart'),
-        ).writeAsString('part "foo.zorphy.dart";\n');
+        ).writeAsString('part "foo.g.dart";\n');
         expect(
           command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
           isFalse,
@@ -683,10 +758,15 @@ void main() {
         ).create(recursive: true);
         await File(
           p.join(sandbox.path, 'lib/src/foo.dart'),
-        ).writeAsString("part 'foo.zorphy.dart';\n");
+        ).writeAsString("part '../_br_/src/foo.part.dart';\n");
+        // A generated part is itself a `part of` file: it must not be
+        // scanned as a source declaring parts.
+        await Directory(
+          p.join(sandbox.path, 'lib/_br_/src'),
+        ).create(recursive: true);
         await File(
-          p.join(sandbox.path, 'lib/src/foo.zorphy.dart'),
-        ).writeAsString("part of 'foo.dart';\n");
+          p.join(sandbox.path, 'lib/_br_/src/foo.part.dart'),
+        ).writeAsString("part of '../../src/foo.dart';\n");
         expect(
           command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
           isTrue,
@@ -854,7 +934,7 @@ Analyzing lib/...
           'remedy', () {
         const out = '''
 Analyzing lib/...
-   warning - lib/src/models/user.zorphy.dart:10:1 - Warn. - some_lint
+   warning - lib/_br_/src/models/user.part.dart:10:1 - Warn. - some_lint
    warning - lib/src/mappers/user_mapper.g.dart:3:3 - Warn. - other_lint
 2 issues found.''';
         expect(BuildCommand.analyzeGateRemedyLines(out), [
@@ -865,7 +945,7 @@ Analyzing lib/...
       test('mixed offenders name both ownership groups', () {
         const out = '''
 Analyzing lib/...
-   warning - lib/src/models/user.zorphy.dart:10:1 - Warn. - some_lint
+   warning - lib/_br_/src/models/user.part.dart:10:1 - Warn. - some_lint
    warning - lib/src/hand.dart:7:7 - Warn. - other_lint
 2 issues found.''';
         final lines = BuildCommand.analyzeGateRemedyLines(out);
@@ -874,7 +954,7 @@ Analyzing lib/...
           // suffix surfaces — suffix files AND make's directory-convention
           // output both classify as generator output now.
           'generator output offending (generated by zfa): '
-              'lib/src/models/user.zorphy.dart',
+              'lib/_br_/src/models/user.part.dart',
           'hand-authored offending (not generator output): lib/src/hand.dart',
           'Fix the named files, or run with --no-analyze to skip this check.',
         ]);

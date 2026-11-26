@@ -91,6 +91,23 @@ void main() {
       }
     });
 
+    test(
+      '.gitignore ignores build_runner output, not a v2 part name',
+      () async {
+        await scaffold();
+        final gitignore = File(
+          p.join(tempDir.path, 'my_pkg', '.gitignore'),
+        ).readAsStringSync();
+
+        // The zorphy v3 shared parts are written under `_br_/`; without this
+        // a scaffolded package would commit its build output.
+        expect(gitignore, contains('_br_/'));
+        expect(gitignore, contains('*.g.dart'));
+        // The v2 standalone part is never written — a rule for it is dead.
+        expect(gitignore, isNot(contains('*.zorphy.dart')));
+      },
+    );
+
     test('U3: pubspec carries correct v6 dependency constraints', () async {
       await scaffold();
 

@@ -304,7 +304,7 @@ class MockJsonBuilder {
         if (entity is io.File &&
             entity.path.endsWith('.dart') &&
             !entity.path.endsWith('.g.dart') &&
-            !entity.path.endsWith('.zorphy.dart')) {
+            !p.split(entity.path).contains('_br_')) {
           try {
             final content = entity.readAsStringSync();
             if (RegExp(

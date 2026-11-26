@@ -327,7 +327,7 @@ class GenerationPlanner {
                 // Bug #1503 (review finding 1): `--build` makes the entity
                 // a BUILT entity before the certify step below. Without
                 // it, `entity create` (buildByDefault is false —
-                // zfa_config.dart) leaves `part '<snake>.zorphy.dart'`
+                // zfa_config.dart) leaves the source's shared `part`
                 // dangling, and the certification sandbox's import-closure
                 // copy refuses a missing part target
                 // (mock_certification_sandbox.dart `_copyImportClosure` →
@@ -338,8 +338,7 @@ class GenerationPlanner {
                     'ensure entity $traced exists AND is built for behavior '
                     '${summary.behaviorId} (idempotent — an existing '
                     'entity is reused, never overwritten; the build emits '
-                    'the .zorphy.dart/.g.dart parts the certify sandbox '
-                    'must resolve)',
+                    'the shared parts the certify sandbox must resolve)',
               ),
               GenerationStepSpec(
                 // Bug #1503: the entity pipeline must request the CERTIFIED
@@ -865,8 +864,8 @@ class GenerationPlanner {
               'ensure entity $name exists AND is built for behavior '
               '${summary.behaviorId} (declared contract row; '
               'idempotent — an existing entity is reused; the build '
-              'emits the .zorphy.dart/.g.dart parts the certify '
-              'sandbox must resolve)',
+              'emits the shared parts the certify sandbox '
+              'must resolve)',
         ),
         GenerationStepSpec(
           // Bug #1503: the declared entity pipeline requests the

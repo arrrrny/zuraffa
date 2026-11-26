@@ -124,7 +124,7 @@ class ApiBridgeBuilder {
 
   /// Ensures every return type on which the bridge emits `toJson()` actually
   /// exposes that serializer in the entity library (including extensions in
-  /// generated `.zorphy.dart` files).
+  /// generated shared parts).
   void _validateReturnSerializers(List<_UseCaseDescriptor> useCases) {
     for (final useCase in useCases) {
       final returnType = useCase.returnType.trim();

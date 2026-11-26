@@ -18,7 +18,6 @@ class EntityAnalyzer {
     // so we need a synchronous version of discovery/filesystem or use cached results.
     // For now, we'll try to use sync methods if available on the provided FileSystem.
     final fs = fileSystem ?? const DefaultFileSystem();
-    final entitySnake = StringUtils.camelToSnake(entityName);
     visited ??= {};
 
     if (visited.contains(entityName)) return {};
@@ -38,25 +37,9 @@ class EntityAnalyzer {
       final content = fs.readSync(entityFilePath);
       final fields = <String, String>{};
 
-      // Check if this is a Zorphy entity (contains @Zorphy annotation)
-      if (content.contains('@Zorphy')) {
-        // Try to parse from the generated .zorphy.dart file first
-        final zorphyPath = p.join(
-          outputDir,
-          'domain',
-          'entities',
-          entitySnake,
-          '$entitySnake.zorphy.dart',
-        );
-        if (fs.existsSync(zorphyPath)) {
-          final zorphyContent = fs.readSync(zorphyPath);
-          final zorphyFields = _parseEntityFields(zorphyContent, entityName);
-          if (zorphyFields.isNotEmpty) {
-            fields.addAll(zorphyFields);
-          }
-        }
-      }
-
+      // The source is the only authority on an entity's fields: zorphy v3
+      // generates no standalone part beside it, and build_runner's shared
+      // `_br_/` part holds the concrete classes, not the abstract getters.
       // Parse current entity fields
       var currentFields = _parseEntityFields(content, entityName);
       if (currentFields.isEmpty) {
@@ -523,10 +506,11 @@ class EntityAnalyzer {
   /// (`<Type>Patch` isn't a type, `.id` isn't defined, `copyWithField` isn't
   /// defined) while the mock certification still reports `(conforms)`.
   ///
-  /// The probe reads the entity source AND its `part` companions — a Zorphy
-  /// entity's concrete class, its `copyWithField`, and its `<Type>Patch` all
-  /// live in the generated `.zorphy.dart` part, which
-  /// [_findEntitySourcePathSync] deliberately skips as a declaration site.
+  /// The probe reads the entity source AND the `part` it declares — a
+  /// zorphy entity's concrete class, its `copyWithField`, and its
+  /// `<Type>Patch` all live in the generated shared part
+  /// (`lib/_br_/…/<library>.part.dart`), which [_findEntitySourcePathSync]
+  /// deliberately skips as a declaration site.
   static bool hasCrudSurface(
     String typeName,
     String outputDir, {
@@ -598,6 +582,7 @@ class EntityAnalyzer {
     FileSystem? fileSystem,
   }) {
     final fs = fileSystem ?? const DefaultFileSystem();
+    final entitySnake = StringUtils.camelToSnake(entityName);
     final enumFilePath = findEnumSourcePath(
       entityName,
       outputDir,
@@ -613,7 +598,6 @@ class EntityAnalyzer {
       fileSystem: fs,
     );
     if (entityFilePath == null) {
-      final entitySnake = StringUtils.camelToSnake(entityName);
       return '${_relativeUpPrefix(fromDir)}domain/entities/'
           '$entitySnake/$entitySnake.dart';
     }
@@ -801,7 +785,7 @@ class EntityAnalyzer {
       if (!filePath.endsWith('.dart') ||
           filePath.endsWith('.g.dart') ||
           filePath.endsWith('.freezed.dart') ||
-          filePath.endsWith('.zorphy.dart')) {
+          p.split(filePath).contains('_br_')) {
         continue;
       }
 
