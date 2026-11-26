@@ -32,7 +32,8 @@ class NoteMockDataSource
     await Future<void>.delayed(_delay);
     final existing = NoteMockData.notes.firstWhere(
       (item) => item.id == params.id,
-      orElse: () => throw AppFailure.notFound(message: 'Note not found in mock data'),
+      orElse: () =>
+          throw AppFailure.notFound(message: 'Note not found in mock data'),
     );
     final updated = params.data.apply(existing);
     final index = NoteMockData.notes.indexOf(existing);
@@ -47,13 +48,17 @@ class NoteMockDataSource
     await Future<void>.delayed(_delay);
     final existing = NoteMockData.notes.firstWhere(
       (item) => item.id == params.id,
-      orElse: () => throw AppFailure.notFound(message: 'Note not found in mock data'),
+      orElse: () =>
+          throw AppFailure.notFound(message: 'Note not found in mock data'),
     );
     // v3 entities have no `copyWithField`; route the typed field through the
     // immutable `copyWith` API (the only mutable field on Note is `body`).
     final updated = switch (params.field.name) {
       'body' => existing.copyWith(body: params.value as String),
-      _ => throw unsupportedFailure('Cannot toggle Note.${params.field.name}'),
+      _ => throw AppFailure.policyDenied(
+        message: 'Cannot toggle Note.${params.field.name}',
+        reason: 'unsupported',
+      ),
     };
     final index = NoteMockData.notes.indexOf(existing);
     NoteMockData.notes[index] = updated;
