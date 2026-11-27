@@ -16,7 +16,10 @@ void main() {
 
       final combinedFilter = filters.toFilter();
       expect(combinedFilter, isA<ZorphyAnd<_TestEntity>>());
-      expect((combinedFilter as ZorphyAnd<_TestEntity>).filters, equals(filters));
+      expect(
+        (combinedFilter as ZorphyAnd<_TestEntity>).filters,
+        equals(filters),
+      );
     });
 
     test('Iterable<Filter>.toQuery() extension', () {
@@ -26,7 +29,10 @@ void main() {
 
       final queryParams = filters.toQuery();
       expect(queryParams.filter, isA<ZorphyAnd<_TestEntity>>());
-      expect((queryParams.filter as ZorphyAnd<_TestEntity>).filters, equals(filters));
+      expect(
+        (queryParams.filter as ZorphyAnd<_TestEntity>).filters,
+        equals(filters),
+      );
     });
 
     test('List<T>.query(Filter<T>) extension', () {
