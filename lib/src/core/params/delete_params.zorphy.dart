@@ -1,7 +1,5 @@
-// dart format off
-part of '../../../../src/core/params/query_params.dart';
+part of 'delete_params.dart';
 
-// === zorphy:zorphy contribution.
 // ignore_for_file: UNNECESSARY_CAST
 // ignore_for_file: type=lint
 final class _ZorphyCopyWithSentinel {
@@ -10,22 +8,17 @@ final class _ZorphyCopyWithSentinel {
 
 const Object _sentinel = _ZorphyCopyWithSentinel();
 
-final class QueryParams<T> implements ZorphyValueBase {
-  QueryParams.fromTrusted({this.filter, Map<String, dynamic>? params})
+final class DeleteParams<I extends Object> implements ZorphyValueBase {
+  DeleteParams.fromTrusted({required this.id, Map<String, dynamic>? params})
     : params = params == null ? null : Map<String, dynamic>.of(params);
 
-  final ZorphyFilter<T>? filter;
+  final I id;
 
   final Map<String, dynamic>? params;
 
-  QueryParams<T> copyWith({
-    Object? filter = _sentinel,
-    Object? params = _sentinel,
-  }) {
-    return QueryParams<T>.fromTrusted(
-      filter: identical(filter, _sentinel)
-          ? this.filter
-          : filter as ZorphyFilter<T>?,
+  DeleteParams<I> copyWith({I? id, Object? params = _sentinel}) {
+    return DeleteParams<I>.fromTrusted(
+      id: id ?? this.id,
       params: identical(params, _sentinel)
           ? this.params
           : params as Map<String, dynamic>?,
@@ -35,17 +28,19 @@ final class QueryParams<T> implements ZorphyValueBase {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is QueryParams &&
-        this.filter == other.filter &&
-        QueryParams._zorphyCollectionEquals(this.params, other.params);
+    return other is DeleteParams &&
+        DeleteParams._zorphyCollectionEquals(this.id, other.id) &&
+        DeleteParams._zorphyCollectionEquals(this.params, other.params);
   }
 
   @override
-  int get hashCode =>
-      Object.hashAll([filter, QueryParams._zorphyCollectionHash(params)]);
+  int get hashCode => Object.hashAll([
+    DeleteParams._zorphyCollectionHash(id),
+    DeleteParams._zorphyCollectionHash(params),
+  ]);
 
   @override
-  String toString() => 'QueryParams(filter: $filter, params: $params)';
+  String toString() => 'DeleteParams(id: $id, params: $params)';
 
   static bool _zorphyCollectionEquals(Object? a, Object? b) {
     if (identical(a, b)) return true;
@@ -86,15 +81,21 @@ final class QueryParams<T> implements ZorphyValueBase {
     return value.hashCode;
   }
 
-  static ZorphyBoundaryResult<QueryParams<T>> fromWire<T>(
+  static ZorphyBoundaryResult<DeleteParams<I>> fromWire<I extends Object>(
     Map<String, Object?> raw,
-    ZorphyBoundaryResult<T> Function(Map<String, Object?> raw) decodeT,
+    ZorphyBoundaryResult<I> Function(Map<String, Object?> raw) decodeI,
   ) {
     final violations = <FieldViolation>[];
-    final Object? raw_filter = raw['filter'];
-    ZorphyFilter<T>? _filter;
-    if (raw_filter != null) {
-      _filter = _boundaryAs<ZorphyFilter<T>>(raw_filter, '/filter', violations);
+    final Object? raw_id = raw['id'];
+    I? _id;
+    final map_id = _boundaryObject(raw_id, '/id', violations);
+    if (map_id != null) {
+      decodeI(map_id).fold(
+        (value) {
+          _id = value;
+        },
+        (error) => violations.addAll(_boundaryPrefix(error.violations, '/id')),
+      );
     }
     final Object? raw_params = raw['params'];
     Map<String, dynamic>? _params;
@@ -121,22 +122,19 @@ final class QueryParams<T> implements ZorphyValueBase {
       }
     }
     if (violations.isNotEmpty) {
-      return BoundaryErr<QueryParams<T>>(
-        targetType: 'QueryParams',
+      return BoundaryErr<DeleteParams<I>>(
+        targetType: 'DeleteParams',
         violations: violations,
       );
     }
-    return BoundaryOk<QueryParams<T>>(
-      QueryParams.fromTrusted(filter: _filter, params: _params),
+    return BoundaryOk<DeleteParams<I>>(
+      DeleteParams.fromTrusted(id: _id!, params: _params),
     );
   }
 
-  Map<String, Object?> toWire(Map<String, Object?> Function(T value) encodeT) {
+  Map<String, Object?> toWire(Map<String, Object?> Function(I value) encodeI) {
     final map = <String, Object?>{};
-    final _filter = this.filter;
-    if (_filter != null) {
-      map['filter'] = _filter;
-    }
+    map['id'] = encodeI(this.id);
     final _params = this.params;
     if (_params != null) {
       map['params'] = _params;
@@ -150,6 +148,21 @@ String _boundaryDescribe(Object? value) {
   final text = value.toString();
   final clipped = text.length > 60 ? '${text.substring(0, 60)}…' : text;
   return '${value.runtimeType} ("$clipped")';
+}
+
+List<FieldViolation> _boundaryPrefix(
+  List<FieldViolation> violations,
+  String path,
+) {
+  return violations
+      .map(
+        (violation) => FieldViolation(
+          path: path + violation.path,
+          expected: violation.expected,
+          actual: violation.actual,
+        ),
+      )
+      .toList();
 }
 
 T? _boundaryAs<T>(Object? value, String path, List<FieldViolation> violations) {
@@ -179,4 +192,3 @@ Map<String, Object?>? _boundaryObject(
   );
   return null;
 }
-

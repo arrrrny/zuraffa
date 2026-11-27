@@ -1,7 +1,5 @@
-// dart format off
-part of '../../../../../src/domain/entities/feature_contract/feature_contract.dart';
+part of 'feature_contract.dart';
 
-// === zorphy:zorphy contribution.
 // ignore_for_file: UNNECESSARY_CAST
 // ignore_for_file: type=lint
 final class _ZorphyCopyWithSentinel {
@@ -204,7 +202,8 @@ final class FeatureContract implements ZorphyEntityBase<String> {
     final Object? raw_xrayLayer = raw['xrayLayer'];
     XRayLayer? _xrayLayer;
     if (raw_xrayLayer != null) {
-      _xrayLayer = _boundaryAs<XRayLayer>(
+      _xrayLayer = ZorphyPatchWire.enumByName<XRayLayer>(
+        XRayLayer.values,
         raw_xrayLayer,
         '/xrayLayer',
         violations,
@@ -275,13 +274,23 @@ final class FeatureContract implements ZorphyEntityBase<String> {
     }
     final _xrayLayer = this.xrayLayer;
     if (_xrayLayer != null) {
-      map['xrayLayer'] = _xrayLayer;
+      map['xrayLayer'] = _xrayLayer is Enum ? _xrayLayer.name : _xrayLayer;
     }
     final _argSchema = this.argSchema;
     if (_argSchema != null) {
       map['argSchema'] = _argSchema;
     }
     return map;
+  }
+
+  static ZorphyBoundaryResult<FeatureContract> fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return FeatureContract.fromWire(json);
+  }
+
+  Map<String, dynamic> toJson() {
+    return toWire();
   }
 
   /// Resolves a JSON Pointer into a [ZorphyLens] over [FeatureContract].
@@ -751,6 +760,7 @@ class FeatureContractMockData {
       displayName: 'displayname-${seed}',
       entities: ['entities-${seed}'],
       routes: {'routes-${seed}'},
+      xrayLayer: XRayLayer.values[seed % XRayLayer.values.length],
       argSchema: {},
     );
   }
@@ -768,6 +778,7 @@ class FeatureContractMockData {
     patch = patch.withDisplayName('displayname-${0}');
     patch = patch.withEntities(['entities-${0}']);
     patch = patch.withRoutes({'routes-${0}'});
+    patch = patch.withXrayLayer(XRayLayer.values[0 % XRayLayer.values.length]);
     patch = patch.withArgSchema({});
     return patch;
   }
@@ -1018,15 +1029,16 @@ abstract final class FeatureContractFields {
         set: _setArgSchema,
       );
 
-  static final List<ZorphyField<FeatureContract, Object?>> all = [
-    id.asObject,
-    displayName.asObject,
-    entities.asObject,
-    boundary.asObject,
-    routes.asObject,
-    xrayLayer.asObject,
-    argSchema.asObject,
-  ];
+  static final List<ZorphyField<FeatureContract, Object?>> all =
+      List.unmodifiable([
+        id.asObject,
+        displayName.asObject,
+        entities.asObject,
+        boundary.asObject,
+        routes.asObject,
+        xrayLayer.asObject,
+        argSchema.asObject,
+      ]);
 
   static String _getId(FeatureContract root) => root.id;
 
@@ -1083,26 +1095,50 @@ final class _FeatureContractDescriptor
   }
 
   Field<FeatureContract, Object?> get principalKeyField {
-    return Field<FeatureContract, Object?>('id', (entity) => entity.id);
+    return Field<FeatureContract, Object?>(
+      'id',
+      (entity) => entity.id,
+      (entity, value) => entity.copyWith(id: value as String),
+    );
   }
 
   List<Field<FeatureContract, Object?>> get fields {
     return [
-      Field<FeatureContract, Object?>('id', (entity) => entity.id),
+      Field<FeatureContract, Object?>(
+        'id',
+        (entity) => entity.id,
+        (entity, value) => entity.copyWith(id: value as String),
+      ),
       Field<FeatureContract, Object?>(
         'displayName',
         (entity) => entity.displayName,
+        (entity, value) => entity.copyWith(displayName: value as String),
       ),
-      Field<FeatureContract, Object?>('entities', (entity) => entity.entities),
-      Field<FeatureContract, Object?>('boundary', (entity) => entity.boundary),
-      Field<FeatureContract, Object?>('routes', (entity) => entity.routes),
+      Field<FeatureContract, Object?>(
+        'entities',
+        (entity) => entity.entities,
+        (entity, value) => entity.copyWith(entities: value as List<String>?),
+      ),
+      Field<FeatureContract, Object?>(
+        'boundary',
+        (entity) => entity.boundary,
+        (entity, value) => entity.copyWith(boundary: value as SliceBoundary?),
+      ),
+      Field<FeatureContract, Object?>(
+        'routes',
+        (entity) => entity.routes,
+        (entity, value) => entity.copyWith(routes: value as Set<String>?),
+      ),
       Field<FeatureContract, Object?>(
         'xrayLayer',
         (entity) => entity.xrayLayer,
+        (entity, value) => entity.copyWith(xrayLayer: value as XRayLayer?),
       ),
       Field<FeatureContract, Object?>(
         'argSchema',
         (entity) => entity.argSchema,
+        (entity, value) =>
+            entity.copyWith(argSchema: value as Map<String, dynamic>?),
       ),
     ];
   }
@@ -1159,4 +1195,3 @@ final class _FeatureContractDescriptor
     return base.compose(next);
   }
 }
-

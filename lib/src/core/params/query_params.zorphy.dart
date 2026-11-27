@@ -1,7 +1,5 @@
-// dart format off
-part of '../../../../src/core/params/update_params.dart';
+part of 'query_params.dart';
 
-// === zorphy:zorphy contribution.
 // ignore_for_file: UNNECESSARY_CAST
 // ignore_for_file: type=lint
 final class _ZorphyCopyWithSentinel {
@@ -10,23 +8,22 @@ final class _ZorphyCopyWithSentinel {
 
 const Object _sentinel = _ZorphyCopyWithSentinel();
 
-final class UpdateParams<I, P> implements ZorphyValueBase {
-  UpdateParams.fromTrusted({
-    required this.id,
-    required this.data,
-    Map<String, dynamic>? params,
-  }) : params = params == null ? null : Map<String, dynamic>.of(params);
+final class QueryParams<T> implements ZorphyValueBase {
+  QueryParams.fromTrusted({this.filter, Map<String, dynamic>? params})
+    : params = params == null ? null : Map<String, dynamic>.of(params);
 
-  final I id;
-
-  final P data;
+  final ZorphyFilter<T>? filter;
 
   final Map<String, dynamic>? params;
 
-  UpdateParams<I, P> copyWith({I? id, P? data, Object? params = _sentinel}) {
-    return UpdateParams<I, P>.fromTrusted(
-      id: id ?? this.id,
-      data: data ?? this.data,
+  QueryParams<T> copyWith({
+    Object? filter = _sentinel,
+    Object? params = _sentinel,
+  }) {
+    return QueryParams<T>.fromTrusted(
+      filter: identical(filter, _sentinel)
+          ? this.filter
+          : filter as ZorphyFilter<T>?,
       params: identical(params, _sentinel)
           ? this.params
           : params as Map<String, dynamic>?,
@@ -36,21 +33,17 @@ final class UpdateParams<I, P> implements ZorphyValueBase {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is UpdateParams &&
-        UpdateParams._zorphyCollectionEquals(this.id, other.id) &&
-        UpdateParams._zorphyCollectionEquals(this.data, other.data) &&
-        UpdateParams._zorphyCollectionEquals(this.params, other.params);
+    return other is QueryParams &&
+        this.filter == other.filter &&
+        QueryParams._zorphyCollectionEquals(this.params, other.params);
   }
 
   @override
-  int get hashCode => Object.hashAll([
-    UpdateParams._zorphyCollectionHash(id),
-    UpdateParams._zorphyCollectionHash(data),
-    UpdateParams._zorphyCollectionHash(params),
-  ]);
+  int get hashCode =>
+      Object.hashAll([filter, QueryParams._zorphyCollectionHash(params)]);
 
   @override
-  String toString() => 'UpdateParams(id: $id, data: $data, params: $params)';
+  String toString() => 'QueryParams(filter: $filter, params: $params)';
 
   static bool _zorphyCollectionEquals(Object? a, Object? b) {
     if (identical(a, b)) return true;
@@ -91,34 +84,15 @@ final class UpdateParams<I, P> implements ZorphyValueBase {
     return value.hashCode;
   }
 
-  static ZorphyBoundaryResult<UpdateParams<I, P>> fromWire<I, P>(
+  static ZorphyBoundaryResult<QueryParams<T>> fromWire<T>(
     Map<String, Object?> raw,
-    ZorphyBoundaryResult<I> Function(Map<String, Object?> raw) decodeI,
-    ZorphyBoundaryResult<P> Function(Map<String, Object?> raw) decodeP,
+    ZorphyBoundaryResult<T> Function(Map<String, Object?> raw) decodeT,
   ) {
     final violations = <FieldViolation>[];
-    final Object? raw_id = raw['id'];
-    I? _id;
-    final map_id = _boundaryObject(raw_id, '/id', violations);
-    if (map_id != null) {
-      decodeI(map_id).fold(
-        (value) {
-          _id = value;
-        },
-        (error) => violations.addAll(_boundaryPrefix(error.violations, '/id')),
-      );
-    }
-    final Object? raw_data = raw['data'];
-    P? _data;
-    final map_data = _boundaryObject(raw_data, '/data', violations);
-    if (map_data != null) {
-      decodeP(map_data).fold(
-        (value) {
-          _data = value;
-        },
-        (error) =>
-            violations.addAll(_boundaryPrefix(error.violations, '/data')),
-      );
+    final Object? raw_filter = raw['filter'];
+    ZorphyFilter<T>? _filter;
+    if (raw_filter != null) {
+      _filter = _boundaryAs<ZorphyFilter<T>>(raw_filter, '/filter', violations);
     }
     final Object? raw_params = raw['params'];
     Map<String, dynamic>? _params;
@@ -145,23 +119,22 @@ final class UpdateParams<I, P> implements ZorphyValueBase {
       }
     }
     if (violations.isNotEmpty) {
-      return BoundaryErr<UpdateParams<I, P>>(
-        targetType: 'UpdateParams',
+      return BoundaryErr<QueryParams<T>>(
+        targetType: 'QueryParams',
         violations: violations,
       );
     }
-    return BoundaryOk<UpdateParams<I, P>>(
-      UpdateParams.fromTrusted(id: _id!, data: _data!, params: _params),
+    return BoundaryOk<QueryParams<T>>(
+      QueryParams.fromTrusted(filter: _filter, params: _params),
     );
   }
 
-  Map<String, Object?> toWire(
-    Map<String, Object?> Function(I value) encodeI,
-    Map<String, Object?> Function(P value) encodeP,
-  ) {
+  Map<String, Object?> toWire(Map<String, Object?> Function(T value) encodeT) {
     final map = <String, Object?>{};
-    map['id'] = encodeI(this.id);
-    map['data'] = encodeP(this.data);
+    final _filter = this.filter;
+    if (_filter != null) {
+      map['filter'] = _filter;
+    }
     final _params = this.params;
     if (_params != null) {
       map['params'] = _params;
@@ -175,21 +148,6 @@ String _boundaryDescribe(Object? value) {
   final text = value.toString();
   final clipped = text.length > 60 ? '${text.substring(0, 60)}…' : text;
   return '${value.runtimeType} ("$clipped")';
-}
-
-List<FieldViolation> _boundaryPrefix(
-  List<FieldViolation> violations,
-  String path,
-) {
-  return violations
-      .map(
-        (violation) => FieldViolation(
-          path: path + violation.path,
-          expected: violation.expected,
-          actual: violation.actual,
-        ),
-      )
-      .toList();
 }
 
 T? _boundaryAs<T>(Object? value, String path, List<FieldViolation> violations) {
@@ -219,4 +177,3 @@ Map<String, Object?>? _boundaryObject(
   );
   return null;
 }
-

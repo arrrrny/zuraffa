@@ -1,7 +1,5 @@
-// dart format off
-part of '../../../../src/core/params/initialization_params.dart';
+part of 'initialization_params.dart';
 
-// === zorphy:zorphy contribution.
 // ignore_for_file: UNNECESSARY_CAST
 // ignore_for_file: type=lint
 final class _ZorphyCopyWithSentinel {
@@ -232,6 +230,16 @@ final class InitializationParams implements ZorphyValueBase {
       map['params'] = _params;
     }
     return map;
+  }
+
+  static ZorphyBoundaryResult<InitializationParams> fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return InitializationParams.fromWire(json);
+  }
+
+  Map<String, dynamic> toJson() {
+    return toWire();
   }
 
   /// Resolves a JSON Pointer into a [ZorphyLens] over [InitializationParams].
@@ -477,13 +485,14 @@ abstract final class InitializationParamsFields {
         set: _setParams,
       );
 
-  static final List<ZorphyField<InitializationParams, Object?>> all = [
-    timeout.asObject,
-    forceRefresh.asObject,
-    credentials.asObject,
-    settings.asObject,
-    params.asObject,
-  ];
+  static final List<ZorphyField<InitializationParams, Object?>> all =
+      List.unmodifiable([
+        timeout.asObject,
+        forceRefresh.asObject,
+        credentials.asObject,
+        settings.asObject,
+        params.asObject,
+      ]);
 
   static Duration _getTimeout(InitializationParams root) => root.timeout;
 
@@ -522,4 +531,3 @@ abstract final class InitializationParamsFields {
     Map<String, dynamic>? value,
   ) => root.copyWith(params: value);
 }
-

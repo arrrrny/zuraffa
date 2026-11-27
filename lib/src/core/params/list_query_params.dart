@@ -1,7 +1,7 @@
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 import 'package:zuraffa/src/core/params/index.dart';
 
-part '../../../_br_/src/core/params/list_query_params.part.dart';
+part 'list_query_params.zorphy.dart';
 
 /// Parameters for querying a list of entities.
 ///

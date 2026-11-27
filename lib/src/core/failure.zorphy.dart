@@ -1,7 +1,5 @@
-// dart format off
-part of '../../../src/core/failure.dart';
+part of 'failure.dart';
 
-// === zorphy:zorphy contribution.
 // ignore_for_file: UNNECESSARY_CAST
 // ignore_for_file: type=lint
 final class _ZorphyCopyWithSentinel {
@@ -246,95 +244,105 @@ sealed class AppFailure implements ZorphyUnionBase {
     if (tag is String) {
       switch (tag) {
         case 'network_failure':
-          return NetworkFailure.fromWire(raw)
-              .fold<ZorphyBoundaryResult<AppFailure>>(
-                (value) => BoundaryOk<AppFailure>(value),
-                (error) => BoundaryErr<AppFailure>(
-                  targetType: error.targetType,
-                  violations: error.violations,
-                ),
-              );
+          return NetworkFailure.fromWire(
+            raw,
+          ).fold<ZorphyBoundaryResult<AppFailure>>(
+            (value) => BoundaryOk<AppFailure>(value),
+            (error) => BoundaryErr<AppFailure>(
+              targetType: error.targetType,
+              violations: error.violations,
+            ),
+          );
         case 'timeout_failure':
-          return TimeoutFailure.fromWire(raw)
-              .fold<ZorphyBoundaryResult<AppFailure>>(
-                (value) => BoundaryOk<AppFailure>(value),
-                (error) => BoundaryErr<AppFailure>(
-                  targetType: error.targetType,
-                  violations: error.violations,
-                ),
-              );
+          return TimeoutFailure.fromWire(
+            raw,
+          ).fold<ZorphyBoundaryResult<AppFailure>>(
+            (value) => BoundaryOk<AppFailure>(value),
+            (error) => BoundaryErr<AppFailure>(
+              targetType: error.targetType,
+              violations: error.violations,
+            ),
+          );
         case 'boundary_violation_failure':
-          return BoundaryViolationFailure.fromWire(raw)
-              .fold<ZorphyBoundaryResult<AppFailure>>(
-                (value) => BoundaryOk<AppFailure>(value),
-                (error) => BoundaryErr<AppFailure>(
-                  targetType: error.targetType,
-                  violations: error.violations,
-                ),
-              );
+          return BoundaryViolationFailure.fromWire(
+            raw,
+          ).fold<ZorphyBoundaryResult<AppFailure>>(
+            (value) => BoundaryOk<AppFailure>(value),
+            (error) => BoundaryErr<AppFailure>(
+              targetType: error.targetType,
+              violations: error.violations,
+            ),
+          );
         case 'policy_denied_failure':
-          return PolicyDeniedFailure.fromWire(raw)
-              .fold<ZorphyBoundaryResult<AppFailure>>(
-                (value) => BoundaryOk<AppFailure>(value),
-                (error) => BoundaryErr<AppFailure>(
-                  targetType: error.targetType,
-                  violations: error.violations,
-                ),
-              );
+          return PolicyDeniedFailure.fromWire(
+            raw,
+          ).fold<ZorphyBoundaryResult<AppFailure>>(
+            (value) => BoundaryOk<AppFailure>(value),
+            (error) => BoundaryErr<AppFailure>(
+              targetType: error.targetType,
+              violations: error.violations,
+            ),
+          );
         case 'not_found_failure':
-          return NotFoundFailure.fromWire(raw)
-              .fold<ZorphyBoundaryResult<AppFailure>>(
-                (value) => BoundaryOk<AppFailure>(value),
-                (error) => BoundaryErr<AppFailure>(
-                  targetType: error.targetType,
-                  violations: error.violations,
-                ),
-              );
+          return NotFoundFailure.fromWire(
+            raw,
+          ).fold<ZorphyBoundaryResult<AppFailure>>(
+            (value) => BoundaryOk<AppFailure>(value),
+            (error) => BoundaryErr<AppFailure>(
+              targetType: error.targetType,
+              violations: error.violations,
+            ),
+          );
         case 'conflict_failure':
-          return ConflictFailure.fromWire(raw)
-              .fold<ZorphyBoundaryResult<AppFailure>>(
-                (value) => BoundaryOk<AppFailure>(value),
-                (error) => BoundaryErr<AppFailure>(
-                  targetType: error.targetType,
-                  violations: error.violations,
-                ),
-              );
+          return ConflictFailure.fromWire(
+            raw,
+          ).fold<ZorphyBoundaryResult<AppFailure>>(
+            (value) => BoundaryOk<AppFailure>(value),
+            (error) => BoundaryErr<AppFailure>(
+              targetType: error.targetType,
+              violations: error.violations,
+            ),
+          );
         case 'cancelled_failure':
-          return CancelledFailure.fromWire(raw)
-              .fold<ZorphyBoundaryResult<AppFailure>>(
-                (value) => BoundaryOk<AppFailure>(value),
-                (error) => BoundaryErr<AppFailure>(
-                  targetType: error.targetType,
-                  violations: error.violations,
-                ),
-              );
+          return CancelledFailure.fromWire(
+            raw,
+          ).fold<ZorphyBoundaryResult<AppFailure>>(
+            (value) => BoundaryOk<AppFailure>(value),
+            (error) => BoundaryErr<AppFailure>(
+              targetType: error.targetType,
+              violations: error.violations,
+            ),
+          );
         case 'interrupted_failure':
-          return InterruptedFailure.fromWire(raw)
-              .fold<ZorphyBoundaryResult<AppFailure>>(
-                (value) => BoundaryOk<AppFailure>(value),
-                (error) => BoundaryErr<AppFailure>(
-                  targetType: error.targetType,
-                  violations: error.violations,
-                ),
-              );
+          return InterruptedFailure.fromWire(
+            raw,
+          ).fold<ZorphyBoundaryResult<AppFailure>>(
+            (value) => BoundaryOk<AppFailure>(value),
+            (error) => BoundaryErr<AppFailure>(
+              targetType: error.targetType,
+              violations: error.violations,
+            ),
+          );
         case 'storage_failure':
-          return StorageFailure.fromWire(raw)
-              .fold<ZorphyBoundaryResult<AppFailure>>(
-                (value) => BoundaryOk<AppFailure>(value),
-                (error) => BoundaryErr<AppFailure>(
-                  targetType: error.targetType,
-                  violations: error.violations,
-                ),
-              );
+          return StorageFailure.fromWire(
+            raw,
+          ).fold<ZorphyBoundaryResult<AppFailure>>(
+            (value) => BoundaryOk<AppFailure>(value),
+            (error) => BoundaryErr<AppFailure>(
+              targetType: error.targetType,
+              violations: error.violations,
+            ),
+          );
         case 'unexpected_failure':
-          return UnexpectedFailure.fromWire(raw)
-              .fold<ZorphyBoundaryResult<AppFailure>>(
-                (value) => BoundaryOk<AppFailure>(value),
-                (error) => BoundaryErr<AppFailure>(
-                  targetType: error.targetType,
-                  violations: error.violations,
-                ),
-              );
+          return UnexpectedFailure.fromWire(
+            raw,
+          ).fold<ZorphyBoundaryResult<AppFailure>>(
+            (value) => BoundaryOk<AppFailure>(value),
+            (error) => BoundaryErr<AppFailure>(
+              targetType: error.targetType,
+              violations: error.violations,
+            ),
+          );
       }
     }
     return BoundaryErr<AppFailure>(
@@ -342,7 +350,8 @@ sealed class AppFailure implements ZorphyUnionBase {
       violations: <FieldViolation>[
         FieldViolation(
           path: '/kind',
-          expected: 'String (one of: network_failure, timeout_failure, boundary_violation_failure, policy_denied_failure, not_found_failure, conflict_failure, cancelled_failure, interrupted_failure, storage_failure, unexpected_failure)',
+          expected:
+              'String (one of: network_failure, timeout_failure, boundary_violation_failure, policy_denied_failure, not_found_failure, conflict_failure, cancelled_failure, interrupted_failure, storage_failure, unexpected_failure)',
           actual: _boundaryDescribe(tag),
         ),
       ],
@@ -362,6 +371,14 @@ sealed class AppFailure implements ZorphyUnionBase {
     if (value is StorageFailure) return value.toWire();
     if (value is UnexpectedFailure) return value.toWire();
     return <String, Object?>{'kind': '$runtimeType'};
+  }
+
+  static ZorphyBoundaryResult<AppFailure> fromJson(Map<String, dynamic> json) {
+    return AppFailure.fromWire(json);
+  }
+
+  Map<String, dynamic> toJson() {
+    return toWire();
   }
 
   /// Resolves a JSON Pointer into a [ZorphyLens] over [AppFailure].
@@ -728,6 +745,16 @@ final class NetworkFailure extends AppFailure implements ZorphyValueBase {
     return map;
   }
 
+  static ZorphyBoundaryResult<NetworkFailure> fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return NetworkFailure.fromWire(json);
+  }
+
+  Map<String, dynamic> toJson() {
+    return toWire();
+  }
+
   /// Resolves a JSON Pointer into a [ZorphyLens] over [NetworkFailure].
   ///
   /// One switch step per segment, so a pointer costs O(depth)
@@ -893,6 +920,16 @@ final class TimeoutFailure extends AppFailure implements ZorphyValueBase {
       map['timeout'] = _timeout;
     }
     return map;
+  }
+
+  static ZorphyBoundaryResult<TimeoutFailure> fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return TimeoutFailure.fromWire(json);
+  }
+
+  Map<String, dynamic> toJson() {
+    return toWire();
   }
 
   /// Resolves a JSON Pointer into a [ZorphyLens] over [TimeoutFailure].
@@ -1123,6 +1160,16 @@ final class BoundaryViolationFailure extends AppFailure
     return map;
   }
 
+  static ZorphyBoundaryResult<BoundaryViolationFailure> fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return BoundaryViolationFailure.fromWire(json);
+  }
+
+  Map<String, dynamic> toJson() {
+    return toWire();
+  }
+
   /// Resolves a JSON Pointer into a [ZorphyLens] over [BoundaryViolationFailure].
   ///
   /// One switch step per segment, so a pointer costs O(depth)
@@ -1284,6 +1331,16 @@ final class PolicyDeniedFailure extends AppFailure implements ZorphyValueBase {
     }
     map['reason'] = this.reason;
     return map;
+  }
+
+  static ZorphyBoundaryResult<PolicyDeniedFailure> fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return PolicyDeniedFailure.fromWire(json);
+  }
+
+  Map<String, dynamic> toJson() {
+    return toWire();
   }
 
   /// Resolves a JSON Pointer into a [ZorphyLens] over [PolicyDeniedFailure].
@@ -1483,6 +1540,16 @@ final class NotFoundFailure extends AppFailure implements ZorphyValueBase {
       map['resourceId'] = _resourceId;
     }
     return map;
+  }
+
+  static ZorphyBoundaryResult<NotFoundFailure> fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return NotFoundFailure.fromWire(json);
+  }
+
+  Map<String, dynamic> toJson() {
+    return toWire();
   }
 
   /// Resolves a JSON Pointer into a [ZorphyLens] over [NotFoundFailure].
@@ -1777,6 +1844,16 @@ final class ConflictFailure extends AppFailure implements ZorphyValueBase {
     return map;
   }
 
+  static ZorphyBoundaryResult<ConflictFailure> fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return ConflictFailure.fromWire(json);
+  }
+
+  Map<String, dynamic> toJson() {
+    return toWire();
+  }
+
   /// Resolves a JSON Pointer into a [ZorphyLens] over [ConflictFailure].
   ///
   /// One switch step per segment, so a pointer costs O(depth)
@@ -1930,6 +2007,16 @@ final class CancelledFailure extends AppFailure implements ZorphyValueBase {
       map['code'] = _code;
     }
     return map;
+  }
+
+  static ZorphyBoundaryResult<CancelledFailure> fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return CancelledFailure.fromWire(json);
+  }
+
+  Map<String, dynamic> toJson() {
+    return toWire();
   }
 
   /// Resolves a JSON Pointer into a [ZorphyLens] over [CancelledFailure].
@@ -2098,6 +2185,16 @@ final class InterruptedFailure extends AppFailure implements ZorphyValueBase {
     return map;
   }
 
+  static ZorphyBoundaryResult<InterruptedFailure> fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return InterruptedFailure.fromWire(json);
+  }
+
+  Map<String, dynamic> toJson() {
+    return toWire();
+  }
+
   /// Resolves a JSON Pointer into a [ZorphyLens] over [InterruptedFailure].
   ///
   /// One switch step per segment, so a pointer costs O(depth)
@@ -2256,6 +2353,16 @@ final class StorageFailure extends AppFailure implements ZorphyValueBase {
     }
     map['layer'] = this.layer;
     return map;
+  }
+
+  static ZorphyBoundaryResult<StorageFailure> fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return StorageFailure.fromWire(json);
+  }
+
+  Map<String, dynamic> toJson() {
+    return toWire();
   }
 
   /// Resolves a JSON Pointer into a [ZorphyLens] over [StorageFailure].
@@ -2443,6 +2550,16 @@ final class UnexpectedFailure extends AppFailure implements ZorphyValueBase {
       map['stackTrace'] = _stackTrace;
     }
     return map;
+  }
+
+  static ZorphyBoundaryResult<UnexpectedFailure> fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return UnexpectedFailure.fromWire(json);
+  }
+
+  Map<String, dynamic> toJson() {
+    return toWire();
   }
 
   /// Resolves a JSON Pointer into a [ZorphyLens] over [UnexpectedFailure].
@@ -3566,13 +3683,14 @@ abstract final class NetworkFailureFields {
         set: _setStatusCode,
       );
 
-  static final List<ZorphyField<NetworkFailure, Object?>> all = [
-    message.asObject,
-    traceId.asObject,
-    isRetryable.asObject,
-    code.asObject,
-    statusCode.asObject,
-  ];
+  static final List<ZorphyField<NetworkFailure, Object?>> all =
+      List.unmodifiable([
+        message.asObject,
+        traceId.asObject,
+        isRetryable.asObject,
+        code.asObject,
+        statusCode.asObject,
+      ]);
 
   static String _getMessage(NetworkFailure root) => root.message;
 
@@ -3653,13 +3771,14 @@ abstract final class TimeoutFailureFields {
         set: _setTimeout,
       );
 
-  static final List<ZorphyField<TimeoutFailure, Object?>> all = [
-    message.asObject,
-    traceId.asObject,
-    isRetryable.asObject,
-    code.asObject,
-    timeout.asObject,
-  ];
+  static final List<ZorphyField<TimeoutFailure, Object?>> all =
+      List.unmodifiable([
+        message.asObject,
+        traceId.asObject,
+        isRetryable.asObject,
+        code.asObject,
+        timeout.asObject,
+      ]);
 
   static String _getMessage(TimeoutFailure root) => root.message;
 
@@ -3740,13 +3859,14 @@ abstract final class BoundaryViolationFailureFields {
     set: _setViolations,
   );
 
-  static final List<ZorphyField<BoundaryViolationFailure, Object?>> all = [
-    message.asObject,
-    traceId.asObject,
-    isRetryable.asObject,
-    code.asObject,
-    violations.asObject,
-  ];
+  static final List<ZorphyField<BoundaryViolationFailure, Object?>> all =
+      List.unmodifiable([
+        message.asObject,
+        traceId.asObject,
+        isRetryable.asObject,
+        code.asObject,
+        violations.asObject,
+      ]);
 
   static String _getMessage(BoundaryViolationFailure root) => root.message;
 
@@ -3839,13 +3959,14 @@ abstract final class PolicyDeniedFailureFields {
         set: _setReason,
       );
 
-  static final List<ZorphyField<PolicyDeniedFailure, Object?>> all = [
-    message.asObject,
-    traceId.asObject,
-    isRetryable.asObject,
-    code.asObject,
-    reason.asObject,
-  ];
+  static final List<ZorphyField<PolicyDeniedFailure, Object?>> all =
+      List.unmodifiable([
+        message.asObject,
+        traceId.asObject,
+        isRetryable.asObject,
+        code.asObject,
+        reason.asObject,
+      ]);
 
   static String _getMessage(PolicyDeniedFailure root) => root.message;
 
@@ -3945,14 +4066,15 @@ abstract final class NotFoundFailureFields {
         set: _setResourceId,
       );
 
-  static final List<ZorphyField<NotFoundFailure, Object?>> all = [
-    message.asObject,
-    traceId.asObject,
-    isRetryable.asObject,
-    code.asObject,
-    resourceType.asObject,
-    resourceId.asObject,
-  ];
+  static final List<ZorphyField<NotFoundFailure, Object?>> all =
+      List.unmodifiable([
+        message.asObject,
+        traceId.asObject,
+        isRetryable.asObject,
+        code.asObject,
+        resourceType.asObject,
+        resourceId.asObject,
+      ]);
 
   static String _getMessage(NotFoundFailure root) => root.message;
 
@@ -4049,14 +4171,15 @@ abstract final class ConflictFailureFields {
     set: _setRemotePatchWire,
   );
 
-  static final List<ZorphyField<ConflictFailure, Object?>> all = [
-    message.asObject,
-    traceId.asObject,
-    isRetryable.asObject,
-    code.asObject,
-    localPatchWire.asObject,
-    remotePatchWire.asObject,
-  ];
+  static final List<ZorphyField<ConflictFailure, Object?>> all =
+      List.unmodifiable([
+        message.asObject,
+        traceId.asObject,
+        isRetryable.asObject,
+        code.asObject,
+        localPatchWire.asObject,
+        remotePatchWire.asObject,
+      ]);
 
   static String _getMessage(ConflictFailure root) => root.message;
 
@@ -4139,12 +4262,13 @@ abstract final class CancelledFailureFields {
         set: _setCode,
       );
 
-  static final List<ZorphyField<CancelledFailure, Object?>> all = [
-    message.asObject,
-    traceId.asObject,
-    isRetryable.asObject,
-    code.asObject,
-  ];
+  static final List<ZorphyField<CancelledFailure, Object?>> all =
+      List.unmodifiable([
+        message.asObject,
+        traceId.asObject,
+        isRetryable.asObject,
+        code.asObject,
+      ]);
 
   static String _getMessage(CancelledFailure root) => root.message;
 
@@ -4220,13 +4344,14 @@ abstract final class InterruptedFailureFields {
         set: _setIntentDigest,
       );
 
-  static final List<ZorphyField<InterruptedFailure, Object?>> all = [
-    message.asObject,
-    traceId.asObject,
-    isRetryable.asObject,
-    code.asObject,
-    intentDigest.asObject,
-  ];
+  static final List<ZorphyField<InterruptedFailure, Object?>> all =
+      List.unmodifiable([
+        message.asObject,
+        traceId.asObject,
+        isRetryable.asObject,
+        code.asObject,
+        intentDigest.asObject,
+      ]);
 
   static String _getMessage(InterruptedFailure root) => root.message;
 
@@ -4315,13 +4440,14 @@ abstract final class StorageFailureFields {
         set: _setLayer,
       );
 
-  static final List<ZorphyField<StorageFailure, Object?>> all = [
-    message.asObject,
-    traceId.asObject,
-    isRetryable.asObject,
-    code.asObject,
-    layer.asObject,
-  ];
+  static final List<ZorphyField<StorageFailure, Object?>> all =
+      List.unmodifiable([
+        message.asObject,
+        traceId.asObject,
+        isRetryable.asObject,
+        code.asObject,
+        layer.asObject,
+      ]);
 
   static String _getMessage(StorageFailure root) => root.message;
 
@@ -4411,14 +4537,15 @@ abstract final class UnexpectedFailureFields {
         set: _setStackTrace,
       );
 
-  static final List<ZorphyField<UnexpectedFailure, Object?>> all = [
-    message.asObject,
-    traceId.asObject,
-    isRetryable.asObject,
-    code.asObject,
-    cause.asObject,
-    stackTrace.asObject,
-  ];
+  static final List<ZorphyField<UnexpectedFailure, Object?>> all =
+      List.unmodifiable([
+        message.asObject,
+        traceId.asObject,
+        isRetryable.asObject,
+        code.asObject,
+        cause.asObject,
+        stackTrace.asObject,
+      ]);
 
   static String _getMessage(UnexpectedFailure root) => root.message;
 
@@ -5828,4 +5955,3 @@ extension UnexpectedFailureMorphing on UnexpectedFailure {
     );
   }
 }
-

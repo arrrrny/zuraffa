@@ -2,7 +2,7 @@ import 'package:zorphy_annotation/zorphy_annotation.dart';
 
 import 'params.dart';
 
-part '../../../_br_/src/core/params/toggle_params.part.dart';
+part 'toggle_params.zorphy.dart';
 
 /// Parameters for toggling a boolean field of an entity.
 ///

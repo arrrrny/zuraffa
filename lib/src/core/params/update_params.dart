@@ -2,7 +2,7 @@ import 'package:zorphy_annotation/zorphy_annotation.dart';
 
 import 'params.dart';
 
-part '../../../_br_/src/core/params/update_params.part.dart';
+part 'update_params.zorphy.dart';
 
 /// Parameters for updating an entity.
 ///

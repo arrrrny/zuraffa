@@ -2,7 +2,7 @@ import 'package:zorphy_annotation/zorphy_annotation.dart';
 
 import 'params.dart';
 
-part '../../../_br_/src/core/params/credentials.part.dart';
+part 'credentials.zorphy.dart';
 
 @ZorphyValue()
 abstract class $Credentials implements Params {

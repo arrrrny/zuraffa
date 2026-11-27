@@ -2,7 +2,7 @@ import 'package:zorphy_annotation/zorphy_annotation.dart';
 
 import 'params.dart';
 
-part '../../../_br_/src/core/params/create_params.part.dart';
+part 'create_params.zorphy.dart';
 
 /// Parameters for creating a new entity of type [T].
 ///

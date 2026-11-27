@@ -1,7 +1,5 @@
-// dart format off
-part of '../../../../src/core/params/settings.dart';
+part of 'settings.dart';
 
-// === zorphy:zorphy contribution.
 // ignore_for_file: UNNECESSARY_CAST
 // ignore_for_file: type=lint
 final class _ZorphyCopyWithSentinel {
@@ -122,6 +120,14 @@ final class Settings implements ZorphyValueBase {
     return map;
   }
 
+  static ZorphyBoundaryResult<Settings> fromJson(Map<String, dynamic> json) {
+    return Settings.fromWire(json);
+  }
+
+  Map<String, dynamic> toJson() {
+    return toWire();
+  }
+
   /// Resolves a JSON Pointer into a [ZorphyLens] over [Settings].
   ///
   /// One switch step per segment, so a pointer costs O(depth)
@@ -225,11 +231,12 @@ abstract final class SettingsFields {
         set: _setParams,
       );
 
-  static final List<ZorphyField<Settings, Object?>> all = [params.asObject];
+  static final List<ZorphyField<Settings, Object?>> all = List.unmodifiable([
+    params.asObject,
+  ]);
 
   static Map<String, dynamic>? _getParams(Settings root) => root.params;
 
   static Settings _setParams(Settings root, Map<String, dynamic>? value) =>
       root.copyWith(params: value);
 }
-

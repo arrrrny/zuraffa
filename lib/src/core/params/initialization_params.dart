@@ -4,7 +4,7 @@ import 'package:zuraffa/src/core/params/settings.dart';
 
 import 'params.dart';
 
-part '../../../_br_/src/core/params/initialization_params.part.dart';
+part 'initialization_params.zorphy.dart';
 
 /// Parameters for initializing a repository or data source.
 @ZorphyValue()

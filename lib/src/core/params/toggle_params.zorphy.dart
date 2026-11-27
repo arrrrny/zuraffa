@@ -1,7 +1,5 @@
-// dart format off
-part of '../../../../src/core/params/list_query_params.dart';
+part of 'toggle_params.dart';
 
-// === zorphy:zorphy contribution.
 // ignore_for_file: UNNECESSARY_CAST
 // ignore_for_file: type=lint
 final class _ZorphyCopyWithSentinel {
@@ -10,44 +8,32 @@ final class _ZorphyCopyWithSentinel {
 
 const Object _sentinel = _ZorphyCopyWithSentinel();
 
-final class ListQueryParams<T> implements ZorphyValueBase {
-  ListQueryParams.fromTrusted({
-    this.search,
-    this.filter,
-    this.sort,
-    this.limit,
-    this.offset,
+final class ToggleParams<I extends Object, F> implements ZorphyValueBase {
+  ToggleParams.fromTrusted({
+    required this.id,
+    required this.field,
+    this.value,
     Map<String, dynamic>? params,
   }) : params = params == null ? null : Map<String, dynamic>.of(params);
 
-  final String? search;
+  final I id;
 
-  final ZorphyFilter<T>? filter;
+  final F field;
 
-  final ZorphySort<T>? sort;
-
-  final int? limit;
-
-  final int? offset;
+  final Object? value;
 
   final Map<String, dynamic>? params;
 
-  ListQueryParams<T> copyWith({
-    Object? search = _sentinel,
-    Object? filter = _sentinel,
-    Object? sort = _sentinel,
-    Object? limit = _sentinel,
-    Object? offset = _sentinel,
+  ToggleParams<I, F> copyWith({
+    I? id,
+    F? field,
+    Object? value = _sentinel,
     Object? params = _sentinel,
   }) {
-    return ListQueryParams<T>.fromTrusted(
-      search: identical(search, _sentinel) ? this.search : search as String?,
-      filter: identical(filter, _sentinel)
-          ? this.filter
-          : filter as ZorphyFilter<T>?,
-      sort: identical(sort, _sentinel) ? this.sort : sort as ZorphySort<T>?,
-      limit: identical(limit, _sentinel) ? this.limit : limit as int?,
-      offset: identical(offset, _sentinel) ? this.offset : offset as int?,
+    return ToggleParams<I, F>.fromTrusted(
+      id: id ?? this.id,
+      field: field ?? this.field,
+      value: identical(value, _sentinel) ? this.value : value as Object?,
       params: identical(params, _sentinel)
           ? this.params
           : params as Map<String, dynamic>?,
@@ -57,28 +43,24 @@ final class ListQueryParams<T> implements ZorphyValueBase {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is ListQueryParams &&
-        this.search == other.search &&
-        this.filter == other.filter &&
-        this.sort == other.sort &&
-        this.limit == other.limit &&
-        this.offset == other.offset &&
-        ListQueryParams._zorphyCollectionEquals(this.params, other.params);
+    return other is ToggleParams &&
+        ToggleParams._zorphyCollectionEquals(this.id, other.id) &&
+        ToggleParams._zorphyCollectionEquals(this.field, other.field) &&
+        this.value == other.value &&
+        ToggleParams._zorphyCollectionEquals(this.params, other.params);
   }
 
   @override
   int get hashCode => Object.hashAll([
-    search,
-    filter,
-    sort,
-    limit,
-    offset,
-    ListQueryParams._zorphyCollectionHash(params),
+    ToggleParams._zorphyCollectionHash(id),
+    ToggleParams._zorphyCollectionHash(field),
+    value,
+    ToggleParams._zorphyCollectionHash(params),
   ]);
 
   @override
   String toString() =>
-      'ListQueryParams(search: $search, filter: $filter, sort: $sort, limit: $limit, offset: $offset, params: $params)';
+      'ToggleParams(id: $id, field: $field, value: $value, params: $params)';
 
   static bool _zorphyCollectionEquals(Object? a, Object? b) {
     if (identical(a, b)) return true;
@@ -119,35 +101,39 @@ final class ListQueryParams<T> implements ZorphyValueBase {
     return value.hashCode;
   }
 
-  static ZorphyBoundaryResult<ListQueryParams<T>> fromWire<T>(
+  static ZorphyBoundaryResult<ToggleParams<I, F>> fromWire<I extends Object, F>(
     Map<String, Object?> raw,
-    ZorphyBoundaryResult<T> Function(Map<String, Object?> raw) decodeT,
+    ZorphyBoundaryResult<I> Function(Map<String, Object?> raw) decodeI,
+    ZorphyBoundaryResult<F> Function(Map<String, Object?> raw) decodeF,
   ) {
     final violations = <FieldViolation>[];
-    final Object? raw_search = raw['search'];
-    String? _search;
-    if (raw_search != null) {
-      _search = _boundaryAs<String>(raw_search, '/search', violations);
+    final Object? raw_id = raw['id'];
+    I? _id;
+    final map_id = _boundaryObject(raw_id, '/id', violations);
+    if (map_id != null) {
+      decodeI(map_id).fold(
+        (value) {
+          _id = value;
+        },
+        (error) => violations.addAll(_boundaryPrefix(error.violations, '/id')),
+      );
     }
-    final Object? raw_filter = raw['filter'];
-    ZorphyFilter<T>? _filter;
-    if (raw_filter != null) {
-      _filter = _boundaryAs<ZorphyFilter<T>>(raw_filter, '/filter', violations);
+    final Object? raw_field = raw['field'];
+    F? _field;
+    final map_field = _boundaryObject(raw_field, '/field', violations);
+    if (map_field != null) {
+      decodeF(map_field).fold(
+        (value) {
+          _field = value;
+        },
+        (error) =>
+            violations.addAll(_boundaryPrefix(error.violations, '/field')),
+      );
     }
-    final Object? raw_sort = raw['sort'];
-    ZorphySort<T>? _sort;
-    if (raw_sort != null) {
-      _sort = _boundaryAs<ZorphySort<T>>(raw_sort, '/sort', violations);
-    }
-    final Object? raw_limit = raw['limit'];
-    int? _limit;
-    if (raw_limit != null) {
-      _limit = _boundaryAs<int>(raw_limit, '/limit', violations);
-    }
-    final Object? raw_offset = raw['offset'];
-    int? _offset;
-    if (raw_offset != null) {
-      _offset = _boundaryAs<int>(raw_offset, '/offset', violations);
+    final Object? raw_value = raw['value'];
+    Object? _value;
+    if (raw_value != null) {
+      _value = _boundaryAs<Object>(raw_value, '/value', violations);
     }
     final Object? raw_params = raw['params'];
     Map<String, dynamic>? _params;
@@ -174,44 +160,31 @@ final class ListQueryParams<T> implements ZorphyValueBase {
       }
     }
     if (violations.isNotEmpty) {
-      return BoundaryErr<ListQueryParams<T>>(
-        targetType: 'ListQueryParams',
+      return BoundaryErr<ToggleParams<I, F>>(
+        targetType: 'ToggleParams',
         violations: violations,
       );
     }
-    return BoundaryOk<ListQueryParams<T>>(
-      ListQueryParams.fromTrusted(
-        search: _search,
-        filter: _filter,
-        sort: _sort,
-        limit: _limit,
-        offset: _offset,
+    return BoundaryOk<ToggleParams<I, F>>(
+      ToggleParams.fromTrusted(
+        id: _id!,
+        field: _field!,
+        value: _value,
         params: _params,
       ),
     );
   }
 
-  Map<String, Object?> toWire(Map<String, Object?> Function(T value) encodeT) {
+  Map<String, Object?> toWire(
+    Map<String, Object?> Function(I value) encodeI,
+    Map<String, Object?> Function(F value) encodeF,
+  ) {
     final map = <String, Object?>{};
-    final _search = this.search;
-    if (_search != null) {
-      map['search'] = _search;
-    }
-    final _filter = this.filter;
-    if (_filter != null) {
-      map['filter'] = _filter;
-    }
-    final _sort = this.sort;
-    if (_sort != null) {
-      map['sort'] = _sort;
-    }
-    final _limit = this.limit;
-    if (_limit != null) {
-      map['limit'] = _limit;
-    }
-    final _offset = this.offset;
-    if (_offset != null) {
-      map['offset'] = _offset;
+    map['id'] = encodeI(this.id);
+    map['field'] = encodeF(this.field);
+    final _value = this.value;
+    if (_value != null) {
+      map['value'] = _value;
     }
     final _params = this.params;
     if (_params != null) {
@@ -226,6 +199,21 @@ String _boundaryDescribe(Object? value) {
   final text = value.toString();
   final clipped = text.length > 60 ? '${text.substring(0, 60)}…' : text;
   return '${value.runtimeType} ("$clipped")';
+}
+
+List<FieldViolation> _boundaryPrefix(
+  List<FieldViolation> violations,
+  String path,
+) {
+  return violations
+      .map(
+        (violation) => FieldViolation(
+          path: path + violation.path,
+          expected: violation.expected,
+          actual: violation.actual,
+        ),
+      )
+      .toList();
 }
 
 T? _boundaryAs<T>(Object? value, String path, List<FieldViolation> violations) {
@@ -255,4 +243,3 @@ Map<String, Object?>? _boundaryObject(
   );
   return null;
 }
-

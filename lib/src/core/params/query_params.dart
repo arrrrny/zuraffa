@@ -5,7 +5,7 @@ import 'converters/filter_converter.dart';
 import 'list_query_params.dart';
 import 'params.dart';
 
-part '../../../_br_/src/core/params/query_params.part.dart';
+part 'query_params.zorphy.dart';
 
 /// Parameters for querying a single entity by a field (usually ID or slug).
 ///

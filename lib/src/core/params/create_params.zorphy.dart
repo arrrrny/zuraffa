@@ -1,7 +1,5 @@
-// dart format off
-part of '../../../../src/core/params/credentials.dart';
+part of 'create_params.dart';
 
-// === zorphy:zorphy contribution.
 // ignore_for_file: UNNECESSARY_CAST
 // ignore_for_file: type=lint
 final class _ZorphyCopyWithSentinel {
@@ -10,16 +8,17 @@ final class _ZorphyCopyWithSentinel {
 
 const Object _sentinel = _ZorphyCopyWithSentinel();
 
-final class Credentials implements ZorphyValueBase {
-  Credentials.fromTrusted({Map<String, dynamic>? params})
+final class CreateParams<T> implements ZorphyValueBase {
+  CreateParams.fromTrusted({required this.data, Map<String, dynamic>? params})
     : params = params == null ? null : Map<String, dynamic>.of(params);
+
+  final T data;
 
   final Map<String, dynamic>? params;
 
-  static const CredentialsLenses lenses = CredentialsLenses();
-
-  Credentials copyWith({Object? params = _sentinel}) {
-    return Credentials.fromTrusted(
+  CreateParams<T> copyWith({T? data, Object? params = _sentinel}) {
+    return CreateParams<T>.fromTrusted(
+      data: data ?? this.data,
       params: identical(params, _sentinel)
           ? this.params
           : params as Map<String, dynamic>?,
@@ -29,16 +28,19 @@ final class Credentials implements ZorphyValueBase {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is Credentials &&
-        Credentials._zorphyCollectionEquals(this.params, other.params);
+    return other is CreateParams &&
+        CreateParams._zorphyCollectionEquals(this.data, other.data) &&
+        CreateParams._zorphyCollectionEquals(this.params, other.params);
   }
 
   @override
-  int get hashCode =>
-      Object.hashAll([Credentials._zorphyCollectionHash(params)]);
+  int get hashCode => Object.hashAll([
+    CreateParams._zorphyCollectionHash(data),
+    CreateParams._zorphyCollectionHash(params),
+  ]);
 
   @override
-  String toString() => 'Credentials(params: $params)';
+  String toString() => 'CreateParams(data: $data, params: $params)';
 
   static bool _zorphyCollectionEquals(Object? a, Object? b) {
     if (identical(a, b)) return true;
@@ -79,8 +81,23 @@ final class Credentials implements ZorphyValueBase {
     return value.hashCode;
   }
 
-  static ZorphyBoundaryResult<Credentials> fromWire(Map<String, Object?> raw) {
+  static ZorphyBoundaryResult<CreateParams<T>> fromWire<T>(
+    Map<String, Object?> raw,
+    ZorphyBoundaryResult<T> Function(Map<String, Object?> raw) decodeT,
+  ) {
     final violations = <FieldViolation>[];
+    final Object? raw_data = raw['data'];
+    T? _data;
+    final map_data = _boundaryObject(raw_data, '/data', violations);
+    if (map_data != null) {
+      decodeT(map_data).fold(
+        (value) {
+          _data = value;
+        },
+        (error) =>
+            violations.addAll(_boundaryPrefix(error.violations, '/data')),
+      );
+    }
     final Object? raw_params = raw['params'];
     Map<String, dynamic>? _params;
     if (raw_params != null) {
@@ -106,51 +123,24 @@ final class Credentials implements ZorphyValueBase {
       }
     }
     if (violations.isNotEmpty) {
-      return BoundaryErr<Credentials>(
-        targetType: 'Credentials',
+      return BoundaryErr<CreateParams<T>>(
+        targetType: 'CreateParams',
         violations: violations,
       );
     }
-    return BoundaryOk<Credentials>(Credentials.fromTrusted(params: _params));
+    return BoundaryOk<CreateParams<T>>(
+      CreateParams.fromTrusted(data: _data!, params: _params),
+    );
   }
 
-  Map<String, Object?> toWire() {
+  Map<String, Object?> toWire(Map<String, Object?> Function(T value) encodeT) {
     final map = <String, Object?>{};
+    map['data'] = encodeT(this.data);
     final _params = this.params;
     if (_params != null) {
       map['params'] = _params;
     }
     return map;
-  }
-
-  /// Resolves a JSON Pointer into a [ZorphyLens] over [Credentials].
-  ///
-  /// One switch step per segment, so a pointer costs O(depth)
-  /// — no regex, no mirrors, no reflective lookup.
-  ///
-  /// A pointer this node does not carry answers `null`.
-  static ZorphyLens<Credentials, Object?>? resolvePath(String pointer) {
-    return switch (pointer) {
-      '/params' => ZorphyLens<Credentials, Object?>(
-        path: '/params',
-        get: (root) => root.params,
-        set: (root, value) =>
-            root.copyWith(params: value as Map<String, dynamic>?),
-      ),
-      _ => null,
-    };
-  }
-}
-
-class CredentialsMockData {
-  CredentialsMockData._();
-
-  static Credentials single({int seed = 0}) {
-    return Credentials.fromTrusted(params: {});
-  }
-
-  static List<Credentials> list({int count = 10}) {
-    return List<Credentials>.generate(count, (index) => single(seed: index));
   }
 }
 
@@ -159,6 +149,21 @@ String _boundaryDescribe(Object? value) {
   final text = value.toString();
   final clipped = text.length > 60 ? '${text.substring(0, 60)}…' : text;
   return '${value.runtimeType} ("$clipped")';
+}
+
+List<FieldViolation> _boundaryPrefix(
+  List<FieldViolation> violations,
+  String path,
+) {
+  return violations
+      .map(
+        (violation) => FieldViolation(
+          path: path + violation.path,
+          expected: violation.expected,
+          actual: violation.actual,
+        ),
+      )
+      .toList();
 }
 
 T? _boundaryAs<T>(Object? value, String path, List<FieldViolation> violations) {
@@ -188,53 +193,3 @@ Map<String, Object?>? _boundaryObject(
   );
   return null;
 }
-
-/// Typed lenses over [Credentials] — one per writable field.
-///
-/// Compose with `then` to reach a nested value:
-/// `Credentials.lenses.<field>.then(<Nested>.lenses.<leaf>)`.
-final class CredentialsLenses {
-  const CredentialsLenses();
-
-  ZorphyLens<Credentials, Map<String, dynamic>?> get params =>
-      const ZorphyLens<Credentials, Map<String, dynamic>?>(
-        path: '/params',
-        get: _getParams,
-        set: _setParams,
-      );
-
-  static Map<String, dynamic>? _getParams(Credentials root) => root.params;
-
-  static Credentials _setParams(
-    Credentials root,
-    Map<String, dynamic>? value,
-  ) => root.copyWith(params: value);
-}
-
-/// Typed field descriptors over [Credentials] — one
-/// `ZorphyField` per payload field, inherited fields
-/// included (issue #247).
-///
-/// Query with the predicate methods, sort with `asc` /
-/// `desc`, resolve wire pointers through
-/// `CredentialsFields.all`.
-abstract final class CredentialsFields {
-  static const ZorphyField<Credentials, Map<String, dynamic>?> params =
-      ZorphyField<Credentials, Map<String, dynamic>?>(
-        name: 'params',
-        jsonKey: 'params',
-        pointer: '/params',
-        get: _getParams,
-        set: _setParams,
-      );
-
-  static final List<ZorphyField<Credentials, Object?>> all = [params.asObject];
-
-  static Map<String, dynamic>? _getParams(Credentials root) => root.params;
-
-  static Credentials _setParams(
-    Credentials root,
-    Map<String, dynamic>? value,
-  ) => root.copyWith(params: value);
-}
-

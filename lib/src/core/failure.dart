@@ -1,6 +1,6 @@
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 
-part '../../_br_/src/core/failure.part.dart';
+part 'failure.zorphy.dart';
 
 /// Polymorphic application failure taxonomy (v8, ZFA-001).
 ///

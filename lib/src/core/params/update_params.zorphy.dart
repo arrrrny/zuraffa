@@ -1,7 +1,5 @@
-// dart format off
-part of '../../../../src/core/params/delete_params.dart';
+part of 'update_params.dart';
 
-// === zorphy:zorphy contribution.
 // ignore_for_file: UNNECESSARY_CAST
 // ignore_for_file: type=lint
 final class _ZorphyCopyWithSentinel {
@@ -10,17 +8,23 @@ final class _ZorphyCopyWithSentinel {
 
 const Object _sentinel = _ZorphyCopyWithSentinel();
 
-final class DeleteParams<I extends Object> implements ZorphyValueBase {
-  DeleteParams.fromTrusted({required this.id, Map<String, dynamic>? params})
-    : params = params == null ? null : Map<String, dynamic>.of(params);
+final class UpdateParams<I, P> implements ZorphyValueBase {
+  UpdateParams.fromTrusted({
+    required this.id,
+    required this.data,
+    Map<String, dynamic>? params,
+  }) : params = params == null ? null : Map<String, dynamic>.of(params);
 
   final I id;
 
+  final P data;
+
   final Map<String, dynamic>? params;
 
-  DeleteParams<I> copyWith({I? id, Object? params = _sentinel}) {
-    return DeleteParams<I>.fromTrusted(
+  UpdateParams<I, P> copyWith({I? id, P? data, Object? params = _sentinel}) {
+    return UpdateParams<I, P>.fromTrusted(
       id: id ?? this.id,
+      data: data ?? this.data,
       params: identical(params, _sentinel)
           ? this.params
           : params as Map<String, dynamic>?,
@@ -30,19 +34,21 @@ final class DeleteParams<I extends Object> implements ZorphyValueBase {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is DeleteParams &&
-        DeleteParams._zorphyCollectionEquals(this.id, other.id) &&
-        DeleteParams._zorphyCollectionEquals(this.params, other.params);
+    return other is UpdateParams &&
+        UpdateParams._zorphyCollectionEquals(this.id, other.id) &&
+        UpdateParams._zorphyCollectionEquals(this.data, other.data) &&
+        UpdateParams._zorphyCollectionEquals(this.params, other.params);
   }
 
   @override
   int get hashCode => Object.hashAll([
-    DeleteParams._zorphyCollectionHash(id),
-    DeleteParams._zorphyCollectionHash(params),
+    UpdateParams._zorphyCollectionHash(id),
+    UpdateParams._zorphyCollectionHash(data),
+    UpdateParams._zorphyCollectionHash(params),
   ]);
 
   @override
-  String toString() => 'DeleteParams(id: $id, params: $params)';
+  String toString() => 'UpdateParams(id: $id, data: $data, params: $params)';
 
   static bool _zorphyCollectionEquals(Object? a, Object? b) {
     if (identical(a, b)) return true;
@@ -83,9 +89,10 @@ final class DeleteParams<I extends Object> implements ZorphyValueBase {
     return value.hashCode;
   }
 
-  static ZorphyBoundaryResult<DeleteParams<I>> fromWire<I extends Object>(
+  static ZorphyBoundaryResult<UpdateParams<I, P>> fromWire<I, P>(
     Map<String, Object?> raw,
     ZorphyBoundaryResult<I> Function(Map<String, Object?> raw) decodeI,
+    ZorphyBoundaryResult<P> Function(Map<String, Object?> raw) decodeP,
   ) {
     final violations = <FieldViolation>[];
     final Object? raw_id = raw['id'];
@@ -97,6 +104,18 @@ final class DeleteParams<I extends Object> implements ZorphyValueBase {
           _id = value;
         },
         (error) => violations.addAll(_boundaryPrefix(error.violations, '/id')),
+      );
+    }
+    final Object? raw_data = raw['data'];
+    P? _data;
+    final map_data = _boundaryObject(raw_data, '/data', violations);
+    if (map_data != null) {
+      decodeP(map_data).fold(
+        (value) {
+          _data = value;
+        },
+        (error) =>
+            violations.addAll(_boundaryPrefix(error.violations, '/data')),
       );
     }
     final Object? raw_params = raw['params'];
@@ -124,19 +143,23 @@ final class DeleteParams<I extends Object> implements ZorphyValueBase {
       }
     }
     if (violations.isNotEmpty) {
-      return BoundaryErr<DeleteParams<I>>(
-        targetType: 'DeleteParams',
+      return BoundaryErr<UpdateParams<I, P>>(
+        targetType: 'UpdateParams',
         violations: violations,
       );
     }
-    return BoundaryOk<DeleteParams<I>>(
-      DeleteParams.fromTrusted(id: _id!, params: _params),
+    return BoundaryOk<UpdateParams<I, P>>(
+      UpdateParams.fromTrusted(id: _id!, data: _data!, params: _params),
     );
   }
 
-  Map<String, Object?> toWire(Map<String, Object?> Function(I value) encodeI) {
+  Map<String, Object?> toWire(
+    Map<String, Object?> Function(I value) encodeI,
+    Map<String, Object?> Function(P value) encodeP,
+  ) {
     final map = <String, Object?>{};
     map['id'] = encodeI(this.id);
+    map['data'] = encodeP(this.data);
     final _params = this.params;
     if (_params != null) {
       map['params'] = _params;
@@ -194,4 +217,3 @@ Map<String, Object?>? _boundaryObject(
   );
   return null;
 }
-

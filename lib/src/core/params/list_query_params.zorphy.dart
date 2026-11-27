@@ -1,7 +1,5 @@
-// dart format off
-part of '../../../../src/core/params/create_params.dart';
+part of 'list_query_params.dart';
 
-// === zorphy:zorphy contribution.
 // ignore_for_file: UNNECESSARY_CAST
 // ignore_for_file: type=lint
 final class _ZorphyCopyWithSentinel {
@@ -10,17 +8,44 @@ final class _ZorphyCopyWithSentinel {
 
 const Object _sentinel = _ZorphyCopyWithSentinel();
 
-final class CreateParams<T> implements ZorphyValueBase {
-  CreateParams.fromTrusted({required this.data, Map<String, dynamic>? params})
-    : params = params == null ? null : Map<String, dynamic>.of(params);
+final class ListQueryParams<T> implements ZorphyValueBase {
+  ListQueryParams.fromTrusted({
+    this.search,
+    this.filter,
+    this.sort,
+    this.limit,
+    this.offset,
+    Map<String, dynamic>? params,
+  }) : params = params == null ? null : Map<String, dynamic>.of(params);
 
-  final T data;
+  final String? search;
+
+  final ZorphyFilter<T>? filter;
+
+  final ZorphySort<T>? sort;
+
+  final int? limit;
+
+  final int? offset;
 
   final Map<String, dynamic>? params;
 
-  CreateParams<T> copyWith({T? data, Object? params = _sentinel}) {
-    return CreateParams<T>.fromTrusted(
-      data: data ?? this.data,
+  ListQueryParams<T> copyWith({
+    Object? search = _sentinel,
+    Object? filter = _sentinel,
+    Object? sort = _sentinel,
+    Object? limit = _sentinel,
+    Object? offset = _sentinel,
+    Object? params = _sentinel,
+  }) {
+    return ListQueryParams<T>.fromTrusted(
+      search: identical(search, _sentinel) ? this.search : search as String?,
+      filter: identical(filter, _sentinel)
+          ? this.filter
+          : filter as ZorphyFilter<T>?,
+      sort: identical(sort, _sentinel) ? this.sort : sort as ZorphySort<T>?,
+      limit: identical(limit, _sentinel) ? this.limit : limit as int?,
+      offset: identical(offset, _sentinel) ? this.offset : offset as int?,
       params: identical(params, _sentinel)
           ? this.params
           : params as Map<String, dynamic>?,
@@ -30,19 +55,28 @@ final class CreateParams<T> implements ZorphyValueBase {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is CreateParams &&
-        CreateParams._zorphyCollectionEquals(this.data, other.data) &&
-        CreateParams._zorphyCollectionEquals(this.params, other.params);
+    return other is ListQueryParams &&
+        this.search == other.search &&
+        this.filter == other.filter &&
+        this.sort == other.sort &&
+        this.limit == other.limit &&
+        this.offset == other.offset &&
+        ListQueryParams._zorphyCollectionEquals(this.params, other.params);
   }
 
   @override
   int get hashCode => Object.hashAll([
-    CreateParams._zorphyCollectionHash(data),
-    CreateParams._zorphyCollectionHash(params),
+    search,
+    filter,
+    sort,
+    limit,
+    offset,
+    ListQueryParams._zorphyCollectionHash(params),
   ]);
 
   @override
-  String toString() => 'CreateParams(data: $data, params: $params)';
+  String toString() =>
+      'ListQueryParams(search: $search, filter: $filter, sort: $sort, limit: $limit, offset: $offset, params: $params)';
 
   static bool _zorphyCollectionEquals(Object? a, Object? b) {
     if (identical(a, b)) return true;
@@ -83,22 +117,35 @@ final class CreateParams<T> implements ZorphyValueBase {
     return value.hashCode;
   }
 
-  static ZorphyBoundaryResult<CreateParams<T>> fromWire<T>(
+  static ZorphyBoundaryResult<ListQueryParams<T>> fromWire<T>(
     Map<String, Object?> raw,
     ZorphyBoundaryResult<T> Function(Map<String, Object?> raw) decodeT,
   ) {
     final violations = <FieldViolation>[];
-    final Object? raw_data = raw['data'];
-    T? _data;
-    final map_data = _boundaryObject(raw_data, '/data', violations);
-    if (map_data != null) {
-      decodeT(map_data).fold(
-        (value) {
-          _data = value;
-        },
-        (error) =>
-            violations.addAll(_boundaryPrefix(error.violations, '/data')),
-      );
+    final Object? raw_search = raw['search'];
+    String? _search;
+    if (raw_search != null) {
+      _search = _boundaryAs<String>(raw_search, '/search', violations);
+    }
+    final Object? raw_filter = raw['filter'];
+    ZorphyFilter<T>? _filter;
+    if (raw_filter != null) {
+      _filter = _boundaryAs<ZorphyFilter<T>>(raw_filter, '/filter', violations);
+    }
+    final Object? raw_sort = raw['sort'];
+    ZorphySort<T>? _sort;
+    if (raw_sort != null) {
+      _sort = _boundaryAs<ZorphySort<T>>(raw_sort, '/sort', violations);
+    }
+    final Object? raw_limit = raw['limit'];
+    int? _limit;
+    if (raw_limit != null) {
+      _limit = _boundaryAs<int>(raw_limit, '/limit', violations);
+    }
+    final Object? raw_offset = raw['offset'];
+    int? _offset;
+    if (raw_offset != null) {
+      _offset = _boundaryAs<int>(raw_offset, '/offset', violations);
     }
     final Object? raw_params = raw['params'];
     Map<String, dynamic>? _params;
@@ -125,19 +172,45 @@ final class CreateParams<T> implements ZorphyValueBase {
       }
     }
     if (violations.isNotEmpty) {
-      return BoundaryErr<CreateParams<T>>(
-        targetType: 'CreateParams',
+      return BoundaryErr<ListQueryParams<T>>(
+        targetType: 'ListQueryParams',
         violations: violations,
       );
     }
-    return BoundaryOk<CreateParams<T>>(
-      CreateParams.fromTrusted(data: _data!, params: _params),
+    return BoundaryOk<ListQueryParams<T>>(
+      ListQueryParams.fromTrusted(
+        search: _search,
+        filter: _filter,
+        sort: _sort,
+        limit: _limit,
+        offset: _offset,
+        params: _params,
+      ),
     );
   }
 
   Map<String, Object?> toWire(Map<String, Object?> Function(T value) encodeT) {
     final map = <String, Object?>{};
-    map['data'] = encodeT(this.data);
+    final _search = this.search;
+    if (_search != null) {
+      map['search'] = _search;
+    }
+    final _filter = this.filter;
+    if (_filter != null) {
+      map['filter'] = _filter;
+    }
+    final _sort = this.sort;
+    if (_sort != null) {
+      map['sort'] = _sort;
+    }
+    final _limit = this.limit;
+    if (_limit != null) {
+      map['limit'] = _limit;
+    }
+    final _offset = this.offset;
+    if (_offset != null) {
+      map['offset'] = _offset;
+    }
     final _params = this.params;
     if (_params != null) {
       map['params'] = _params;
@@ -151,21 +224,6 @@ String _boundaryDescribe(Object? value) {
   final text = value.toString();
   final clipped = text.length > 60 ? '${text.substring(0, 60)}…' : text;
   return '${value.runtimeType} ("$clipped")';
-}
-
-List<FieldViolation> _boundaryPrefix(
-  List<FieldViolation> violations,
-  String path,
-) {
-  return violations
-      .map(
-        (violation) => FieldViolation(
-          path: path + violation.path,
-          expected: violation.expected,
-          actual: violation.actual,
-        ),
-      )
-      .toList();
 }
 
 T? _boundaryAs<T>(Object? value, String path, List<FieldViolation> violations) {
@@ -195,4 +253,3 @@ Map<String, Object?>? _boundaryObject(
   );
   return null;
 }
-

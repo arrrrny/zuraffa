@@ -24,7 +24,7 @@ import 'xray_layer.dart';
 
 export 'xray_layer.dart';
 
-part '../../../../_br_/src/domain/entities/feature_contract/feature_contract.part.dart';
+part 'feature_contract.zorphy.dart';
 
 /// The typed feature contract (spec 1098).
 ///
