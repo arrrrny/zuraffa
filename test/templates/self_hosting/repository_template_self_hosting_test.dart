@@ -119,7 +119,7 @@ class StubProductDataSource with Loggable, FailureHandler
     implements ProductDataSource {
   @override
   Future<Product> get(QueryParams<Product> params) async {
-    return Product(
+    return Product.fromTrusted(
       id: 'p1',
       name: 'Desk',
       price: 42.0,

@@ -121,7 +121,7 @@ Future<void> main() async {
 
   final loaded = loading.copyWith(
     isGetting: false,
-    product: Product(
+    product: Product.fromTrusted(
       id: 'p1',
       name: 'Desk',
       price: 12.5,

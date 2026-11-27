@@ -118,7 +118,7 @@ import '../lib/src/data/datasources/product/product_datasource.dart';
 class InMemoryProductDataSource with Loggable, FailureHandler
     implements ProductDataSource {
   final items = <Product>[
-    Product(
+    Product.fromTrusted(
       id: 'p1',
       name: 'Desk',
       price: 7.25,

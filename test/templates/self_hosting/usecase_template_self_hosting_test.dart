@@ -109,7 +109,7 @@ import '../lib/src/domain/usecases/product/get_product_usecase.dart';
 class StubProductRepository implements ProductRepository {
   @override
   Future<Product> get(QueryParams<Product> params) async {
-    return Product(
+    return Product.fromTrusted(
       id: 'p1',
       name: 'Desk',
       price: 99.5,

@@ -98,7 +98,7 @@ import '../lib/src/domain/services/product_service.dart';
 class StubProductService implements ProductService {
   @override
   Future<Product> getProduct(QueryParams<Product> params) async {
-    return Product(
+    return Product.fromTrusted(
       id: 'p1',
       name: 'Desk',
       price: 99.5,
