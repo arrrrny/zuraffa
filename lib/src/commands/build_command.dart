@@ -1139,7 +1139,10 @@ class BuildCommand extends Command {
       (c) => c.startsWith('_br_/') || c.contains('/_br_/'),
     );
     final isGeneratedSuffix =
-        inBuildRunnerOutput || candidates.any((c) => c.endsWith('.g.dart'));
+        inBuildRunnerOutput ||
+        candidates.any(
+          (c) => c.endsWith('.zorphy.dart') || c.endsWith('.g.dart'),
+        );
     if (isGeneratedSuffix) {
       return true;
     }

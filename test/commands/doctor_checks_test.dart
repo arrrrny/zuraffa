@@ -434,7 +434,11 @@ abstract class \$User {
       'U10: missing profile fails suggesting tdd init; fix creates it',
       () async {
         final dir = await _sandbox();
-        await _writePubspec(dir);
+        // The branch version is unpublished, so heal against this checkout.
+        await _writePubspec(
+          dir,
+          zuraffa: '{path: ${jsonEncode(Directory.current.path)}}',
+        );
         await _markTddProject(dir);
 
         final results = await DoctorChecksRunner(

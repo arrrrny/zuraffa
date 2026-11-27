@@ -59,7 +59,7 @@ const String fixtureEntitySource = '''
 import 'package:zuraffa/zuraffa.dart';
 
 class Product {
-  Product({
+  Product.fromTrusted({
     required this.id,
     required this.name,
     required this.price,
@@ -72,7 +72,7 @@ class Product {
   final DateTime createdAt;
 
   Product copyWith({String? id, String? name, double? price, DateTime? createdAt}) {
-    return Product(
+    return Product.fromTrusted(
       id: id ?? this.id,
       name: name ?? this.name,
       price: price ?? this.price,
@@ -80,6 +80,8 @@ class Product {
     );
   }
 }
+
+class ProductMockData {}
 
 class ProductFields {
   const ProductFields._();

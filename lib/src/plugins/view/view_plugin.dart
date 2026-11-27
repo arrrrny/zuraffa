@@ -652,7 +652,6 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final repoPresenterArgs = useDi
         ? <String>[]
         : _buildRepoPresenterArgs(config);
-    final imports = _buildImports(config, domainSnake, useDi);
     final effectiveEntityName = config.usesCustomVpc
         ? config.effectivePresenterName.replaceAll('Presenter', '')
         : entityName;
@@ -692,6 +691,12 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         (!config.noEntity && !isCustom && await fileSystem.exists(mockDataFile))
         ? '../../../data/mock/${entitySnake}_mock_data.dart'
         : null;
+    final imports = _buildImports(
+      config,
+      domainSnake,
+      useDi,
+      withMockData: mockDataImportPath != null,
+    );
     // Add the mock_data import alongside the other imports so the body
     // can reference <Entity>MockData.
     final viewImports = mockDataImportPath != null
@@ -780,9 +785,6 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final repoPresenterArgs = useDi
         ? <String>[]
         : _buildRepoPresenterArgs(config);
-    final imports = _buildImports(config, domainSnake, useDi);
-    imports.addAll(additionalImports);
-
     final effectiveEntityName = config.usesCustomVpc
         ? config.effectivePresenterName.replaceAll('Presenter', '')
         : entityName;
@@ -834,6 +836,12 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             await fs.exists(mockDataFile))
         ? '../../../data/mock/${entitySnake}_mock_data.dart'
         : null;
+    final imports = _buildImports(
+      config,
+      domainSnake,
+      useDi,
+      withMockData: mockDataImportPath != null,
+    )..addAll(additionalImports);
     final viewImports = mockDataImportPath != null
         ? <String>[...imports, mockDataImportPath]
         : imports;
@@ -985,8 +993,9 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   List<String> _buildImports(
     GeneratorConfig config,
     String domainSnake,
-    bool useDi,
-  ) {
+    bool useDi, {
+    bool withMockData = false,
+  }) {
     final relativePath = '../../';
     // Flutter 3.47 deprecates `package:flutter/material.dart` in favour of the
     // published `material_ui` package (`package:material_ui/material_ui.dart`).
@@ -1050,8 +1059,14 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       // (`${config.name}?`) references an unimported symbol.
       if (!config.noEntity && (withState || config.isEntityBased)) {
         final entitySnake = config.nameSnake;
+        final entityImport =
+            '$relativePath../domain/entities/$entitySnake/$entitySnake.dart';
+        // A v3 entity library re-exports its MockData; the view imports the
+        // mock-data declaration directly, so keep that name out of this import.
         imports.add(
-          '$relativePath../domain/entities/$entitySnake/$entitySnake.dart',
+          withMockData
+              ? '$entityImport hide ${config.name}MockData'
+              : entityImport,
         );
       }
 

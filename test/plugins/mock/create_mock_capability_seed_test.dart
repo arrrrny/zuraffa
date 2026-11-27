@@ -94,11 +94,11 @@ class Login {
         final mockData = files.entries
             .firstWhere((e) => e.key.endsWith('login_mock_data.dart'))
             .value;
-        expect(mockData, contains("Login(id: 'id 42',"));
-        expect(mockData, contains("Login(id: 'id 43',"));
+        expect(mockData, contains("Login.fromTrusted(id: 'id 42',"));
+        expect(mockData, contains("Login.fromTrusted(id: 'id 43',"));
         expect(
           mockData,
-          isNot(contains("Login(id: 'id 1', ")),
+          isNot(contains("Login.fromTrusted(id: 'id 1', ")),
           reason: 'the historical unseeded first record must not appear',
         );
       } finally {
@@ -119,8 +119,8 @@ class Login {
             .firstWhere((e) => e.key.endsWith('login_mock_data.dart'))
             .value;
         expect(mockData7, isNot(mockData9));
-        expect(mockData7, contains("Login(id: 'id 7',"));
-        expect(mockData9, contains("Login(id: 'id 9',"));
+        expect(mockData7, contains("Login.fromTrusted(id: 'id 7',"));
+        expect(mockData9, contains("Login.fromTrusted(id: 'id 9',"));
       } finally {
         await dir7.delete(recursive: true);
         await dir9.delete(recursive: true);
@@ -135,9 +135,9 @@ class Login {
         final mockData = files.entries
             .firstWhere((e) => e.key.endsWith('login_mock_data.dart'))
             .value;
-        expect(mockData, contains("Login(id: 'id 1',"));
-        expect(mockData, contains("Login(id: 'id 2',"));
-        expect(mockData, contains("Login(id: 'id 3',"));
+        expect(mockData, contains("Login.fromTrusted(id: 'id 1',"));
+        expect(mockData, contains("Login.fromTrusted(id: 'id 2',"));
+        expect(mockData, contains("Login.fromTrusted(id: 'id 3',"));
       } finally {
         await dir.delete(recursive: true);
       }
