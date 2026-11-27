@@ -305,6 +305,18 @@ void main() {
         );
       },
     );
+
+    test('legacy policy denial fields survive reload', () async {
+      final store = FailureReportStore(filePath: filePath);
+      const json =
+          '[{"failureType":"PolicyDeniedFailure","message":"quota","timestamp":"2024-01-15T10:30:00.000Z","failureData":{"policyRule":"dailyQuota"}},{"failureType":"PolicyDeniedFailure","message":"cascade","timestamp":"2024-01-15T10:30:01.000Z","failureData":{"maxCascadeDepth":true}},{"failureType":"PolicyDeniedFailure","message":"forbidden","timestamp":"2024-01-15T10:30:02.000Z","failureData":{"reason":"forbidden","policyRule":"dailyQuota"}}]';
+      await File(filePath).writeAsString(json);
+
+      final loaded = await store.load();
+      expect((loaded[0].failure as PolicyDeniedFailure).reason, 'dailyQuota');
+      expect((loaded[1].failure as PolicyDeniedFailure).reason, 'cascadeDepth');
+      expect((loaded[2].failure as PolicyDeniedFailure).reason, 'forbidden');
+    });
   });
 
   group('FailureReportQueue with persistence', () {

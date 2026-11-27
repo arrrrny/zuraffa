@@ -286,6 +286,19 @@ class FailureReportStore {
 
   String? _storedCode(Map<String, dynamic> data) => data['code'] as String?;
 
+  String _storedPolicyReason(Map<String, dynamic> data) {
+    final reason = data['reason'] as String?;
+    if (reason != null) return reason;
+    if (data['maxCascadeDepth'] == true) return 'cascadeDepth';
+    final policyRule = data['policyRule'] as String?;
+    if (policyRule != null) {
+      return policyRule.toLowerCase().contains('cascade')
+          ? 'cascadeDepth'
+          : policyRule;
+    }
+    return 'permission';
+  }
+
   /// Reconstruct the most specific AppFailure subtype possible.
   AppFailure _reconstructFailure(
     String type,
@@ -319,7 +332,7 @@ class FailureReportStore {
       ),
       'PolicyDeniedFailure' => AppFailure.policyDenied(
         message: message,
-        reason: (data['reason'] as String?) ?? 'permission',
+        reason: _storedPolicyReason(data),
         traceId: _storedTraceId(data),
         code: _storedCode(data),
         isRetryable: _storedRetryable(data, fallback: false),

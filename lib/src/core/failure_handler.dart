@@ -26,6 +26,7 @@ mixin FailureHandler on Loggable {
   /// This method uses the AppFailure.from factory to intelligently
   /// classify the error based on its type and message.
   AppFailure handleError(Object error, [StackTrace? stackTrace]) {
+    final effectiveStackTrace = stackTrace ?? StackTrace.current;
     return switch (error) {
       // Validation Failures
       IndexError() => AppFailure.boundaryViolation(
@@ -88,48 +89,48 @@ mixin FailureHandler on Loggable {
         message: e.message ?? 'Platform error occurred',
         code: e.code,
         cause: e.details?.toString(),
-        stackTrace: stackTrace?.toString(),
+        stackTrace: effectiveStackTrace.toString(),
       ),
       ZuraffaMissingPluginException e => AppFailure.unexpected(
         message: e.message ?? 'Plugin not found',
         code: 'missing_plugin',
         cause: error.toString(),
-        stackTrace: stackTrace?.toString(),
+        stackTrace: effectiveStackTrace.toString(),
       ),
 
       // State Failures
       StateError e => AppFailure.unexpected(
         message: e.message,
         cause: error.toString(),
-        stackTrace: stackTrace?.toString(),
+        stackTrace: effectiveStackTrace.toString(),
       ),
       ConcurrentModificationError() => AppFailure.unexpected(
         message: 'Concurrent modification detected',
         cause: error.toString(),
-        stackTrace: stackTrace?.toString(),
+        stackTrace: effectiveStackTrace.toString(),
       ),
       StackOverflowError() => AppFailure.unexpected(
         message: 'Stack overflow',
         cause: error.toString(),
-        stackTrace: stackTrace?.toString(),
+        stackTrace: effectiveStackTrace.toString(),
       ),
       OutOfMemoryError() => AppFailure.unexpected(
         message: 'Out of memory',
         cause: error.toString(),
-        stackTrace: stackTrace?.toString(),
+        stackTrace: effectiveStackTrace.toString(),
       ),
 
       // Type Failures
       TypeError() => AppFailure.unexpected(
         message: 'Type error: $error',
         cause: error.toString(),
-        stackTrace: stackTrace?.toString(),
+        stackTrace: effectiveStackTrace.toString(),
       ),
       // NoSuchMethodError usually indicates a type/logic issue
       NoSuchMethodError() => AppFailure.unexpected(
         message: 'No such method: $error',
         cause: error.toString(),
-        stackTrace: stackTrace?.toString(),
+        stackTrace: effectiveStackTrace.toString(),
       ),
 
       // Unimplemented Failures
@@ -137,7 +138,7 @@ mixin FailureHandler on Loggable {
         message: e.message ?? 'Feature not implemented',
         code: 'unimplemented',
         cause: error.toString(),
-        stackTrace: stackTrace?.toString(),
+        stackTrace: effectiveStackTrace.toString(),
       ),
 
       // Unsupported Failures
@@ -145,11 +146,11 @@ mixin FailureHandler on Loggable {
         message: e.message ?? 'Operation not supported',
         code: 'unsupported',
         cause: error.toString(),
-        stackTrace: stackTrace?.toString(),
+        stackTrace: effectiveStackTrace.toString(),
       ),
 
       // Fallback
-      _ => AppFailure.from(error, stackTrace ?? StackTrace.current),
+      _ => AppFailure.from(error, effectiveStackTrace),
     };
   }
 

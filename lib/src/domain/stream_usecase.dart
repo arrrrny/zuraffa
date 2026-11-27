@@ -127,7 +127,7 @@ abstract class StreamUseCase<T, Params> with Loggable {
   /// Override this method to implement the streaming logic.
   ///
   /// - Throw [AppFailure] subclasses for expected/recoverable errors
-  /// - Any other exception is classified through `appFailureFrom` (for
+  /// - Any other exception is classified through `AppFailure.from` (for
   ///   example, a deadline error becomes a [TimeoutFailure]); it is not
   ///   wrapped in a single generic variant
   /// - Check `cancelToken?.isCancelled` for long gaps between emissions

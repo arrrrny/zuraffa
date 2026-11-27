@@ -362,12 +362,14 @@ void main() {
             message: 'net',
             statusCode: 503,
             traceId: 'trace-network',
+            code: 'code-network',
             isRetryable: true,
           ),
           AppFailure.timeout(
             message: 'slow',
             timeout: const Duration(seconds: 2),
             traceId: 'trace-timeout',
+            code: 'code-timeout',
             isRetryable: false,
           ),
           AppFailure.boundaryViolation(
@@ -376,12 +378,14 @@ void main() {
               FieldViolation(path: '/name', expected: 'string', actual: 'int'),
             ],
             traceId: 'trace-boundary',
+            code: 'code-boundary',
             isRetryable: true,
           ),
           AppFailure.policyDenied(
             message: 'denied',
             reason: 'forbidden',
             traceId: 'trace-policy',
+            code: 'code-policy',
             isRetryable: true,
           ),
           AppFailure.notFound(
@@ -389,6 +393,7 @@ void main() {
             resourceType: 'User',
             resourceId: '42',
             traceId: 'trace-notfound',
+            code: 'code-notfound',
             isRetryable: true,
           ),
           AppFailure.conflict(
@@ -396,23 +401,27 @@ void main() {
             localPatchWire: const {'local': 1},
             remotePatchWire: const {'remote': 2},
             traceId: 'trace-conflict',
+            code: 'code-conflict',
             isRetryable: true,
           ),
           CancelledFailure.fromTrusted(
             message: 'stopped',
             traceId: 'trace-cancelled',
+            code: 'code-cancelled',
             isRetryable: true,
           ),
           AppFailure.interrupted(
             message: 'halted',
             intentDigest: 'digest',
             traceId: 'trace-interrupted',
+            code: 'code-interrupted',
             isRetryable: false,
           ),
           AppFailure.storage(
             message: 'cache miss',
             layer: 'database',
             traceId: 'trace-storage',
+            code: 'code-storage',
             isRetryable: true,
           ),
           AppFailure.unexpected(
@@ -420,6 +429,7 @@ void main() {
             cause: 'bad state',
             stackTrace: '#0 boom',
             traceId: 'trace-unexpected',
+            code: 'code-unexpected',
             isRetryable: true,
           ),
         ];
@@ -430,6 +440,7 @@ void main() {
           expect(decoded[i].runtimeType, originals[i].runtimeType);
           expect(decoded[i].message, originals[i].message);
           expect(decoded[i].traceId, originals[i].traceId);
+          expect(decoded[i].code, originals[i].code);
           expect(decoded[i].isRetryable, originals[i].isRetryable);
         }
 

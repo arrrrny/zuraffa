@@ -194,6 +194,13 @@ void main() {
       expect(unexpected.stackTrace, contains('original throw site'));
     });
 
+    test('folded StateError captures a trace when none is supplied', () {
+      final failure = dataSource.handleError(StateError('bad state'));
+
+      expect(failure, isA<UnexpectedFailure>());
+      expect((failure as UnexpectedFailure).stackTrace, isNotNull);
+    });
+
     test('handler timeout matches the top-level helper retry semantics', () {
       final failure =
           dataSource.handleError(
