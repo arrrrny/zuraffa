@@ -23,7 +23,7 @@ Future<void> main() async {
   //    with zero manual registration code in this file.
   final usecase = engine.di.get<GetNoteUseCase>();
   final note = await usecase.execute(
-    QueryParams<Note>(params: {'id': 'id 1'}),
+    QueryParams<Note>.fromTrusted(params: {'id': 'id 1'}),
     null,
   );
   print('resolved via auto-DI: ${note.id} — ${note.body}');
