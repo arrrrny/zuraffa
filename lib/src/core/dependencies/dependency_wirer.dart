@@ -105,7 +105,7 @@ class DependencyWirer {
   /// generated code is only as new as the annotation major both sides
   /// resolve, and a pinned tripwire test (`dependency_wirer_test.dart`)
   /// keeps the two from drifting apart.
-  static const zorphyAnnotationConstraint = '^3.0.0-dev.3';
+  static const zorphyAnnotationConstraint = '^3.0.0-dev.5';
 
   /// Flutter apps need both `analyzer` and `meta` overlays: the Flutter
   /// SDK pins `meta 1.18.0` while analyzer >=13.1.0 requires
@@ -189,7 +189,7 @@ class DependencyWirer {
         version: consumerCoreConstraint,
       ),
       // Hosted, not git: zuraffa itself depends on zorphy_annotation from
-      // hosted (^3.0.0-dev.3). A root-level git pin creates a source conflict pub
+      // hosted (^3.0.0-dev.5). A root-level git pin creates a source conflict pub
       // cannot solve ("zorphy_annotation from hosted is required"), so the
       // wired declaration must match zuraffa's own hosted source.
       const DependencySpec(
