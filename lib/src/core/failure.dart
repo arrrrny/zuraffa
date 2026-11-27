@@ -13,6 +13,13 @@ part '../../_br_/src/core/failure.part.dart';
 ///
 /// Construct a variant through its root factory (`AppFailure.network(...)`) or
 /// the variant's own `fromTrusted`; decode one with [AppFailure.fromWire].
+///
+/// Compatibility note (v8): `AppFailure` no longer implements `Exception` —
+/// the v2 compatibility facade was intentionally dropped with the `@ZorphyUnion`
+/// migration. Callers of `FailureHandler` must catch `AppFailure` explicitly
+/// (`on AppFailure`) instead of relying on `on Exception`; arbitrary thrown
+/// objects are folded into a variant by [AppFailure.from], so a plain
+/// `catch (e)` that rethrows through `handleError` is still supported.
 @ZorphyUnion()
 abstract class $AppFailure {
   /// Human-readable error message.
