@@ -60,17 +60,17 @@ void main() {
       '  Task copyWith({Object? id}) => this;\n'
       '}\n'
       '\n'
-      'class TaskPatch {}
-
-/// v3 field registry the toggle writes through (`<E>Fields.<f>.set`).
-class TaskFields {
-  static const Object id = _IdField();
-}
-
-class _IdField {
-  const _IdField();
-  Task set(Task existing, Object? value) => existing;
-}\n',
+      'class TaskPatch {}\n'
+      '\n'
+      '/// v3 field registry the toggle writes through (`<E>Fields.<f>.set`).\n'
+      'class TaskFields {\n'
+      '  static const Object id = _IdField();\n'
+      '}\n'
+      '\n'
+      'class _IdField {\n'
+      '  const _IdField();\n'
+      '  Task set(Task existing, Object? value) => existing;\n'
+      '}\n',
     );
 
     final builder = MockBuilder(
