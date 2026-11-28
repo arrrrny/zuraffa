@@ -146,12 +146,40 @@ class EntityFieldResolver {
     final unit = _parseCompilationUnit(content);
     if (unit == null) return null;
     final classes = unit.declarations.whereType<ClassDeclaration>().toList();
+    final mixins = unit.declarations.whereType<MixinDeclaration>().toList();
     final declaration = _findDeclaration(
       classes: classes,
       className: className,
     );
     if (declaration == null) return null;
-    final fields = _fieldsForDeclaration(declaration, classes);
+
+    // The declared principalKey field on the current entity wins over a
+    // (possibly stale) generated `<Entity>Fields` descriptor: when the
+    // entity source declares a field with that name, resolve it directly
+    // even if the descriptor still lists the old principal key (CodeRabbit
+    // finding: stale descriptor after principalKey change).
+    final ownPrincipalKey =
+        _principalKeyOf(declaration) ??
+        _inheritedPrincipalKey(declaration, classes, mixins);
+    if (ownPrincipalKey != null) {
+      for (final field in _instanceFieldsIncludingInherited(
+        declaration,
+        classes,
+        mixins,
+      )) {
+        if (field.name == ownPrincipalKey) {
+          if (_archetypeOf(declaration) == 'ZorphyValue') {
+            return const EntityIdResolution(kind: EntitySourceKind.valueObject);
+          }
+          return EntityIdResolution(
+            kind: EntitySourceKind.entity,
+            idField: field,
+          );
+        }
+      }
+    }
+
+    final fields = _fieldsForDeclaration(declaration, classes, mixins);
     if (fields.isEmpty) return null;
 
     // Value objects have no identity — never resolve (or invent) an id.
@@ -163,7 +191,7 @@ class EntityFieldResolver {
     // 1. the `principalKey` field the annotation declares
     final principalKey =
         _principalKeyOf(declaration) ??
-        _inheritedPrincipalKey(declaration, classes);
+        _inheritedPrincipalKey(declaration, classes, mixins);
     if (principalKey != null) {
       for (final f in fields) {
         if (f.name == principalKey) {
@@ -293,13 +321,14 @@ class EntityFieldResolver {
     final unit = _parseCompilationUnit(content);
     if (unit == null) return const [];
     final classes = unit.declarations.whereType<ClassDeclaration>().toList();
+    final mixins = unit.declarations.whereType<MixinDeclaration>().toList();
     final declaration = _findDeclaration(
       classes: classes,
       className: className,
     );
     return declaration == null
         ? const []
-        : _fieldsForDeclaration(declaration, classes);
+        : _fieldsForDeclaration(declaration, classes, mixins);
   }
 
   static ClassDeclaration? _findDeclaration({
@@ -356,8 +385,9 @@ class EntityFieldResolver {
 
   static List<EntityFieldInfo> _fieldsForDeclaration(
     ClassDeclaration declaration,
-    List<ClassDeclaration> classes,
-  ) {
+    List<ClassDeclaration> classes, [
+    List<MixinDeclaration> mixins = const [],
+  ]) {
     if (declaration.namePart.typeName.lexeme.endsWith('Fields')) {
       final descriptors = _descriptorFields(declaration);
       if (descriptors.isNotEmpty) return descriptors;
@@ -376,18 +406,19 @@ class EntityFieldResolver {
     // documented-supported input (file doc lines 33–34). Mirrors the
     // supertype walk `_inheritedPrincipalKey` already does for the
     // principal key.
-    return _instanceFieldsIncludingInherited(declaration, classes);
+    return _instanceFieldsIncludingInherited(declaration, classes, mixins);
   }
 
   /// Instance fields of [declaration] followed by the instance fields of its
   /// supertypes (transitively), de-duplicated by field name — the
-  /// declaration's own fields win. Only supertypes declared in [classes]
-  /// (the same source file) are followed; an imported base class is not
-  /// visible to this source-only resolver.
+  /// declaration's own fields win. Only supertypes declared in [classes] or
+  /// [mixins] (the same source file) are followed; an imported base class is
+  /// not visible to this source-only resolver.
   static List<EntityFieldInfo> _instanceFieldsIncludingInherited(
     ClassDeclaration declaration,
-    List<ClassDeclaration> classes,
-  ) {
+    List<ClassDeclaration> classes, [
+    List<MixinDeclaration> mixins = const [],
+  ]) {
     final byName = <String, ClassDeclaration>{};
     for (final candidate in classes) {
       final name = _cleanClassName(candidate.namePart.typeName.lexeme);
@@ -398,26 +429,41 @@ class EntityFieldResolver {
         byName[name] = candidate;
       }
     }
+    final mixinByName = <String, MixinDeclaration>{};
+    for (final candidate in mixins) {
+      final name = _cleanClassName(candidate.name.lexeme);
+      mixinByName.putIfAbsent(name, () => candidate);
+    }
 
     final fields = <EntityFieldInfo>[];
     final seen = <String>{};
     final visited = <String>{};
 
-    void addAll(ClassDeclaration current) {
-      for (final field in _instanceFields(current)) {
+    void addAllMembers(ClassBody body) {
+      for (final field in _instanceFieldsFromBody(body)) {
         if (seen.add(field.name)) fields.add(field);
       }
     }
 
-    addAll(declaration);
+    addAllMembers(declaration.body);
     void visit(ClassDeclaration current) {
       for (final supertype in _supertypes(current)) {
-        final base = byName[_cleanClassName(supertype.name.lexeme)];
-        if (base == null) continue;
-        final name = _cleanClassName(base.namePart.typeName.lexeme);
-        if (!visited.add(name)) continue;
-        addAll(base);
-        visit(base);
+        final superName = _cleanClassName(supertype.name.lexeme);
+        final base = byName[superName];
+        if (base != null) {
+          final name = _cleanClassName(base.namePart.typeName.lexeme);
+          if (visited.add(name)) {
+            addAllMembers(base.body);
+            visit(base);
+          }
+        }
+        final mixin = mixinByName[superName];
+        if (mixin != null) {
+          final name = _cleanClassName(mixin.name.lexeme);
+          if (visited.add(name)) {
+            addAllMembers(mixin.body);
+          }
+        }
       }
     }
 
@@ -426,8 +472,12 @@ class EntityFieldResolver {
   }
 
   static List<EntityFieldInfo> _instanceFields(ClassDeclaration declaration) {
+    return _instanceFieldsFromBody(declaration.body);
+  }
+
+  static List<EntityFieldInfo> _instanceFieldsFromBody(ClassBody body) {
     final fields = <EntityFieldInfo>[];
-    for (final member in declaration.body.members) {
+    for (final member in body.members) {
       if (member is FieldDeclaration && !member.isStatic) {
         final type = member.fields.type;
         if (type == null) continue;
@@ -502,8 +552,9 @@ class EntityFieldResolver {
 
   static String? _inheritedPrincipalKey(
     ClassDeclaration declaration,
-    List<ClassDeclaration> classes,
-  ) {
+    List<ClassDeclaration> classes, [
+    List<MixinDeclaration> mixins = const [],
+  ]) {
     final byName = <String, ClassDeclaration>{};
     for (final candidate in classes) {
       final name = _cleanClassName(candidate.namePart.typeName.lexeme);
@@ -514,18 +565,29 @@ class EntityFieldResolver {
         byName[name] = candidate;
       }
     }
+    final mixinByName = <String, MixinDeclaration>{};
+    for (final candidate in mixins) {
+      final name = _cleanClassName(candidate.name.lexeme);
+      mixinByName.putIfAbsent(name, () => candidate);
+    }
     final visited = <String>{};
 
     String? visit(ClassDeclaration current) {
       for (final supertype in _supertypes(current)) {
-        final base = byName[_cleanClassName(supertype.name.lexeme)];
-        if (base == null) continue;
-        final name = _cleanClassName(base.namePart.typeName.lexeme);
-        if (!visited.add(name)) continue;
-        final key = _principalKeyOf(base);
-        if (key != null) return key;
-        final inherited = visit(base);
-        if (inherited != null) return inherited;
+        final superName = _cleanClassName(supertype.name.lexeme);
+        final base = byName[superName];
+        if (base != null) {
+          final name = _cleanClassName(base.namePart.typeName.lexeme);
+          if (visited.add(name)) {
+            final key = _principalKeyOf(base);
+            if (key != null) return key;
+            final inherited = visit(base);
+            if (inherited != null) return inherited;
+          }
+        }
+        // Mixins cannot carry a @ZorphyEntity annotation, so they have no
+        // principalKey of their own — but their fields participate in the
+        // inherited field list (handled by _instanceFieldsIncludingInherited).
       }
       return null;
     }

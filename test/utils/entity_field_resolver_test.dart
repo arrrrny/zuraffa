@@ -411,6 +411,71 @@ abstract class \$Override extends \$Base {
         expect(resolved.idField!.type, 'int');
       },
     );
+
+    test(
+      'resolves an inherited identity field from a same-file mixin',
+      () async {
+        // CodeRabbit finding: `resolveFromSource` collected only
+        // ClassDeclaration nodes, so a mixin applied via `with` was
+        // invisible to the supertype walk and its `id` field never entered
+        // the inherited field list.
+        await writeEntity('Ticket', '''
+mixin HasId {
+  String get id;
+}
+
+$entityAnnotation
+abstract class \$Ticket with HasId {
+  String get title;
+}
+''');
+        final resolved = EntityFieldResolver.resolveIdField(
+          entityName: 'Ticket',
+          projectRoot: tempRoot.path,
+        );
+        expect(resolved, isNotNull);
+        expect(resolved!.kind, EntitySourceKind.entity);
+        expect(resolved.hasId, isTrue);
+        expect(resolved.idField!.name, 'id');
+        expect(resolved.idField!.type, 'String');
+      },
+    );
+
+    test(
+      'declared principalKey field wins over a stale generated descriptor',
+      () async {
+        // CodeRabbit finding: when an entity changes its principal key, the
+        // generated `<Entity>Fields` part can still list the old field until
+        // build_runner runs. The declared principalKey must be resolved
+        // from the current entity source, not the stale descriptor.
+        await writeEntity('Product', '''
+@ZorphyEntity(principalKey: #sku)
+abstract class \$Product {
+  int get sku;
+  String get name;
+}
+
+class ProductFields {
+  static const ZorphyField<Product, String> id = ZorphyField(
+    'id',
+    (Product e) => e.name,
+  );
+  static const ZorphyField<Product, String> name = ZorphyField(
+    'name',
+    (Product e) => e.name,
+  );
+}
+''');
+        final resolved = EntityFieldResolver.resolveIdField(
+          entityName: 'Product',
+          projectRoot: tempRoot.path,
+        );
+        expect(resolved, isNotNull);
+        expect(resolved!.hasId, isTrue);
+        expect(resolved.idField!.name, 'sku');
+        expect(resolved.idField!.type, 'int');
+      },
+    );
   });
 
   group('annotation detection', () {
