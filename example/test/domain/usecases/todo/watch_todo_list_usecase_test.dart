@@ -63,12 +63,12 @@ void main() {
   });
   group('WatchTodoListUseCase', () {
     test('should call repository.watchList and return result', () async {
-      final result = useCase.call(ListQueryParams<Todo>());
+      final result = useCase.call(ListQueryParams<Todo>.fromTrusted());
       await expectLater(result, emits(isA<Success<List<Todo>, AppFailure>>()));
     });
     test('should return Failure when repository throws', () async {
       await expectLater(
-        throwingUseCase.call(ListQueryParams<Todo>()),
+        throwingUseCase.call(ListQueryParams<Todo>.fromTrusted()),
         emits(isA<Failure<List<Todo>, AppFailure>>()),
       );
     });

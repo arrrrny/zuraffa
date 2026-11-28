@@ -75,11 +75,21 @@ class LoginPatch {
   const LoginPatch();
 }
 
+/// v3 field registry the toggle writes through (`<E>Fields.<f>.set`).
+class LoginFields {
+  static const Object id = _IdField();
+}
+
+class _IdField {
+  const _IdField();
+  Login set(Login existing, Object? value) => existing;
+}
+
 class Login {
   final String id;
   final String username;
   const Login({required this.id, required this.username});
-  Login copyWithField(String field, Object? value) => this;
+  Login copyWith({Object? id}) => this;
 }
 ''';
 
@@ -89,11 +99,19 @@ class Login {
       'class LoginPatch {\n'
       ' const LoginPatch();\n'
       '}\n'
+      '/// v3 field registry the toggle writes through (`<E>Fields.<f>.set`).\n'
+      'class LoginFields {\n'
+      '  static const Object id = _IdField();\n'
+      '}\n'
+      'class _IdField {\n'
+      '  const _IdField();\n'
+      '  Login set(Login existing, Object? value) => existing;\n'
+      '}\n'
       'class Login {\n'
       '   final String id;\n'
       '      final String username;\n'
       '  const Login({required this.id,   required this.username});\n'
-      '  Login copyWithField(String field, Object? value) => this;\n'
+      '  Login copyWith({Object? id}) => this;\n'
       '}';
 
   /// A real semantic edit after certification: a new field.
@@ -102,12 +120,22 @@ class LoginPatch {
   const LoginPatch();
 }
 
+/// v3 field registry the toggle writes through (`<E>Fields.<f>.set`).
+class LoginFields {
+  static const Object id = _IdField();
+}
+
+class _IdField {
+  const _IdField();
+  Login set(Login existing, Object? value) => existing;
+}
+
 class Login {
   final String id;
   final String username;
   final String email;
   const Login({required this.id, required this.username});
-  Login copyWithField(String field, Object? value) => this;
+  Login copyWith({Object? id}) => this;
 }
 ''';
 

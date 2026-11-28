@@ -51,7 +51,7 @@ void main() {
 
         expect(zuraffaFlutter.kind, DependencyKind.regular);
         expect(zuraffaFlutter.isGit, isFalse);
-        expect(zuraffaFlutter.version, '^6.0.0');
+        expect(zuraffaFlutter.version, '^8.0.0');
       });
 
       test('zuraffa (dart) is a hosted dependency', () {
@@ -59,7 +59,7 @@ void main() {
         final zuraffa = specs.firstWhere((s) => s.name == 'zuraffa');
 
         expect(zuraffa.isGit, isFalse);
-        expect(zuraffa.version, '^6.0.0');
+        expect(zuraffa.version, '^8.0.0');
       });
 
       test('zorphy_annotation is a hosted dependency', () {
@@ -69,7 +69,7 @@ void main() {
         );
 
         expect(zorphyAnn.isGit, isFalse);
-        expect(zorphyAnn.version, '^2.0.0');
+        expect(zorphyAnn.version, '^3.0.0-dev.5');
       });
 
       test('build_runner is a dev dependency', () {

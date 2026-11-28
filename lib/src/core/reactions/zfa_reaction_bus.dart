@@ -25,7 +25,8 @@ typedef ReactionRunner =
 /// [ZfaContext.childSpan] (incrementing `cascadeDepth` by one and linking the
 /// causal span and cancellation token), and dispatches it. The chain stops when
 /// no reaction matches, and a circular chain is halted once it crosses
-/// [maxCascadeDepth] with an [AppFailure.policyDenied] failure.
+/// [maxCascadeDepth] with a [PolicyDeniedFailure] carrying
+/// `reason: 'cascadeDepth'`.
 ///
 /// ## Example
 ///
@@ -88,8 +89,9 @@ class ZfaReactionBus {
   /// Execute [intent] and follow the reaction chain to its terminal result.
   ///
   /// [runner] executes one intent under the supplied context. The returned
-  /// result is the last step's result, or an [AppFailure.policyDenied] failure
-  /// when the cascade crosses [maxCascadeDepth]. An [AppFailure] (or a
+  /// result is the last step's result, or a [PolicyDeniedFailure] with
+  /// `reason: 'cascadeDepth'` when the cascade crosses [maxCascadeDepth].
+  /// An [AppFailure] (or a
   /// cancellation thrown by [ZfaContext.throwIfCancelled]) raised by the runner
   /// is also returned as a [Result.failure], so cancellation and loop-guard
   /// termination reach callers on the same channel.
@@ -124,7 +126,7 @@ class ZfaReactionBus {
     } on AppFailure catch (failure) {
       return Result.failure(failure);
     } on CancellationTokenException catch (e) {
-      return Result.failure(AppFailure.cancellation(e.toString()));
+      return Result.failure(AppFailure.cancelled(message: e.toString()));
     }
   }
 
@@ -145,7 +147,10 @@ class ZfaReactionBus {
     );
     if (child.cascadeDepth > maxCascadeDepth) {
       return Result.failure(
-        AppFailure.policyDenied(policyRule: 'maxCascadeDepth'),
+        AppFailure.policyDenied(
+          message: 'Operation denied by policy',
+          reason: 'maxCascadeDepth',
+        ),
       );
     }
 

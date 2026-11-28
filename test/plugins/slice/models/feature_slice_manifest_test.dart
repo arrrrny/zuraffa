@@ -12,7 +12,7 @@ import 'package:zuraffa/src/plugins/slice/models/feature_slice_manifest.dart';
 import 'package:zuraffa/src/plugins/slice/models/slice_boundary.dart';
 
 void main() {
-  FeatureContract contract() => FeatureContract(
+  FeatureContract contract() => FeatureContract.fromTrusted(
     id: 'login',
     displayName: 'Login',
     entities: ['User', 'Session'],
@@ -178,7 +178,7 @@ void main() {
     test('all emitted string values with YAML syntax round-trip', () {
       final special = FeatureSliceManifest(
         createdAt: DateTime.parse('2026-09-06T00:00:00Z'),
-        feature: FeatureContract(
+        feature: FeatureContract.fromTrusted(
           id: '# login',
           displayName: 'Login: "quoted"',
           entities: ["- User's"],

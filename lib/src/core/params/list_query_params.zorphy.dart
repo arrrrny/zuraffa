@@ -1,192 +1,54 @@
-// dart format width=80
-// ignore_for_file: UNNECESSARY_CAST
-// ignore_for_file: type=lint
-
 part of 'list_query_params.dart';
 
-// **************************************************************************
-// ZorphyGenerator
-// **************************************************************************
+// ignore_for_file: UNNECESSARY_CAST
+// ignore_for_file: type=lint
+final class _ZorphyCopyWithSentinel {
+  const _ZorphyCopyWithSentinel();
+}
 
-@JsonSerializable(
-  explicitToJson: true,
-  checked: true,
-  genericArgumentFactories: true,
-)
-class ListQueryParams<T> extends Params {
-  const ListQueryParams({
-    Map<String, dynamic>? this.params,
-    String? this.search,
-    Filter<T>? this.filter,
-    Sort<T>? this.sort,
-    int? this.limit,
-    int? this.offset,
-  }) : super();
+const Object _sentinel = _ZorphyCopyWithSentinel();
 
-  factory ListQueryParams.fromJson(
-    Map<String, dynamic> json,
-    T Function(Object? json) fromJsonT,
-  ) {
-    final instance = _$ListQueryParamsFromJson(json, fromJsonT);
-    return ListQueryParams(
-      params: instance.params,
-      search: instance.search,
-      filter: json['filter'] != null
-          ? FilterConverter.fromJson(json['filter'] as Map<String, dynamic>)
-                as Filter<T>?
-          : null,
-      sort: json['sort'] != null
-          ? SortConverter.fromJson(json['sort'] as Map<String, dynamic>)
-                as Sort<T>?
-          : null,
-      limit: instance.limit,
-      offset: instance.offset,
-    );
-  }
-
-  @override
-  final Map<String, dynamic>? params;
+final class ListQueryParams<T> implements ZorphyValueBase {
+  ListQueryParams.fromTrusted({
+    this.search,
+    this.filter,
+    this.sort,
+    this.limit,
+    this.offset,
+    Map<String, dynamic>? params,
+  }) : params = params == null ? null : Map<String, dynamic>.of(params);
 
   final String? search;
 
-  @JsonKey(
-    includeFromJson: false,
-    includeToJson: false,
-    toJson: FilterConverter.toJson,
-    fromJson: FilterConverter.fromJson,
-  )
-  final Filter<T>? filter;
+  final ZorphyFilter<T>? filter;
 
-  @JsonKey(
-    includeFromJson: false,
-    includeToJson: false,
-    toJson: SortConverter.toJson,
-    fromJson: SortConverter.fromJson,
-  )
-  final Sort<T>? sort;
+  final ZorphySort<T>? sort;
 
   final int? limit;
 
   final int? offset;
 
-  ListQueryParams copyWith({
-    Map<String, dynamic>? params,
-    String? search,
-    Filter<T>? filter,
-    Sort<T>? sort,
-    int? limit,
-    int? offset,
+  final Map<String, dynamic>? params;
+
+  ListQueryParams<T> copyWith({
+    Object? search = _sentinel,
+    Object? filter = _sentinel,
+    Object? sort = _sentinel,
+    Object? limit = _sentinel,
+    Object? offset = _sentinel,
+    Object? params = _sentinel,
   }) {
-    return ListQueryParams(
-      params: params ?? this.params,
-      search: search ?? this.search,
-      filter: filter ?? this.filter,
-      sort: sort ?? this.sort,
-      limit: limit ?? this.limit,
-      offset: offset ?? this.offset,
-    );
-  }
-
-  /// Returns a copy of this entity with [field] set to [value].
-  ///
-  /// Delegates to [copyWith]: the receiver is never mutated and a
-  /// null [value] keeps the current field value.
-  ListQueryParams copyWithField<TValue>(
-    Field<ListQueryParams<T>, TValue> field,
-    TValue value,
-  ) {
-    switch (field.name) {
-      case 'params':
-        return copyWith(params: value as Map<String, dynamic>?);
-      case 'search':
-        return copyWith(search: value as String?);
-      case 'filter':
-        return copyWith(filter: value as Filter<T>?);
-      case 'sort':
-        return copyWith(sort: value as Sort<T>?);
-      case 'limit':
-        return copyWith(limit: value as int?);
-      case 'offset':
-        return copyWith(offset: value as int?);
-      default:
-        throw ArgumentError.value(
-          field.name,
-          'field',
-          'ListQueryParams has no settable field with this name',
-        );
-    }
-  }
-
-  ListQueryParams copyWithListQueryParams({
-    Map<String, dynamic>? params,
-    String? search,
-    Filter<T>? filter,
-    Sort<T>? sort,
-    int? limit,
-    int? offset,
-  }) {
-    return copyWith(
-      params: params,
-      search: search,
-      filter: filter,
-      sort: sort,
-      limit: limit,
-      offset: offset,
-    );
-  }
-
-  ListQueryParams patchWithListQueryParams([ListQueryParamsPatch? patchInput]) {
-    final _patcher = patchInput ?? ListQueryParamsPatch();
-    final _patchMap = _patcher.patchMap;
-    return ListQueryParams(
-      params: _patchMap.containsKey(ListQueryParams$.params)
-          ? ((_patchMap[ListQueryParams$.params] is Function)
-                    ? _patchMap[ListQueryParams$.params](this.params)
-                    : (_patchMap[ListQueryParams$.params] is Patch)
-                    ? _patchMap[ListQueryParams$.params].applyTo(this.params)
-                    : _patchMap[ListQueryParams$.params])
-                as Map<String, dynamic>?
-          : this.params,
-      search: _patchMap.containsKey(ListQueryParams$.search)
-          ? ((_patchMap[ListQueryParams$.search] is Function)
-                    ? _patchMap[ListQueryParams$.search](this.search)
-                    : (_patchMap[ListQueryParams$.search] is Patch)
-                    ? _patchMap[ListQueryParams$.search].applyTo(this.search)
-                    : _patchMap[ListQueryParams$.search])
-                as String?
-          : this.search,
-      filter: _patchMap.containsKey(ListQueryParams$.filter)
-          ? ((_patchMap[ListQueryParams$.filter] is Function)
-                    ? _patchMap[ListQueryParams$.filter](this.filter)
-                    : (_patchMap[ListQueryParams$.filter] is Patch)
-                    ? _patchMap[ListQueryParams$.filter].applyTo(this.filter)
-                    : _patchMap[ListQueryParams$.filter])
-                as Filter<T>?
-          : this.filter,
-      sort: _patchMap.containsKey(ListQueryParams$.sort)
-          ? ((_patchMap[ListQueryParams$.sort] is Function)
-                    ? _patchMap[ListQueryParams$.sort](this.sort)
-                    : (_patchMap[ListQueryParams$.sort] is Patch)
-                    ? _patchMap[ListQueryParams$.sort].applyTo(this.sort)
-                    : _patchMap[ListQueryParams$.sort])
-                as Sort<T>?
-          : this.sort,
-      limit: _patchMap.containsKey(ListQueryParams$.limit)
-          ? ((_patchMap[ListQueryParams$.limit] is Function)
-                    ? _patchMap[ListQueryParams$.limit](this.limit)
-                    : (_patchMap[ListQueryParams$.limit] is Patch)
-                    ? _patchMap[ListQueryParams$.limit].applyTo(this.limit)
-                    : _patchMap[ListQueryParams$.limit])
-                as int?
-          : this.limit,
-      offset: _patchMap.containsKey(ListQueryParams$.offset)
-          ? ((_patchMap[ListQueryParams$.offset] is Function)
-                    ? _patchMap[ListQueryParams$.offset](this.offset)
-                    : (_patchMap[ListQueryParams$.offset] is Patch)
-                    ? _patchMap[ListQueryParams$.offset].applyTo(this.offset)
-                    : _patchMap[ListQueryParams$.offset])
-                as int?
-          : this.offset,
+    return ListQueryParams<T>.fromTrusted(
+      search: identical(search, _sentinel) ? this.search : search as String?,
+      filter: identical(filter, _sentinel)
+          ? this.filter
+          : filter as ZorphyFilter<T>?,
+      sort: identical(sort, _sentinel) ? this.sort : sort as ZorphySort<T>?,
+      limit: identical(limit, _sentinel) ? this.limit : limit as int?,
+      offset: identical(offset, _sentinel) ? this.offset : offset as int?,
+      params: identical(params, _sentinel)
+          ? this.params
+          : params as Map<String, dynamic>?,
     );
   }
 
@@ -194,234 +56,200 @@ class ListQueryParams<T> extends Params {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is ListQueryParams &&
-        params == other.params &&
-        search == other.search &&
-        filter == other.filter &&
-        sort == other.sort &&
-        limit == other.limit &&
-        offset == other.offset;
+        this.search == other.search &&
+        this.filter == other.filter &&
+        this.sort == other.sort &&
+        this.limit == other.limit &&
+        this.offset == other.offset &&
+        ListQueryParams._zorphyCollectionEquals(this.params, other.params);
   }
 
   @override
-  int get hashCode {
-    return Object.hash(
-      this.params,
-      this.search,
-      this.filter,
-      this.sort,
-      this.limit,
-      this.offset,
-    );
-  }
+  int get hashCode => Object.hashAll([
+    search,
+    filter,
+    sort,
+    limit,
+    offset,
+    ListQueryParams._zorphyCollectionHash(params),
+  ]);
 
   @override
-  String toString() {
-    return 'ListQueryParams(' +
-        'params: ${params}' +
-        ', ' +
-        'search: ${search}' +
-        ', ' +
-        'filter: ${filter}' +
-        ', ' +
-        'sort: ${sort}' +
-        ', ' +
-        'limit: ${limit}' +
-        ', ' +
-        'offset: ${offset})';
-  }
-}
+  String toString() =>
+      'ListQueryParams(search: $search, filter: $filter, sort: $sort, limit: $limit, offset: $offset, params: $params)';
 
-extension ListQueryParamsPropertyHelpers<T> on ListQueryParams<T> {
-  bool get hasSearch {
-    return this.search?.isNotEmpty == true;
-  }
-
-  bool get noSearch {
-    return this.search?.isEmpty ?? true;
-  }
-
-  String get searchRequired {
-    return this.search ?? (throw StateError('search is required but was null'));
-  }
-
-  bool get hasFilter {
-    return this.filter != null;
+  static bool _zorphyCollectionEquals(Object? a, Object? b) {
+    if (identical(a, b)) return true;
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) return false;
+      }
+      return true;
+    }
+    if (a is Set && b is Set) {
+      if (a.length != b.length) return false;
+      return a.every(b.contains);
+    }
+    if (a is Map && b is Map) {
+      if (a.length != b.length) return false;
+      for (final entry in a.entries) {
+        if (!b.containsKey(entry.key) || b[entry.key] != entry.value) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
   }
 
-  bool get noFilter {
-    return this.filter == null;
+  static int _zorphyCollectionHash(Object? value) {
+    if (value is List) return Object.hashAll(value);
+    if (value is Set) {
+      return value.fold<int>(0, (hash, element) => hash + element.hashCode);
+    }
+    if (value is Map) {
+      return value.entries.fold<int>(
+        0,
+        (hash, entry) => hash + Object.hash(entry.key, entry.value),
+      );
+    }
+    return value.hashCode;
   }
 
-  Filter<T> get filterRequired {
-    return this.filter ?? (throw StateError('filter is required but was null'));
-  }
-
-  bool get hasSort {
-    return this.sort != null;
-  }
-
-  bool get noSort {
-    return this.sort == null;
-  }
-
-  Sort<T> get sortRequired {
-    return this.sort ?? (throw StateError('sort is required but was null'));
-  }
-
-  bool get hasLimit {
-    return this.limit != null;
-  }
-
-  bool get noLimit {
-    return this.limit == null;
-  }
-
-  int get limitRequired {
-    return this.limit ?? (throw StateError('limit is required but was null'));
-  }
-
-  bool get hasOffset {
-    return this.offset != null;
-  }
-
-  bool get noOffset {
-    return this.offset == null;
-  }
-
-  int get offsetRequired {
-    return this.offset ?? (throw StateError('offset is required but was null'));
-  }
-}
-
-extension ListQueryParamsSerialization<T> on ListQueryParams<T> {
-  Map<String, dynamic> toJson(Object? Function(T value) toJsonT) {
-    final data = _$ListQueryParamsToJson(this, toJsonT);
-    if (filter != null) data['filter'] = FilterConverter.toJson(filter!);
-    if (sort != null) data['sort'] = SortConverter.toJson(sort!);
-    return data;
-  }
-}
-
-enum ListQueryParams$ { params, search, filter, sort, limit, offset }
-
-class ListQueryParamsPatch
-    extends PatchBase<ListQueryParams, ListQueryParams$> {
-  ListQueryParams applyTo(ListQueryParams entity) {
-    return entity.patchWithListQueryParams(this);
-  }
-
-  ListQueryParamsPatch withParams(Map<String, dynamic>? value) {
-    patchMap[ListQueryParams$.params] = value;
-    return this;
-  }
-
-  ListQueryParamsPatch withSearch(String? value) {
-    patchMap[ListQueryParams$.search] = value;
-    return this;
-  }
-
-  ListQueryParamsPatch withFilter(dynamic value) {
-    patchMap[ListQueryParams$.filter] = value;
-    return this;
-  }
-
-  ListQueryParamsPatch withSort(dynamic value) {
-    patchMap[ListQueryParams$.sort] = value;
-    return this;
-  }
-
-  ListQueryParamsPatch withLimit(int? value) {
-    patchMap[ListQueryParams$.limit] = value;
-    return this;
-  }
-
-  ListQueryParamsPatch withOffset(int? value) {
-    patchMap[ListQueryParams$.offset] = value;
-    return this;
-  }
-}
-
-/// Field descriptors for [ListQueryParams] query construction
-abstract final class ListQueryParamsFields<T> {
-  static Map<String, dynamic>? _$params<T>(ListQueryParams<T> e) {
-    return e.params;
-  }
-
-  static Field<ListQueryParams<T>, Map<String, dynamic>?> params<T>() {
-    return Field<ListQueryParams<T>, Map<String, dynamic>?>(
-      'params',
-      _$params<T>,
+  static ZorphyBoundaryResult<ListQueryParams<T>> fromWire<T>(
+    Map<String, Object?> raw,
+    ZorphyBoundaryResult<T> Function(Map<String, Object?> raw) decodeT,
+  ) {
+    final violations = <FieldViolation>[];
+    final Object? raw_search = raw['search'];
+    String? _search;
+    if (raw_search != null) {
+      _search = _boundaryAs<String>(raw_search, '/search', violations);
+    }
+    final Object? raw_filter = raw['filter'];
+    ZorphyFilter<T>? _filter;
+    if (raw_filter != null) {
+      _filter = _boundaryAs<ZorphyFilter<T>>(raw_filter, '/filter', violations);
+    }
+    final Object? raw_sort = raw['sort'];
+    ZorphySort<T>? _sort;
+    if (raw_sort != null) {
+      _sort = _boundaryAs<ZorphySort<T>>(raw_sort, '/sort', violations);
+    }
+    final Object? raw_limit = raw['limit'];
+    int? _limit;
+    if (raw_limit != null) {
+      _limit = _boundaryAs<int>(raw_limit, '/limit', violations);
+    }
+    final Object? raw_offset = raw['offset'];
+    int? _offset;
+    if (raw_offset != null) {
+      _offset = _boundaryAs<int>(raw_offset, '/offset', violations);
+    }
+    final Object? raw_params = raw['params'];
+    Map<String, dynamic>? _params;
+    if (raw_params != null) {
+      final map_params = _boundaryObject(raw_params, '/params', violations);
+      if (map_params != null) {
+        final decoded_params = <String, dynamic>{};
+        for (final entry in map_params.entries) {
+          final path_params = '/params' + '/' + entry.key;
+          if (map_params[entry.key] == null) {
+            decoded_params[entry.key] = null;
+          } else {
+            final element_params = _boundaryAs<dynamic>(
+              map_params[entry.key],
+              path_params,
+              violations,
+            );
+            if (element_params != null) {
+              decoded_params[entry.key] = element_params;
+            }
+          }
+        }
+        _params = decoded_params;
+      }
+    }
+    if (violations.isNotEmpty) {
+      return BoundaryErr<ListQueryParams<T>>(
+        targetType: 'ListQueryParams',
+        violations: violations,
+      );
+    }
+    return BoundaryOk<ListQueryParams<T>>(
+      ListQueryParams.fromTrusted(
+        search: _search,
+        filter: _filter,
+        sort: _sort,
+        limit: _limit,
+        offset: _offset,
+        params: _params,
+      ),
     );
   }
 
-  static String? _$search<T>(ListQueryParams<T> e) {
-    return e.search;
-  }
-
-  static Field<ListQueryParams<T>, String?> search<T>() {
-    return Field<ListQueryParams<T>, String?>('search', _$search<T>);
-  }
-
-  static Filter<T>? _$filter<T>(ListQueryParams<T> e) {
-    return e.filter;
-  }
-
-  static Field<ListQueryParams<T>, Filter<T>?> filter<T>() {
-    return Field<ListQueryParams<T>, Filter<T>?>('filter', _$filter<T>);
-  }
-
-  static Sort<T>? _$sort<T>(ListQueryParams<T> e) {
-    return e.sort;
-  }
-
-  static Field<ListQueryParams<T>, Sort<T>?> sort<T>() {
-    return Field<ListQueryParams<T>, Sort<T>?>('sort', _$sort<T>);
-  }
-
-  static int? _$limit<T>(ListQueryParams<T> e) {
-    return e.limit;
-  }
-
-  static Field<ListQueryParams<T>, int?> limit<T>() {
-    return Field<ListQueryParams<T>, int?>('limit', _$limit<T>);
-  }
-
-  static int? _$offset<T>(ListQueryParams<T> e) {
-    return e.offset;
-  }
-
-  static Field<ListQueryParams<T>, int?> offset<T>() {
-    return Field<ListQueryParams<T>, int?>('offset', _$offset<T>);
+  Map<String, Object?> toWire(Map<String, Object?> Function(T value) encodeT) {
+    final map = <String, Object?>{};
+    final _search = this.search;
+    if (_search != null) {
+      map['search'] = _search;
+    }
+    final _filter = this.filter;
+    if (_filter != null) {
+      map['filter'] = _filter;
+    }
+    final _sort = this.sort;
+    if (_sort != null) {
+      map['sort'] = _sort;
+    }
+    final _limit = this.limit;
+    if (_limit != null) {
+      map['limit'] = _limit;
+    }
+    final _offset = this.offset;
+    if (_offset != null) {
+      map['offset'] = _offset;
+    }
+    final _params = this.params;
+    if (_params != null) {
+      map['params'] = _params;
+    }
+    return map;
   }
 }
 
-extension ListQueryParamsCompareE on ListQueryParams {
-  Map<String, dynamic> compareToListQueryParams(ListQueryParams other) {
-    final Map<String, dynamic> diff = {};
+String _boundaryDescribe(Object? value) {
+  if (value == null) return 'null';
+  final text = value.toString();
+  final clipped = text.length > 60 ? '${text.substring(0, 60)}…' : text;
+  return '${value.runtimeType} ("$clipped")';
+}
 
-    if (params != other.params) {
-      diff['params'] = () => other.params;
-    }
+T? _boundaryAs<T>(Object? value, String path, List<FieldViolation> violations) {
+  if (value is T) return value;
+  violations.add(
+    FieldViolation(
+      path: path,
+      expected: '$T',
+      actual: _boundaryDescribe(value),
+    ),
+  );
+  return null;
+}
 
-    if (search != other.search) {
-      diff['search'] = () => other.search;
-    }
-
-    if (filter != other.filter) {
-      diff['filter'] = () => other.filter;
-    }
-
-    if (sort != other.sort) {
-      diff['sort'] = () => other.sort;
-    }
-
-    if (limit != other.limit) {
-      diff['limit'] = () => other.limit;
-    }
-
-    if (offset != other.offset) {
-      diff['offset'] = () => other.offset;
-    }
-    return diff;
-  }
+Map<String, Object?>? _boundaryObject(
+  Object? value,
+  String path,
+  List<FieldViolation> violations,
+) {
+  if (value is Map<String, Object?>) return value;
+  violations.add(
+    FieldViolation(
+      path: path,
+      expected: 'Map<String, Object?>',
+      actual: _boundaryDescribe(value),
+    ),
+  );
+  return null;
 }

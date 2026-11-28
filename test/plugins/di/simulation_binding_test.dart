@@ -58,9 +58,16 @@ void main() {
       'class $entity {\n'
       '  final String id;\n'
       '  const $entity(this.id);\n'
-      '  $entity copyWithField(Object field, Object? value) => this;\n'
+      '  $entity copyWith({Object? id}) => this;\n'
       '}\n'
-      'class ${entity}Patch {}\n',
+      'class ${entity}Patch {}\n'
+      'class ${entity}Fields {\n'
+      '  static const Object id = _IdField();\n'
+      '}\n'
+      'class _IdField {\n'
+      '  const _IdField();\n'
+      '  $entity set($entity existing, Object? value) => existing;\n'
+      '}\n',
     );
     await mockPlugin().generate(
       GeneratorConfig(

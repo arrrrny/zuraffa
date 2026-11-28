@@ -9,7 +9,7 @@ part of 'todo.dart';
 Todo _$TodoFromJson(Map<String, dynamic> json) => $checkedCreate('Todo', json, (
   $checkedConvert,
 ) {
-  final val = Todo(
+  final val = Todo.fromTrusted(
     id: $checkedConvert('id', (v) => (v as num).toInt()),
     title: $checkedConvert('title', (v) => v as String),
     description: $checkedConvert('description', (v) => v as String),

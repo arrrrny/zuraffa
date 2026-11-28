@@ -26,6 +26,7 @@ import '../../../models/generator_config.dart';
 import '../../../utils/entity_utils.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/crud_method_vocabulary.dart';
 
 class FailingMockProviderBuilder {
   final String outputDir;
@@ -124,7 +125,7 @@ class FailingMockProviderBuilder {
       specLibrary.library(specs: [clazz], directives: directives),
       leadingComment:
           '// Mock failure preset (spec 1110, issue #1110): '
-          'every method throws ServerFailure.',
+          'every method throws networkFailure.',
     );
 
     return FileUtils.writeFile(
@@ -149,11 +150,11 @@ class FailingMockProviderBuilder {
     String method,
   ) {
     final idType = config.idFieldType;
-    final failure = refer('ServerFailure').constInstance([
-      literalString(
+    final failure = refer('AppFailure.network').call([], {
+      'message': literalString(
         '$entityName mock failure (spec 1110 --fail preset): method $method',
       ),
-    ]);
+    });
 
     Method build({
       required String returns,
@@ -220,7 +221,7 @@ class FailingMockProviderBuilder {
       case 'toggle':
         return build(
           returns: 'Future<$entityName>',
-          paramsType: 'ToggleParams<$idType, Field<$entityName, dynamic>>',
+          paramsType: toggleParamsType(entityName, idType),
         );
       case 'delete':
         return build(

@@ -57,10 +57,31 @@ Future<String> resolveDartExe() async {
   return 'dart';
 }
 
+/// The zuraffa checkout this fixture's generated code must compile against:
+/// four levels up from `test/plugins/helpers/`.
+String _findRepoRoot() {
+  var dir = Directory.current.path;
+  while (true) {
+    if (File(p.join(dir, 'pubspec.yaml')).existsSync() &&
+        File(p.join(dir, 'lib', 'zuraffa.dart')).existsSync()) {
+      return dir;
+    }
+    final parent = p.dirname(dir);
+    if (parent == dir) {
+      throw StateError(
+        'cannot locate the zuraffa checkout from ${Directory.current}',
+      );
+    }
+    dir = parent;
+  }
+}
+
 /// Writes the Flutter project skeleton (pubspec + domain stubs) into [root].
 Future<Directory> writeFlutterClusterStubs(Directory root) async {
   await File(p.join(root.path, 'pubspec.yaml')).create(recursive: true);
-  await File(p.join(root.path, 'pubspec.yaml')).writeAsString(_flutterPubspec);
+  await File(p.join(root.path, 'pubspec.yaml')).writeAsString(
+    flutterClusterPubspec(_findRepoRoot(), _writeZuraffaUiStub(root).path),
+  );
   await File(
     p.join(root.path, 'domain', 'entities', 'product', 'product.dart'),
   ).create(recursive: true);
@@ -111,7 +132,26 @@ Future<ProcessResult> flutterPubGet(Directory root, String flutterExe) async {
   ], workingDirectory: root.path);
 }
 
-const String _flutterPubspec = '''
+/// The fixture consumes the CHECKOUT's own core the way a release candidate
+/// is consumed: `zuraffa_flutter` supplies the Flutter-only presentation types
+/// (`DualLayerPresenter`, `ControlledWidget`, …) the generated cluster imports,
+/// and `dependency_overrides` pins its `zuraffa` dependency to this checkout so
+/// the core symbols the generators emit (`QueryParams.fromTrusted`, the
+/// `AppFailure` union root) resolve to THIS branch.
+///
+/// It used to pin the hosted `zuraffa_flutter: ^6.1.0` alone, so a generator
+/// change that emitted a member the published core lacked compiled fine in-repo
+/// and went red only in CI (#2179).
+///
+/// `zuraffa_ui` is overridden to an EMPTY local package: `zuraffa_flutter`
+/// declares it, but none of the presentation files the generated cluster uses
+/// import it — only its skin app does — and the published `zuraffa_ui` still
+/// pins `zorphy_annotation ^2.5.1`, which cannot solve against a v3 core. The
+/// stub is removed once zuraffa_ui/zuraffa_flutter publish on zorphy v3
+/// (arrrrny/zuraffa#2183, depends on arrrrny/zorphy#291). `meta` is overridden because the Flutter SDK pins
+/// `meta` while the core's `analyzer` pin needs a newer one.
+String flutterClusterPubspec(String repoRoot, String uiStub) =>
+    '''
 name: zfa1003_cluster
 publish_to: none
 environment:
@@ -119,23 +159,41 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  zuraffa_flutter: ^6.1.0
+  zuraffa_flutter: ^7.6.1
   # Generated views import `package:material_ui/material_ui.dart` (Flutter
   # 3.47 deprecates `package:flutter/material.dart`), so the fixture app —
   # like any generated Flutter app — declares it directly.
   material_ui: ^1.11.0
-# The Flutter SDK pins `meta` (1.17.0 at 3.41.x) while zuraffa 6.1.0's exact
-# `analyzer: 14.1.0` pin requires `meta ^1.18.3`. Overriding `meta` here is
-# the documented workaround for consuming zuraffa inside a Flutter app and
-# only affects package resolution of the fixture, not the generated code.
+# The Flutter SDK pins `meta` (1.17.0 at 3.41.x) while zuraffa's exact
+# `analyzer` pin requires a newer `meta`. Overriding `meta` here is the
+# documented workaround for consuming zuraffa inside a Flutter app and only
+# affects package resolution of the fixture, not the generated code.
 dependency_overrides:
+  zuraffa:
+    path: $repoRoot
+  zuraffa_ui:
+    path: $uiStub
   meta: ^1.18.3
 ''';
 
-/// Mirrors the zorphy-generated entity surface the presentation plugins
-/// reference: the entity itself plus the `ProductFields` descriptors used by
-/// `Eq(ProductFields.id, id)` in generated presenters (zorphy emits each
-/// field as a `Field<Entity, TValue>` const for type-safe queries).
+/// Writes the empty `zuraffa_ui` stub package [flutterClusterPubspec] overrides
+/// to (see its doc for why).
+Directory _writeZuraffaUiStub(Directory root) {
+  final stub = Directory(p.join(root.path, '.zfa_fixture', 'zuraffa_ui'))
+    ..createSync(recursive: true);
+  File(
+    p.join(stub.path, 'pubspec.yaml'),
+  ).writeAsStringSync('name: zuraffa_ui\npublish_to: none\n');
+  File(p.join(stub.path, 'lib', 'zuraffa_ui.dart'))
+    ..createSync(recursive: true)
+    ..writeAsStringSync('');
+  return stub;
+}
+
+/// Mirrors the zorphy v3 entity surface the presentation plugins reference:
+/// the entity itself plus the `ProductFields` registry of write-capable
+/// `ZorphyField`s whose `.equals(...)` builds the `ZorphyFilter` generated
+/// presenters pass (`ProductFields.id.equals(id)`).
 const String _entityStub = '''
 import 'package:zuraffa_flutter/zuraffa_flutter.dart';
 
@@ -143,10 +201,17 @@ class Product {
   Product({this.id});
 
   final String? id;
+
+  Product copyWith({String? id}) => Product(id: id ?? this.id);
 }
 
 class ProductFields {
-  static const Field<Product, String> id = Field<Product, String>('id');
+  static const ZorphyField<Product, String?> id = ZorphyField<Product, String?>(
+    name: 'id', jsonKey: 'id', pointer: '/id',
+    get: _getId, set: _setId,
+  );
+  static String? _getId(Product p) => p.id;
+  static Product _setId(Product p, String? v) => p.copyWith(id: v);
 }
 ''';
 

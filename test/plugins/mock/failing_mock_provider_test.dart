@@ -31,16 +31,26 @@ void main() {
     dir.createSync(recursive: true);
     // Issue #1747: the CRUD surface `zfa mock create` requires before it
     // emits the datasource/provider pair (a Zorphy entity's `id`,
-    // `copyWithField`, and `<Type>Patch` companion) — declared inline.
+    // `copyWith`, `<Type>Patch` + `<Type>Fields` companions) — declared
+    // inline.
     File('${dir.path}/${name.toLowerCase()}.dart').writeAsStringSync('''
 class $name {
   final String id;
   const $name(this.id);
 
-  $name copyWithField(Object field, Object? value) => this;
+  $name copyWith({Object? id}) => this;
 }
 
 class ${name}Patch {}
+
+class ${name}Fields {
+  static const Object id = _IdField();
+}
+
+class _IdField {
+  const _IdField();
+  $name set($name existing, Object? value) => existing;
+}
 ''');
   }
 
@@ -92,12 +102,12 @@ class ${name}Patch {}
       source,
       contains('Future<void> delete(DeleteParams<String> params)'),
     );
-    final throwsCount = 'throw const ServerFailure'.allMatches(source).length;
+    final throwsCount = 'throw AppFailure.network('.allMatches(source).length;
     expect(
       throwsCount,
       5,
       reason:
-          'every generated method throws ServerFailure '
+          'every generated method throws AppFailure.network '
           '(found $throwsCount)',
     );
     expect(source, contains("import 'package:zuraffa/mock.dart'"));
@@ -148,12 +158,13 @@ class ${name}Patch {}
     expect(source, contains('Stream<Session> watch('));
     expect(source, contains('Stream<List<Session>> watchList('));
     // Stream methods deliver the sealed failure through the stream's
-    // error channel — Stream.error(const ServerFailure(...)) — one per
+    // error channel — Stream.error(AppFailure.network(message: ...)) — one per
     // method.
     expect('Stream.error('.allMatches(source).length, 2);
-    expect('const ServerFailure('.allMatches(source).length, 2);
+    // dart format may wrap the call, so count the constructor, not one line.
+    expect('AppFailure.network('.allMatches(source).length, 2);
     expect(
-      'throw const ServerFailure'.allMatches(source).length,
+      'throw AppFailure.network('.allMatches(source).length,
       0,
       reason:
           'stream methods fail through the error channel, not a '

@@ -109,7 +109,7 @@ import '../lib/src/domain/usecases/product/get_product_usecase.dart';
 class StubProductRepository implements ProductRepository {
   @override
   Future<Product> get(QueryParams<Product> params) async {
-    return Product(
+    return Product.fromTrusted(
       id: 'p1',
       name: 'Desk',
       price: 99.5,
@@ -135,7 +135,7 @@ class StubProductRepository implements ProductRepository {
 
 Future<void> main() async {
   final useCase = GetProductUseCase(StubProductRepository());
-  final result = await useCase(const QueryParams<Product>());
+  final result = await useCase(QueryParams<Product>.fromTrusted());
   if (!result.isSuccess) {
     throw StateError('behavior check failed: generated usecase returned '
         'a failure for the fixture entity');

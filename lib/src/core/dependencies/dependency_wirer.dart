@@ -4,6 +4,8 @@ import 'package:meta/meta.dart';
 import 'package:path/path.dart' as path;
 import 'package:yaml/yaml.dart';
 
+import '../../skew/skew_contract.dart' show consumerCoreConstraint;
+
 /// Kind of dependency entry in pubspec.yaml.
 enum DependencyKind { regular, dev, override }
 
@@ -98,6 +100,13 @@ class DependencyWirer {
   /// resolver graph the monorepo ships.
   static const pureDartAnalyzerFallback = '^14.0.0';
 
+  /// The `zorphy_annotation` range wired into consumers. MUST equal the
+  /// range this package itself declares (root `pubspec.yaml`): the
+  /// generated code is only as new as the annotation major both sides
+  /// resolve, and a pinned tripwire test (`dependency_wirer_test.dart`)
+  /// keeps the two from drifting apart.
+  static const zorphyAnnotationConstraint = '^3.0.0-dev.5';
+
   /// Flutter apps need both `analyzer` and `meta` overlays: the Flutter
   /// SDK pins `meta 1.18.0` while analyzer >=13.1.0 requires
   /// `meta ^1.18.3`, so version solving always fails. With analyzer 14.x
@@ -171,19 +180,22 @@ class DependencyWirer {
   /// directly. All other entries are shared.
   static List<DependencySpec> standardSet({required bool isFlutter}) {
     return [
+      // The core range is derived from the running generator's major
+      // (skew_contract.dart): the wired range admits exactly the cores
+      // this generator can generate against.
       DependencySpec(
         name: isFlutter ? 'zuraffa_flutter' : 'zuraffa',
         kind: DependencyKind.regular,
-        version: '^6.0.0',
+        version: consumerCoreConstraint,
       ),
       // Hosted, not git: zuraffa itself depends on zorphy_annotation from
-      // hosted (^2.0.0). A root-level git pin creates a source conflict pub
+      // hosted (^3.0.0-dev.5). A root-level git pin creates a source conflict pub
       // cannot solve ("zorphy_annotation from hosted is required"), so the
       // wired declaration must match zuraffa's own hosted source.
       const DependencySpec(
         name: 'zorphy_annotation',
         kind: DependencyKind.regular,
-        version: '^2.0.0',
+        version: zorphyAnnotationConstraint,
       ),
       // Issue #1256: zuraffa_ui is the certified UI vocabulary (ZuraffaApp
       // + identified Zfa components) — the one UI vocabulary zuraffa apps

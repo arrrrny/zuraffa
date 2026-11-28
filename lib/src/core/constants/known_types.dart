@@ -7,7 +7,10 @@
 class KnownTypes {
   KnownTypes._();
 
-  /// Dart built-in primitive types
+  /// Dart built-in primitive types. `Object` belongs here: it is the value
+  /// type of an erased `ZorphyField<E, Object?>` (zorphy#301), so it reaches
+  /// the import resolver as a type argument and must never resolve to an
+  /// `entities/object/object.dart` import.
   static const dartPrimitives = [
     'int',
     'double',
@@ -16,6 +19,7 @@ class KnownTypes {
     'void',
     'dynamic',
     'num',
+    'Object',
   ];
 
   /// Dart collection types
@@ -43,17 +47,38 @@ class KnownTypes {
 
   /// Zorphy query/framework types (re-exported by zuraffa.dart via
   /// zorphy_annotation). These are NOT entities and must not trigger entity
-  /// imports — e.g. `Field<Entity, dynamic>` appears as a type argument in
-  /// `ToggleParams` and would otherwise produce a spurious
-  /// `domain/entities/field/field.dart` import. (#292)
+  /// imports — e.g. `ZorphyField<Entity, Object?>` appears as a type argument
+  /// in `ToggleParams` and would otherwise produce a spurious
+  /// `domain/entities/zorphy_field/zorphy_field.dart` import. (#292, #301)
+  ///
+  /// The v3 surface is uniformly `Zorphy`-prefixed (`ZorphyField`,
+  /// `ZorphyLens`, `ZorphyFilter`, `ZorphySort`, `ZorphyPatch`,
+  /// `ZorphyBoundaryResult`, the annotations…), so the prefix IS the
+  /// vocabulary — a hand-kept list would go stale the next time zorphy
+  /// adds a type. The names below are the v3 types that carry no prefix.
   static const zorphyTypes = [
+    // v2 names, still excluded: a consumer's own signatures may name them.
     'Field',
     'Eq',
     'Filter',
     'Sort',
     'SortOrder',
     'FilterOperator',
+    // v3 patch algebra (no prefix).
+    'Patch',
+    'PatchBase',
+    'PatchNested',
+    'PatchSet',
+    'PatchUnchanged',
+    'PatchValue',
+    // v3 boundary results / violations (no prefix).
+    'BoundaryErr',
+    'BoundaryOk',
+    'FieldViolation',
   ];
+
+  /// The `Zorphy` prefix every prefixed v3 framework type carries.
+  static const zorphyPrefix = 'Zorphy';
 
   /// All types that should be excluded from entity import generation
   static const allExcluded = [
@@ -67,7 +92,7 @@ class KnownTypes {
 
   /// Check if a type name should be excluded from entity imports
   static bool isExcluded(String typeName) {
-    return allExcluded.contains(typeName);
+    return allExcluded.contains(typeName) || typeName.startsWith(zorphyPrefix);
   }
 
   /// Check if a type name is a Zuraffa parameter type

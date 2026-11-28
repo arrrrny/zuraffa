@@ -16,17 +16,27 @@ import 'package:zuraffa/src/plugins/mock/mock_plugin.dart';
 import 'package:zuraffa/src/plugins/mock/services/mock_staleness_detector.dart';
 
 // Issue #1747: the CRUD surface `zfa mock create` requires before it emits
-// the datasource/provider pair (a Zorphy entity's `id`, `copyWithField`,
+// the datasource/provider pair (a Zorphy entity's `id`, `copyWith`,
 // and `<Type>Patch` companion) — declared inline.
 const _entityFileContent = '''
 class ScanSession {
   final String id;
   const ScanSession(this.id);
 
-  ScanSession copyWithField(Object field, Object? value) => this;
+  ScanSession copyWith({Object? id}) => this;
 }
 
 class ScanSessionPatch {}
+
+/// v3 field registry the toggle writes through (`<E>Fields.<f>.set`).
+class ScanSessionFields {
+  static const Object id = _IdField();
+}
+
+class _IdField {
+  const _IdField();
+  ScanSession set(ScanSession existing, Object? value) => existing;
+}
 ''';
 
 const _interfaceWithGetList = '''

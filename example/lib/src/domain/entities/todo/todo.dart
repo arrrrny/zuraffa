@@ -4,11 +4,11 @@
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 import '../enums/index.dart';
 
-part 'todo.zorphy.dart';
+part '../../../../_br_/src/domain/entities/todo/todo.part.dart';
 part 'todo.g.dart';
 
 /// Todo entity
-@Zorphy(generateJson: true, generateCompareTo: true)
+@ZorphyEntity(principalKey: #id)
 abstract class $Todo {
   int get id;
   String get title;
@@ -18,4 +18,32 @@ abstract class $Todo {
   List<String> get tags;
   DateTime get createdAt;
   DateTime get completedAt;
+}
+
+/// Query field descriptors for [Todo].
+///
+/// zorphy v3 no longer emits `TodoFields` into the generated shared part (v2
+/// did); the example's query call sites still need typed descriptors for
+/// `Eq`/`Filter`. Kept here as hand-written, immutable `Field` constants.
+abstract final class TodoFields {
+  static const id = Field<Todo, int>('id', _$id);
+  static const title = Field<Todo, String>('title', _$title);
+  static const description = Field<Todo, String>('description', _$description);
+  static const isCompleted = Field<Todo, bool>('isCompleted', _$isCompleted);
+  static const priority = Field<Todo, TodoPriority>('priority', _$priority);
+  static const tags = Field<Todo, List<String>>('tags', _$tags);
+  static const createdAt = Field<Todo, DateTime>('createdAt', _$createdAt);
+  static const completedAt = Field<Todo, DateTime>(
+    'completedAt',
+    _$completedAt,
+  );
+
+  static int _$id(Todo e) => e.id;
+  static String _$title(Todo e) => e.title;
+  static String _$description(Todo e) => e.description;
+  static bool _$isCompleted(Todo e) => e.isCompleted;
+  static TodoPriority _$priority(Todo e) => e.priority;
+  static List<String> _$tags(Todo e) => e.tags;
+  static DateTime _$createdAt(Todo e) => e.createdAt;
+  static DateTime _$completedAt(Todo e) => e.completedAt;
 }

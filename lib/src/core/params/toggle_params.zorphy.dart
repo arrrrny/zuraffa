@@ -1,123 +1,42 @@
-// dart format width=80
-// ignore_for_file: UNNECESSARY_CAST
-// ignore_for_file: type=lint
-
 part of 'toggle_params.dart';
 
-// **************************************************************************
-// ZorphyGenerator
-// **************************************************************************
+// ignore_for_file: UNNECESSARY_CAST
+// ignore_for_file: type=lint
+final class _ZorphyCopyWithSentinel {
+  const _ZorphyCopyWithSentinel();
+}
 
-@JsonSerializable(
-  explicitToJson: true,
-  checked: true,
-  genericArgumentFactories: true,
-)
-class ToggleParams<I, F> extends Params {
-  const ToggleParams({
-    Map<String, dynamic>? this.params,
-    required I this.id,
-    required F this.field,
-    dynamic this.value,
-  }) : super();
+const Object _sentinel = _ZorphyCopyWithSentinel();
 
-  factory ToggleParams.fromJson(
-    Map<String, dynamic> json,
-    I Function(Object? json) fromJsonI,
-    F Function(Object? json) fromJsonF,
-  ) => _$ToggleParamsFromJson(json, fromJsonI, fromJsonF);
-
-  @override
-  final Map<String, dynamic>? params;
+final class ToggleParams<I extends Object, F> implements ZorphyValueBase {
+  ToggleParams.fromTrusted({
+    required this.id,
+    required this.field,
+    this.value,
+    Map<String, dynamic>? params,
+  }) : params = params == null ? null : Map<String, dynamic>.of(params);
 
   final I id;
 
   final F field;
 
-  final dynamic value;
+  final Object? value;
 
-  ToggleParams copyWith({
-    Map<String, dynamic>? params,
+  final Map<String, dynamic>? params;
+
+  ToggleParams<I, F> copyWith({
     I? id,
     F? field,
-    dynamic value,
+    Object? value = _sentinel,
+    Object? params = _sentinel,
   }) {
-    return ToggleParams(
-      params: params ?? this.params,
+    return ToggleParams<I, F>.fromTrusted(
       id: id ?? this.id,
       field: field ?? this.field,
-      value: value ?? this.value,
-    );
-  }
-
-  /// Returns a copy of this entity with [field] set to [value].
-  ///
-  /// Delegates to [copyWith]: the receiver is never mutated and a
-  /// null [value] keeps the current field value.
-  ToggleParams copyWithField<T>(Field<ToggleParams<I, F>, T> field, T value) {
-    switch (field.name) {
-      case 'params':
-        return copyWith(params: value as Map<String, dynamic>?);
-      case 'id':
-        return copyWith(id: value as I);
-      case 'field':
-        return copyWith(field: value as F);
-      case 'value':
-        return copyWith(value: value as dynamic);
-      default:
-        throw ArgumentError.value(
-          field.name,
-          'field',
-          'ToggleParams has no settable field with this name',
-        );
-    }
-  }
-
-  ToggleParams copyWithToggleParams({
-    Map<String, dynamic>? params,
-    I? id,
-    F? field,
-    dynamic value,
-  }) {
-    return copyWith(params: params, id: id, field: field, value: value);
-  }
-
-  ToggleParams patchWithToggleParams([ToggleParamsPatch? patchInput]) {
-    final _patcher = patchInput ?? ToggleParamsPatch();
-    final _patchMap = _patcher.patchMap;
-    return ToggleParams(
-      params: _patchMap.containsKey(ToggleParams$.params)
-          ? ((_patchMap[ToggleParams$.params] is Function)
-                    ? _patchMap[ToggleParams$.params](this.params)
-                    : (_patchMap[ToggleParams$.params] is Patch)
-                    ? _patchMap[ToggleParams$.params].applyTo(this.params)
-                    : _patchMap[ToggleParams$.params])
-                as Map<String, dynamic>?
-          : this.params,
-      id: _patchMap.containsKey(ToggleParams$.id)
-          ? ((_patchMap[ToggleParams$.id] is Function)
-                    ? _patchMap[ToggleParams$.id](this.id)
-                    : (_patchMap[ToggleParams$.id] is Patch)
-                    ? _patchMap[ToggleParams$.id].applyTo(this.id)
-                    : _patchMap[ToggleParams$.id])
-                as I
-          : this.id,
-      field: _patchMap.containsKey(ToggleParams$.field)
-          ? ((_patchMap[ToggleParams$.field] is Function)
-                    ? _patchMap[ToggleParams$.field](this.field)
-                    : (_patchMap[ToggleParams$.field] is Patch)
-                    ? _patchMap[ToggleParams$.field].applyTo(this.field)
-                    : _patchMap[ToggleParams$.field])
-                as F
-          : this.field,
-      value: _patchMap.containsKey(ToggleParams$.value)
-          ? ((_patchMap[ToggleParams$.value] is Function)
-                    ? _patchMap[ToggleParams$.value](this.value)
-                    : (_patchMap[ToggleParams$.value] is Patch)
-                    ? _patchMap[ToggleParams$.value].applyTo(this.value)
-                    : _patchMap[ToggleParams$.value])
-                as dynamic
-          : this.value,
+      value: identical(value, _sentinel) ? this.value : value as Object?,
+      params: identical(params, _sentinel)
+          ? this.params
+          : params as Map<String, dynamic>?,
     );
   }
 
@@ -125,124 +44,202 @@ class ToggleParams<I, F> extends Params {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is ToggleParams &&
-        params == other.params &&
-        id == other.id &&
-        field == other.field &&
-        value == other.value;
+        ToggleParams._zorphyCollectionEquals(this.id, other.id) &&
+        ToggleParams._zorphyCollectionEquals(this.field, other.field) &&
+        this.value == other.value &&
+        ToggleParams._zorphyCollectionEquals(this.params, other.params);
   }
 
   @override
-  int get hashCode {
-    return Object.hash(this.params, this.id, this.field, this.value);
-  }
+  int get hashCode => Object.hashAll([
+    ToggleParams._zorphyCollectionHash(id),
+    ToggleParams._zorphyCollectionHash(field),
+    value,
+    ToggleParams._zorphyCollectionHash(params),
+  ]);
 
   @override
-  String toString() {
-    return 'ToggleParams(' +
-        'params: ${params}' +
-        ', ' +
-        'id: ${id}' +
-        ', ' +
-        'field: ${field}' +
-        ', ' +
-        'value: ${value})';
-  }
-}
+  String toString() =>
+      'ToggleParams(id: $id, field: $field, value: $value, params: $params)';
 
-extension ToggleParamsPropertyHelpers<I, F> on ToggleParams<I, F> {}
-
-extension ToggleParamsSerialization<I, F> on ToggleParams<I, F> {
-  Map<String, dynamic> toJson(
-    Object? Function(I value) toJsonI,
-    Object? Function(F value) toJsonF,
-  ) => _$ToggleParamsToJson(this, toJsonI, toJsonF);
-}
-
-enum ToggleParams$ { params, id, field, value }
-
-class ToggleParamsPatch extends PatchBase<ToggleParams, ToggleParams$> {
-  ToggleParams applyTo(ToggleParams entity) {
-    return entity.patchWithToggleParams(this);
-  }
-
-  ToggleParamsPatch withParams(Map<String, dynamic>? value) {
-    patchMap[ToggleParams$.params] = value;
-    return this;
+  static bool _zorphyCollectionEquals(Object? a, Object? b) {
+    if (identical(a, b)) return true;
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) return false;
+      }
+      return true;
+    }
+    if (a is Set && b is Set) {
+      if (a.length != b.length) return false;
+      return a.every(b.contains);
+    }
+    if (a is Map && b is Map) {
+      if (a.length != b.length) return false;
+      for (final entry in a.entries) {
+        if (!b.containsKey(entry.key) || b[entry.key] != entry.value) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
   }
 
-  ToggleParamsPatch withId(dynamic value) {
-    patchMap[ToggleParams$.id] = value;
-    return this;
+  static int _zorphyCollectionHash(Object? value) {
+    if (value is List) return Object.hashAll(value);
+    if (value is Set) {
+      return value.fold<int>(0, (hash, element) => hash + element.hashCode);
+    }
+    if (value is Map) {
+      return value.entries.fold<int>(
+        0,
+        (hash, entry) => hash + Object.hash(entry.key, entry.value),
+      );
+    }
+    return value.hashCode;
   }
 
-  ToggleParamsPatch withField(dynamic value) {
-    patchMap[ToggleParams$.field] = value;
-    return this;
-  }
-
-  ToggleParamsPatch withValue(dynamic value) {
-    patchMap[ToggleParams$.value] = value;
-    return this;
-  }
-}
-
-/// Field descriptors for [ToggleParams] query construction
-abstract final class ToggleParamsFields<I, F> {
-  static Map<String, dynamic>? _$params<I, F>(ToggleParams<I, F> e) {
-    return e.params;
-  }
-
-  static Field<ToggleParams<I, F>, Map<String, dynamic>?> params<I, F>() {
-    return Field<ToggleParams<I, F>, Map<String, dynamic>?>(
-      'params',
-      _$params<I, F>,
+  static ZorphyBoundaryResult<ToggleParams<I, F>> fromWire<I extends Object, F>(
+    Map<String, Object?> raw,
+    ZorphyBoundaryResult<I> Function(Map<String, Object?> raw) decodeI,
+    ZorphyBoundaryResult<F> Function(Map<String, Object?> raw) decodeF,
+  ) {
+    final violations = <FieldViolation>[];
+    final Object? raw_id = raw['id'];
+    I? _id;
+    final map_id = _boundaryObject(raw_id, '/id', violations);
+    if (map_id != null) {
+      decodeI(map_id).fold(
+        (value) {
+          _id = value;
+        },
+        (error) => violations.addAll(_boundaryPrefix(error.violations, '/id')),
+      );
+    }
+    final Object? raw_field = raw['field'];
+    F? _field;
+    final map_field = _boundaryObject(raw_field, '/field', violations);
+    if (map_field != null) {
+      decodeF(map_field).fold(
+        (value) {
+          _field = value;
+        },
+        (error) =>
+            violations.addAll(_boundaryPrefix(error.violations, '/field')),
+      );
+    }
+    final Object? raw_value = raw['value'];
+    Object? _value;
+    if (raw_value != null) {
+      _value = _boundaryAs<Object>(raw_value, '/value', violations);
+    }
+    final Object? raw_params = raw['params'];
+    Map<String, dynamic>? _params;
+    if (raw_params != null) {
+      final map_params = _boundaryObject(raw_params, '/params', violations);
+      if (map_params != null) {
+        final decoded_params = <String, dynamic>{};
+        for (final entry in map_params.entries) {
+          final path_params = '/params' + '/' + entry.key;
+          if (map_params[entry.key] == null) {
+            decoded_params[entry.key] = null;
+          } else {
+            final element_params = _boundaryAs<dynamic>(
+              map_params[entry.key],
+              path_params,
+              violations,
+            );
+            if (element_params != null) {
+              decoded_params[entry.key] = element_params;
+            }
+          }
+        }
+        _params = decoded_params;
+      }
+    }
+    if (violations.isNotEmpty) {
+      return BoundaryErr<ToggleParams<I, F>>(
+        targetType: 'ToggleParams',
+        violations: violations,
+      );
+    }
+    return BoundaryOk<ToggleParams<I, F>>(
+      ToggleParams.fromTrusted(
+        id: _id!,
+        field: _field!,
+        value: _value,
+        params: _params,
+      ),
     );
   }
 
-  static I _$id<I, F>(ToggleParams<I, F> e) {
-    return e.id;
-  }
-
-  static Field<ToggleParams<I, F>, I> id<I, F>() {
-    return Field<ToggleParams<I, F>, I>('id', _$id<I, F>);
-  }
-
-  static F _$field<I, F>(ToggleParams<I, F> e) {
-    return e.field;
-  }
-
-  static Field<ToggleParams<I, F>, F> field<I, F>() {
-    return Field<ToggleParams<I, F>, F>('field', _$field<I, F>);
-  }
-
-  static dynamic _$value<I, F>(ToggleParams<I, F> e) {
-    return e.value;
-  }
-
-  static Field<ToggleParams<I, F>, dynamic> value<I, F>() {
-    return Field<ToggleParams<I, F>, dynamic>('value', _$value<I, F>);
+  Map<String, Object?> toWire(
+    Map<String, Object?> Function(I value) encodeI,
+    Map<String, Object?> Function(F value) encodeF,
+  ) {
+    final map = <String, Object?>{};
+    map['id'] = encodeI(this.id);
+    map['field'] = encodeF(this.field);
+    final _value = this.value;
+    if (_value != null) {
+      map['value'] = _value;
+    }
+    final _params = this.params;
+    if (_params != null) {
+      map['params'] = _params;
+    }
+    return map;
   }
 }
 
-extension ToggleParamsCompareE on ToggleParams {
-  Map<String, dynamic> compareToToggleParams(ToggleParams other) {
-    final Map<String, dynamic> diff = {};
+String _boundaryDescribe(Object? value) {
+  if (value == null) return 'null';
+  final text = value.toString();
+  final clipped = text.length > 60 ? '${text.substring(0, 60)}…' : text;
+  return '${value.runtimeType} ("$clipped")';
+}
 
-    if (params != other.params) {
-      diff['params'] = () => other.params;
-    }
+List<FieldViolation> _boundaryPrefix(
+  List<FieldViolation> violations,
+  String path,
+) {
+  return violations
+      .map(
+        (violation) => FieldViolation(
+          path: path + violation.path,
+          expected: violation.expected,
+          actual: violation.actual,
+        ),
+      )
+      .toList();
+}
 
-    if (id != other.id) {
-      diff['id'] = () => other.id;
-    }
+T? _boundaryAs<T>(Object? value, String path, List<FieldViolation> violations) {
+  if (value is T) return value;
+  violations.add(
+    FieldViolation(
+      path: path,
+      expected: '$T',
+      actual: _boundaryDescribe(value),
+    ),
+  );
+  return null;
+}
 
-    if (field != other.field) {
-      diff['field'] = () => other.field;
-    }
-
-    if (value != other.value) {
-      diff['value'] = () => other.value;
-    }
-    return diff;
-  }
+Map<String, Object?>? _boundaryObject(
+  Object? value,
+  String path,
+  List<FieldViolation> violations,
+) {
+  if (value is Map<String, Object?>) return value;
+  violations.add(
+    FieldViolation(
+      path: path,
+      expected: 'Map<String, Object?>',
+      actual: _boundaryDescribe(value),
+    ),
+  );
+  return null;
 }

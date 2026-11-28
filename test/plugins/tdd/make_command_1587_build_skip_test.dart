@@ -101,7 +101,7 @@ void main() {
   });
 
   group('A2 — builder-consumable changes keep the build step', () {
-    test('SC-002: an @Zorphy-annotated dart write → build runs '
+    test('SC-002: a dart write naming a zorphy archetype → build runs '
         '(annotated content never skips)', () async {
       await fx.seedCertifiedRed(
         id: 'U-1587-2',
@@ -109,12 +109,12 @@ void main() {
         testContent: TddFixture.subjectDrivenTest('U-1587-2', _description),
       );
       // The fake func step rewrites the subject with a doc comment
-      // naming @Zorphy. The gate matches RAW content (the DDA route
+      // naming a zorphy archetype. The gate matches RAW content (the DDA route
       // stage's own content-filter precedent): a comment mentioning a
       // builder annotation refuses the skip — the safe direction.
       final annotated =
           '${TddFixture.subjectReturning('U-1587-2', 42)}'
-          '// @Zorphy annotated surface — builders consume this file.\n';
+          '// @ZorphyEntity annotated surface — builders consume this file.\n';
       final zfaBin = await fx.writeFakeZfaBin(
         logPath: fx.fakeZfaLogPath,
         sideEffectByArgv: {

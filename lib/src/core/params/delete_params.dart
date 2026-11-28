@@ -1,17 +1,41 @@
-import 'package:zorphy/zorphy.dart';
+import 'package:zorphy_annotation/zorphy_annotation.dart';
 
 import 'params.dart';
 
 part 'delete_params.zorphy.dart';
-part 'delete_params.g.dart';
 
 /// Parameters for deleting an entity of type [I].
 ///
 /// The type parameter [I] represents the ID type being deleted.
-@Zorphy(generateJson: true, generateFilter: true)
-abstract class $DeleteParams<I> implements $$Params {
+@ZorphyValue()
+@Deprecated(
+  'Replaced in v8 by ZfaQuery<T> and concrete @ZorphyIntent classes in ZFA-008/ZFA-017',
+)
+abstract class $DeleteParams<I extends Object> implements Params {
   const $DeleteParams();
 
   /// The ID of the entity to delete (strongly typed).
   I get id;
+
+  /// Optional additional parameters (inherited from the params base in v2;
+  /// declared explicitly under v3, whose codegen does not merge base fields).
+  @override
+  Map<String, dynamic>? get params;
 }
+
+/// Serialize a [DeleteParams] to a wire map; [toI] encodes the id.
+///
+/// Hand-written rather than the generated `toWire` — see [createParamsToWire].
+Map<String, dynamic> deleteParamsToWire<I extends Object>(
+  DeleteParams<I> params, {
+  required Object? Function(I value) toI,
+}) => {'params': params.params, 'id': toI(params.id)};
+
+/// Decode a [DeleteParams] from a wire map.
+DeleteParams<I> deleteParamsFromWire<I extends Object>(
+  Map<String, dynamic> raw,
+  I Function(Object? json) fromI,
+) => DeleteParams<I>.fromTrusted(
+  params: raw['params'] as Map<String, dynamic>?,
+  id: fromI(raw['id']),
+);

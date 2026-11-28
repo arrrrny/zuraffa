@@ -94,7 +94,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  zuraffa: ^6.0.0
+  zuraffa: ^8.0.0
 ''');
   final di = File('${dir.path}/lib/src/di/index.dart');
   await di.parent.create(recursive: true);
@@ -192,8 +192,8 @@ void main() {
         final pubspec = File('${dir.path}/pubspec.yaml');
         await pubspec.writeAsString(
           (await pubspec.readAsString()).replaceFirst(
-            '  zuraffa: ^6.0.0',
-            '  zuraffa: ^6.0.0\n  zuraffa_flutter: ^6.0.0',
+            '  zuraffa: ^8.0.0',
+            '  zuraffa: ^8.0.0\n  zuraffa_flutter: ^8.0.0',
           ),
         );
         final runner = _RecordingRunner(simulate: true, sandbox: dir);

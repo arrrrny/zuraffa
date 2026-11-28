@@ -97,19 +97,16 @@ void main() {
       );
 
       final businessFailure = config.toFailure('InsufficientStockError');
-      expect(businessFailure, isA<ValidationFailure>());
-      expect(businessFailure.code, 'InsufficientStockError');
+      expect(businessFailure, isA<BoundaryViolationFailure>());
 
       final sessionFailure = config.toFailure('NoActiveOrderError');
-      expect(sessionFailure, isA<UnauthorizedFailure>());
-      expect(sessionFailure.code, 'NoActiveOrderError');
+      expect(sessionFailure, isA<PolicyDeniedFailure>());
 
       final validationFailure = config.toFailure('NegativeQuantityError');
-      expect(validationFailure, isA<ValidationFailure>());
+      expect(validationFailure, isA<BoundaryViolationFailure>());
 
       final unknownFailure = config.toFailure('UnknownError');
-      expect(unknownFailure, isA<UnknownFailure>());
-      expect(unknownFailure.code, 'UnknownError');
+      expect(unknownFailure, isA<UnexpectedFailure>());
     });
 
     test('toFailure includes message when provided', () {
@@ -125,5 +122,30 @@ void main() {
       final failure = config.toFailure('TimeoutError');
       expect(failure, isA<NetworkFailure>());
     });
+
+    test(
+      'toFailure preserves the GraphQL type name independently of message',
+      () {
+        final config = ErrorMappingConfig(
+          globalMappings: {
+            'InsufficientStockError': 'business',
+            'NegativeQuantityError': 'validation',
+          },
+        );
+        const message = 'Cannot add item';
+        final a = config.toFailure('InsufficientStockError', message: message);
+        final b = config.toFailure('NegativeQuantityError', message: message);
+
+        expect(a.message, message);
+        expect(b.message, message);
+        expect(a.code, 'InsufficientStockError');
+        expect(b.code, 'NegativeQuantityError');
+        expect(a.code, isNot(b.code));
+        // and it survives the trust boundary
+        final decoded =
+            AppFailure.fromWire(a.toWire()) as BoundaryOk<AppFailure>;
+        expect(decoded.value.code, 'InsufficientStockError');
+      },
+    );
   });
 }

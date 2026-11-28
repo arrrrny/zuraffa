@@ -54,7 +54,7 @@ import '../../../domain/entities/login/login.dart';
 abstract class LoginDataSource with Loggable, FailureHandler {
   Future<Login> get(QueryParams<Login> params);
   Future<Login> update(UpdateParams<String, LoginPatch> params);
-  Future<Login> toggle(ToggleParams<String, Field<Login, dynamic>> params);
+  Future<Login> toggle(ToggleParams<String, ZorphyField<Login, Object?>> params);
 }
 ''');
   });

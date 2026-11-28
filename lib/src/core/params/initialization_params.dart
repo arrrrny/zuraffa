@@ -1,15 +1,14 @@
-import 'package:zorphy/zorphy.dart';
+import 'package:zorphy_annotation/zorphy_annotation.dart';
 import 'package:zuraffa/src/core/params/credentials.dart';
 import 'package:zuraffa/src/core/params/settings.dart';
 
 import 'params.dart';
 
 part 'initialization_params.zorphy.dart';
-part 'initialization_params.g.dart';
 
 /// Parameters for initializing a repository or data source.
-@Zorphy(generateJson: true, generateFilter: true)
-abstract class $InitializationParams implements $$Params {
+@ZorphyValue()
+abstract class $InitializationParams implements Params {
   const $InitializationParams();
 
   /// How long to wait for the app to initialize before timing out.
@@ -29,6 +28,11 @@ abstract class $InitializationParams implements $$Params {
 
   /// Custom settings for the initialization process.
   $Settings? get settings;
+
+  /// v3 codegen does not merge base fields; declare [params] explicitly so
+  /// the v2 public API (and wire round trip) is preserved (review #2179).
+  @override
+  Map<String, dynamic>? get params;
 }
 
 class DurationConverter {

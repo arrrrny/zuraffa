@@ -15,6 +15,7 @@ import '../../../utils/entity_utils.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../core/dependencies/dependency_wirer.dart';
+import '../../../utils/crud_method_vocabulary.dart';
 
 part 'test_builder_custom.dart';
 part 'test_builder_entity.dart';

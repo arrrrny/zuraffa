@@ -65,8 +65,8 @@ abstract class FailureReporter {
   /// Whether this reporter should handle the given failure.
   ///
   /// Override to filter by failure type, severity, etc.
-  /// By default, reports all failures except [CancellationFailure].
-  bool shouldReport(AppFailure failure) => failure is! CancellationFailure;
+  /// By default, reports all failures except [CancelledFailure].
+  bool shouldReport(AppFailure failure) => failure is! CancelledFailure;
 
   /// Report a batch of failures to an external system.
   ///

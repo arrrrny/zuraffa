@@ -15,6 +15,7 @@ import '../../../utils/project_flavor.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../datasource_provenance.dart';
+import '../../../utils/crud_method_vocabulary.dart';
 
 /// Generates data source interfaces for domain and data layers.
 class DataSourceInterfaceBuilder {
@@ -258,7 +259,7 @@ class DataSourceInterfaceBuilder {
           );
           break;
         case 'toggle':
-          final fieldEnum = 'Field<${config.name}, dynamic>';
+          final fieldEnum = toggleFieldType(config.name);
           methods.add(
             Method(
               (m) => m

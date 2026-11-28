@@ -65,8 +65,8 @@ abstract class StreamUseCase<T, Params> with Loggable {
     if (cancelToken?.isCancelled ?? false) {
       logger.info('$runtimeType cancelled before starting');
       yield Result.failure(
-        CancellationFailure(
-          cancelToken?.cancelReason ?? 'Operation was cancelled',
+        AppFailure.cancelled(
+          message: cancelToken?.cancelReason ?? 'Operation was cancelled',
         ),
       );
       return;
@@ -85,8 +85,8 @@ abstract class StreamUseCase<T, Params> with Loggable {
         if (cancelToken?.isCancelled ?? false) {
           logger.info('$runtimeType cancelled during execution');
           yield Result.failure(
-            CancellationFailure(
-              cancelToken?.cancelReason ?? 'Operation was cancelled',
+            AppFailure.cancelled(
+              message: cancelToken?.cancelReason ?? 'Operation was cancelled',
             ),
           );
           return;
@@ -98,12 +98,15 @@ abstract class StreamUseCase<T, Params> with Loggable {
       logger.fine('$runtimeType stream completed successfully');
     } on CancelledException catch (e) {
       logger.info('$runtimeType was cancelled: ${e.message}');
-      yield Result.failure(CancellationFailure(e.message));
-    } on AppFailure catch (e) {
-      logger.warning('$runtimeType failed with AppFailure: $e');
+      yield Result.failure(AppFailure.cancelled(message: e.message));
+    } on AppFailure catch (e, stackTrace) {
+      logger.warning(
+        '$runtimeType failed with AppFailure: '
+        '${e.runtimeType}(${e.message})',
+      );
       FailureReporterRegistry.instance.reportFailure(
         e,
-        stackTrace: e.stackTrace,
+        stackTrace: reportedFailureStackTrace(e, stackTrace),
         attributes: {'usecase': '$runtimeType'},
       );
 
@@ -124,7 +127,9 @@ abstract class StreamUseCase<T, Params> with Loggable {
   /// Override this method to implement the streaming logic.
   ///
   /// - Throw [AppFailure] subclasses for expected/recoverable errors
-  /// - Any other exception will be wrapped in [UnknownFailure]
+  /// - Any other exception is classified through `AppFailure.from` (for
+  ///   example, a deadline error becomes a [TimeoutFailure]); it is not
+  ///   wrapped in a single generic variant
   /// - Check `cancelToken?.isCancelled` for long gaps between emissions
   ///
   /// Each emitted value will be wrapped in [Success].

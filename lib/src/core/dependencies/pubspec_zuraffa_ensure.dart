@@ -32,11 +32,10 @@ import 'dart:io';
 
 import 'package:yaml/yaml.dart';
 
+import '../../skew/skew_contract.dart' show consumerCoreConstraint;
+
 class PubspecZuraffaEnsureResult {
-  const PubspecZuraffaEnsureResult({
-    required this.added,
-    required this.constraint,
-  });
+  PubspecZuraffaEnsureResult({required this.added, required this.constraint});
 
   /// Whether the declaration was written by this call (false when the
   /// pubspec already declared `zuraffa` under `dependencies:`).
@@ -52,10 +51,11 @@ class PubspecZuraffaEnsure {
   /// The ensured package name.
   static const packageName = 'zuraffa';
 
-  /// The standard constraint — mirrors `DependencyWirer.standardSet`'s
-  /// pure-Dart `zuraffa` entry (single documented range; the generator
-  /// emits framework-barrel imports that resolve against the 6.x API).
-  static const constraint = '^6.0.0';
+  /// The constraint written when the declaration is missing: the
+  /// generator's supported core range, the same single source
+  /// `DependencyWirer.standardSet` wires (the generator emits imports
+  /// that resolve only against that range).
+  static String get constraint => consumerCoreConstraint;
 
   const PubspecZuraffaEnsure();
 
@@ -93,18 +93,12 @@ class PubspecZuraffaEnsure {
     final existing = (rawExisting as Map?) ?? const {};
 
     if (existing.containsKey(packageName)) {
-      return const PubspecZuraffaEnsureResult(
-        added: false,
-        constraint: constraint,
-      );
+      return PubspecZuraffaEnsureResult(added: false, constraint: constraint);
     }
 
     final newContent = _patchTextually(raw);
     await file.writeAsString(newContent);
-    return const PubspecZuraffaEnsureResult(
-      added: true,
-      constraint: constraint,
-    );
+    return PubspecZuraffaEnsureResult(added: true, constraint: constraint);
   }
 
   /// The import-triggered seam: ensures the declaration only when
@@ -117,13 +111,13 @@ class PubspecZuraffaEnsure {
   ) {
     if (!importedPackages.contains(packageName)) {
       return Future.value(
-        const PubspecZuraffaEnsureResult(added: false, constraint: constraint),
+        PubspecZuraffaEnsureResult(added: false, constraint: constraint),
       );
     }
     return ensure(projectRoot);
   }
 
-  /// Inserts `  zuraffa: ^6.0.0` at the END of the `dependencies:` block
+  /// Inserts the `zuraffa` declaration ([constraint]) at the END of the
   /// (before the next top-level key), preserving comments and formatting.
   ///
   /// Same textual contract as `PubspecSkinDependencyPatcher._patchTextually`.

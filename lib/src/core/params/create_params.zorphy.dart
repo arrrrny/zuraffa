@@ -1,82 +1,27 @@
-// dart format width=80
-// ignore_for_file: UNNECESSARY_CAST
-// ignore_for_file: type=lint
-
 part of 'create_params.dart';
 
-// **************************************************************************
-// ZorphyGenerator
-// **************************************************************************
+// ignore_for_file: UNNECESSARY_CAST
+// ignore_for_file: type=lint
+final class _ZorphyCopyWithSentinel {
+  const _ZorphyCopyWithSentinel();
+}
 
-@JsonSerializable(
-  explicitToJson: true,
-  checked: true,
-  genericArgumentFactories: true,
-)
-class CreateParams<T> extends Params {
-  const CreateParams({Map<String, dynamic>? this.params, required T this.data})
-    : super();
+const Object _sentinel = _ZorphyCopyWithSentinel();
 
-  factory CreateParams.fromJson(
-    Map<String, dynamic> json,
-    T Function(Object? json) fromJsonT,
-  ) => _$CreateParamsFromJson(json, fromJsonT);
-
-  @override
-  final Map<String, dynamic>? params;
+final class CreateParams<T> implements ZorphyValueBase {
+  CreateParams.fromTrusted({required this.data, Map<String, dynamic>? params})
+    : params = params == null ? null : Map<String, dynamic>.of(params);
 
   final T data;
 
-  CreateParams copyWith({Map<String, dynamic>? params, T? data}) {
-    return CreateParams(params: params ?? this.params, data: data ?? this.data);
-  }
+  final Map<String, dynamic>? params;
 
-  /// Returns a copy of this entity with [field] set to [value].
-  ///
-  /// Delegates to [copyWith]: the receiver is never mutated and a
-  /// null [value] keeps the current field value.
-  CreateParams copyWithField<TValue>(
-    Field<CreateParams<T>, TValue> field,
-    TValue value,
-  ) {
-    switch (field.name) {
-      case 'params':
-        return copyWith(params: value as Map<String, dynamic>?);
-      case 'data':
-        return copyWith(data: value as T);
-      default:
-        throw ArgumentError.value(
-          field.name,
-          'field',
-          'CreateParams has no settable field with this name',
-        );
-    }
-  }
-
-  CreateParams copyWithCreateParams({Map<String, dynamic>? params, T? data}) {
-    return copyWith(params: params, data: data);
-  }
-
-  CreateParams patchWithCreateParams([CreateParamsPatch? patchInput]) {
-    final _patcher = patchInput ?? CreateParamsPatch();
-    final _patchMap = _patcher.patchMap;
-    return CreateParams(
-      params: _patchMap.containsKey(CreateParams$.params)
-          ? ((_patchMap[CreateParams$.params] is Function)
-                    ? _patchMap[CreateParams$.params](this.params)
-                    : (_patchMap[CreateParams$.params] is Patch)
-                    ? _patchMap[CreateParams$.params].applyTo(this.params)
-                    : _patchMap[CreateParams$.params])
-                as Map<String, dynamic>?
-          : this.params,
-      data: _patchMap.containsKey(CreateParams$.data)
-          ? ((_patchMap[CreateParams$.data] is Function)
-                    ? _patchMap[CreateParams$.data](this.data)
-                    : (_patchMap[CreateParams$.data] is Patch)
-                    ? _patchMap[CreateParams$.data].applyTo(this.data)
-                    : _patchMap[CreateParams$.data])
-                as T
-          : this.data,
+  CreateParams<T> copyWith({T? data, Object? params = _sentinel}) {
+    return CreateParams<T>.fromTrusted(
+      data: data ?? this.data,
+      params: identical(params, _sentinel)
+          ? this.params
+          : params as Map<String, dynamic>?,
     );
   }
 
@@ -84,76 +29,167 @@ class CreateParams<T> extends Params {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is CreateParams &&
-        params == other.params &&
-        data == other.data;
+        CreateParams._zorphyCollectionEquals(this.data, other.data) &&
+        CreateParams._zorphyCollectionEquals(this.params, other.params);
   }
 
   @override
-  int get hashCode {
-    return Object.hash(this.params, this.data);
-  }
+  int get hashCode => Object.hashAll([
+    CreateParams._zorphyCollectionHash(data),
+    CreateParams._zorphyCollectionHash(params),
+  ]);
 
   @override
-  String toString() {
-    return 'CreateParams(' + 'params: ${params}' + ', ' + 'data: ${data})';
-  }
-}
+  String toString() => 'CreateParams(data: $data, params: $params)';
 
-extension CreateParamsPropertyHelpers<T> on CreateParams<T> {}
-
-extension CreateParamsSerialization<T> on CreateParams<T> {
-  Map<String, dynamic> toJson(Object? Function(T value) toJsonT) =>
-      _$CreateParamsToJson(this, toJsonT);
-}
-
-enum CreateParams$ { params, data }
-
-class CreateParamsPatch extends PatchBase<CreateParams, CreateParams$> {
-  CreateParams applyTo(CreateParams entity) {
-    return entity.patchWithCreateParams(this);
-  }
-
-  CreateParamsPatch withParams(Map<String, dynamic>? value) {
-    patchMap[CreateParams$.params] = value;
-    return this;
-  }
-
-  CreateParamsPatch withData(dynamic value) {
-    patchMap[CreateParams$.data] = value;
-    return this;
-  }
-}
-
-/// Field descriptors for [CreateParams] query construction
-abstract final class CreateParamsFields<T> {
-  static Map<String, dynamic>? _$params<T>(CreateParams<T> e) {
-    return e.params;
-  }
-
-  static Field<CreateParams<T>, Map<String, dynamic>?> params<T>() {
-    return Field<CreateParams<T>, Map<String, dynamic>?>('params', _$params<T>);
-  }
-
-  static T _$data<T>(CreateParams<T> e) {
-    return e.data;
-  }
-
-  static Field<CreateParams<T>, T> data<T>() {
-    return Field<CreateParams<T>, T>('data', _$data<T>);
-  }
-}
-
-extension CreateParamsCompareE on CreateParams {
-  Map<String, dynamic> compareToCreateParams(CreateParams other) {
-    final Map<String, dynamic> diff = {};
-
-    if (params != other.params) {
-      diff['params'] = () => other.params;
+  static bool _zorphyCollectionEquals(Object? a, Object? b) {
+    if (identical(a, b)) return true;
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) return false;
+      }
+      return true;
     }
-
-    if (data != other.data) {
-      diff['data'] = () => other.data;
+    if (a is Set && b is Set) {
+      if (a.length != b.length) return false;
+      return a.every(b.contains);
     }
-    return diff;
+    if (a is Map && b is Map) {
+      if (a.length != b.length) return false;
+      for (final entry in a.entries) {
+        if (!b.containsKey(entry.key) || b[entry.key] != entry.value) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
   }
+
+  static int _zorphyCollectionHash(Object? value) {
+    if (value is List) return Object.hashAll(value);
+    if (value is Set) {
+      return value.fold<int>(0, (hash, element) => hash + element.hashCode);
+    }
+    if (value is Map) {
+      return value.entries.fold<int>(
+        0,
+        (hash, entry) => hash + Object.hash(entry.key, entry.value),
+      );
+    }
+    return value.hashCode;
+  }
+
+  static ZorphyBoundaryResult<CreateParams<T>> fromWire<T>(
+    Map<String, Object?> raw,
+    ZorphyBoundaryResult<T> Function(Map<String, Object?> raw) decodeT,
+  ) {
+    final violations = <FieldViolation>[];
+    final Object? raw_data = raw['data'];
+    T? _data;
+    final map_data = _boundaryObject(raw_data, '/data', violations);
+    if (map_data != null) {
+      decodeT(map_data).fold(
+        (value) {
+          _data = value;
+        },
+        (error) =>
+            violations.addAll(_boundaryPrefix(error.violations, '/data')),
+      );
+    }
+    final Object? raw_params = raw['params'];
+    Map<String, dynamic>? _params;
+    if (raw_params != null) {
+      final map_params = _boundaryObject(raw_params, '/params', violations);
+      if (map_params != null) {
+        final decoded_params = <String, dynamic>{};
+        for (final entry in map_params.entries) {
+          final path_params = '/params' + '/' + entry.key;
+          if (map_params[entry.key] == null) {
+            decoded_params[entry.key] = null;
+          } else {
+            final element_params = _boundaryAs<dynamic>(
+              map_params[entry.key],
+              path_params,
+              violations,
+            );
+            if (element_params != null) {
+              decoded_params[entry.key] = element_params;
+            }
+          }
+        }
+        _params = decoded_params;
+      }
+    }
+    if (violations.isNotEmpty) {
+      return BoundaryErr<CreateParams<T>>(
+        targetType: 'CreateParams',
+        violations: violations,
+      );
+    }
+    return BoundaryOk<CreateParams<T>>(
+      CreateParams.fromTrusted(data: _data!, params: _params),
+    );
+  }
+
+  Map<String, Object?> toWire(Map<String, Object?> Function(T value) encodeT) {
+    final map = <String, Object?>{};
+    map['data'] = encodeT(this.data);
+    final _params = this.params;
+    if (_params != null) {
+      map['params'] = _params;
+    }
+    return map;
+  }
+}
+
+String _boundaryDescribe(Object? value) {
+  if (value == null) return 'null';
+  final text = value.toString();
+  final clipped = text.length > 60 ? '${text.substring(0, 60)}…' : text;
+  return '${value.runtimeType} ("$clipped")';
+}
+
+List<FieldViolation> _boundaryPrefix(
+  List<FieldViolation> violations,
+  String path,
+) {
+  return violations
+      .map(
+        (violation) => FieldViolation(
+          path: path + violation.path,
+          expected: violation.expected,
+          actual: violation.actual,
+        ),
+      )
+      .toList();
+}
+
+T? _boundaryAs<T>(Object? value, String path, List<FieldViolation> violations) {
+  if (value is T) return value;
+  violations.add(
+    FieldViolation(
+      path: path,
+      expected: '$T',
+      actual: _boundaryDescribe(value),
+    ),
+  );
+  return null;
+}
+
+Map<String, Object?>? _boundaryObject(
+  Object? value,
+  String path,
+  List<FieldViolation> violations,
+) {
+  if (value is Map<String, Object?>) return value;
+  violations.add(
+    FieldViolation(
+      path: path,
+      expected: 'Map<String, Object?>',
+      actual: _boundaryDescribe(value),
+    ),
+  );
+  return null;
 }

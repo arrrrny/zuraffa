@@ -98,7 +98,7 @@ dependencies:
     ).readAsStringSync();
     expect(
       pubspec,
-      contains('zuraffa: ^6.0.0'),
+      contains('zuraffa: ^8.0.0'),
       reason:
           '#1530: the ensure must declare the core package textually '
           '(offline-safe) — pubspec:\n$pubspec',

@@ -116,13 +116,12 @@ void main() {
       final content = File(file.path).readAsStringSync();
 
       expect(
-        content.contains('hide Task'),
-        isFalse,
+        content.contains("import 'package:zuraffa/mock.dart';"),
+        isTrue,
         reason:
-            '#1530: the mock emission hid on package:zuraffa/mock.dart — '
-            'the same unverified-name class',
+            '#1530: an unresolved mock barrel must emit the bare import '
+            'without an unverified hide combinator',
       );
-      expect(content.contains("import 'package:zuraffa/mock.dart';"), isTrue);
     },
   );
 }

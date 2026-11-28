@@ -1,103 +1,33 @@
-// dart format width=80
-// ignore_for_file: UNNECESSARY_CAST
-// ignore_for_file: type=lint
-
 part of 'update_params.dart';
 
-// **************************************************************************
-// ZorphyGenerator
-// **************************************************************************
+// ignore_for_file: UNNECESSARY_CAST
+// ignore_for_file: type=lint
+final class _ZorphyCopyWithSentinel {
+  const _ZorphyCopyWithSentinel();
+}
 
-@JsonSerializable(
-  explicitToJson: true,
-  checked: true,
-  genericArgumentFactories: true,
-)
-class UpdateParams<I, P> extends Params {
-  const UpdateParams({
-    Map<String, dynamic>? this.params,
-    required I this.id,
-    required P this.data,
-  }) : super();
+const Object _sentinel = _ZorphyCopyWithSentinel();
 
-  factory UpdateParams.fromJson(
-    Map<String, dynamic> json,
-    I Function(Object? json) fromJsonI,
-    P Function(Object? json) fromJsonP,
-  ) => _$UpdateParamsFromJson(json, fromJsonI, fromJsonP);
-
-  @override
-  final Map<String, dynamic>? params;
+final class UpdateParams<I, P> implements ZorphyValueBase {
+  UpdateParams.fromTrusted({
+    required this.id,
+    required this.data,
+    Map<String, dynamic>? params,
+  }) : params = params == null ? null : Map<String, dynamic>.of(params);
 
   final I id;
 
   final P data;
 
-  UpdateParams copyWith({Map<String, dynamic>? params, I? id, P? data}) {
-    return UpdateParams(
-      params: params ?? this.params,
+  final Map<String, dynamic>? params;
+
+  UpdateParams<I, P> copyWith({I? id, P? data, Object? params = _sentinel}) {
+    return UpdateParams<I, P>.fromTrusted(
       id: id ?? this.id,
       data: data ?? this.data,
-    );
-  }
-
-  /// Returns a copy of this entity with [field] set to [value].
-  ///
-  /// Delegates to [copyWith]: the receiver is never mutated and a
-  /// null [value] keeps the current field value.
-  UpdateParams copyWithField<T>(Field<UpdateParams<I, P>, T> field, T value) {
-    switch (field.name) {
-      case 'params':
-        return copyWith(params: value as Map<String, dynamic>?);
-      case 'id':
-        return copyWith(id: value as I);
-      case 'data':
-        return copyWith(data: value as P);
-      default:
-        throw ArgumentError.value(
-          field.name,
-          'field',
-          'UpdateParams has no settable field with this name',
-        );
-    }
-  }
-
-  UpdateParams copyWithUpdateParams({
-    Map<String, dynamic>? params,
-    I? id,
-    P? data,
-  }) {
-    return copyWith(params: params, id: id, data: data);
-  }
-
-  UpdateParams patchWithUpdateParams([UpdateParamsPatch? patchInput]) {
-    final _patcher = patchInput ?? UpdateParamsPatch();
-    final _patchMap = _patcher.patchMap;
-    return UpdateParams(
-      params: _patchMap.containsKey(UpdateParams$.params)
-          ? ((_patchMap[UpdateParams$.params] is Function)
-                    ? _patchMap[UpdateParams$.params](this.params)
-                    : (_patchMap[UpdateParams$.params] is Patch)
-                    ? _patchMap[UpdateParams$.params].applyTo(this.params)
-                    : _patchMap[UpdateParams$.params])
-                as Map<String, dynamic>?
-          : this.params,
-      id: _patchMap.containsKey(UpdateParams$.id)
-          ? ((_patchMap[UpdateParams$.id] is Function)
-                    ? _patchMap[UpdateParams$.id](this.id)
-                    : (_patchMap[UpdateParams$.id] is Patch)
-                    ? _patchMap[UpdateParams$.id].applyTo(this.id)
-                    : _patchMap[UpdateParams$.id])
-                as I
-          : this.id,
-      data: _patchMap.containsKey(UpdateParams$.data)
-          ? ((_patchMap[UpdateParams$.data] is Function)
-                    ? _patchMap[UpdateParams$.data](this.data)
-                    : (_patchMap[UpdateParams$.data] is Patch)
-                    ? _patchMap[UpdateParams$.data].applyTo(this.data)
-                    : _patchMap[UpdateParams$.data])
-                as P
-          : this.data,
+      params: identical(params, _sentinel)
+          ? this.params
+          : params as Map<String, dynamic>?,
     );
   }
 
@@ -105,104 +35,185 @@ class UpdateParams<I, P> extends Params {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is UpdateParams &&
-        params == other.params &&
-        id == other.id &&
-        data == other.data;
+        UpdateParams._zorphyCollectionEquals(this.id, other.id) &&
+        UpdateParams._zorphyCollectionEquals(this.data, other.data) &&
+        UpdateParams._zorphyCollectionEquals(this.params, other.params);
   }
 
   @override
-  int get hashCode {
-    return Object.hash(this.params, this.id, this.data);
-  }
+  int get hashCode => Object.hashAll([
+    UpdateParams._zorphyCollectionHash(id),
+    UpdateParams._zorphyCollectionHash(data),
+    UpdateParams._zorphyCollectionHash(params),
+  ]);
 
   @override
-  String toString() {
-    return 'UpdateParams(' +
-        'params: ${params}' +
-        ', ' +
-        'id: ${id}' +
-        ', ' +
-        'data: ${data})';
-  }
-}
+  String toString() => 'UpdateParams(id: $id, data: $data, params: $params)';
 
-extension UpdateParamsPropertyHelpers<I, P> on UpdateParams<I, P> {}
-
-extension UpdateParamsSerialization<I, P> on UpdateParams<I, P> {
-  Map<String, dynamic> toJson(
-    Object? Function(I value) toJsonI,
-    Object? Function(P value) toJsonP,
-  ) => _$UpdateParamsToJson(this, toJsonI, toJsonP);
-}
-
-enum UpdateParams$ { params, id, data }
-
-class UpdateParamsPatch extends PatchBase<UpdateParams, UpdateParams$> {
-  UpdateParams applyTo(UpdateParams entity) {
-    return entity.patchWithUpdateParams(this);
-  }
-
-  UpdateParamsPatch withParams(Map<String, dynamic>? value) {
-    patchMap[UpdateParams$.params] = value;
-    return this;
+  static bool _zorphyCollectionEquals(Object? a, Object? b) {
+    if (identical(a, b)) return true;
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) return false;
+      }
+      return true;
+    }
+    if (a is Set && b is Set) {
+      if (a.length != b.length) return false;
+      return a.every(b.contains);
+    }
+    if (a is Map && b is Map) {
+      if (a.length != b.length) return false;
+      for (final entry in a.entries) {
+        if (!b.containsKey(entry.key) || b[entry.key] != entry.value) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
   }
 
-  UpdateParamsPatch withId(dynamic value) {
-    patchMap[UpdateParams$.id] = value;
-    return this;
+  static int _zorphyCollectionHash(Object? value) {
+    if (value is List) return Object.hashAll(value);
+    if (value is Set) {
+      return value.fold<int>(0, (hash, element) => hash + element.hashCode);
+    }
+    if (value is Map) {
+      return value.entries.fold<int>(
+        0,
+        (hash, entry) => hash + Object.hash(entry.key, entry.value),
+      );
+    }
+    return value.hashCode;
   }
 
-  UpdateParamsPatch withData(dynamic value) {
-    patchMap[UpdateParams$.data] = value;
-    return this;
-  }
-}
-
-/// Field descriptors for [UpdateParams] query construction
-abstract final class UpdateParamsFields<I, P> {
-  static Map<String, dynamic>? _$params<I, P>(UpdateParams<I, P> e) {
-    return e.params;
-  }
-
-  static Field<UpdateParams<I, P>, Map<String, dynamic>?> params<I, P>() {
-    return Field<UpdateParams<I, P>, Map<String, dynamic>?>(
-      'params',
-      _$params<I, P>,
+  static ZorphyBoundaryResult<UpdateParams<I, P>> fromWire<I, P>(
+    Map<String, Object?> raw,
+    ZorphyBoundaryResult<I> Function(Map<String, Object?> raw) decodeI,
+    ZorphyBoundaryResult<P> Function(Map<String, Object?> raw) decodeP,
+  ) {
+    final violations = <FieldViolation>[];
+    final Object? raw_id = raw['id'];
+    I? _id;
+    final map_id = _boundaryObject(raw_id, '/id', violations);
+    if (map_id != null) {
+      decodeI(map_id).fold(
+        (value) {
+          _id = value;
+        },
+        (error) => violations.addAll(_boundaryPrefix(error.violations, '/id')),
+      );
+    }
+    final Object? raw_data = raw['data'];
+    P? _data;
+    final map_data = _boundaryObject(raw_data, '/data', violations);
+    if (map_data != null) {
+      decodeP(map_data).fold(
+        (value) {
+          _data = value;
+        },
+        (error) =>
+            violations.addAll(_boundaryPrefix(error.violations, '/data')),
+      );
+    }
+    final Object? raw_params = raw['params'];
+    Map<String, dynamic>? _params;
+    if (raw_params != null) {
+      final map_params = _boundaryObject(raw_params, '/params', violations);
+      if (map_params != null) {
+        final decoded_params = <String, dynamic>{};
+        for (final entry in map_params.entries) {
+          final path_params = '/params' + '/' + entry.key;
+          if (map_params[entry.key] == null) {
+            decoded_params[entry.key] = null;
+          } else {
+            final element_params = _boundaryAs<dynamic>(
+              map_params[entry.key],
+              path_params,
+              violations,
+            );
+            if (element_params != null) {
+              decoded_params[entry.key] = element_params;
+            }
+          }
+        }
+        _params = decoded_params;
+      }
+    }
+    if (violations.isNotEmpty) {
+      return BoundaryErr<UpdateParams<I, P>>(
+        targetType: 'UpdateParams',
+        violations: violations,
+      );
+    }
+    return BoundaryOk<UpdateParams<I, P>>(
+      UpdateParams.fromTrusted(id: _id!, data: _data!, params: _params),
     );
   }
 
-  static I _$id<I, P>(UpdateParams<I, P> e) {
-    return e.id;
-  }
-
-  static Field<UpdateParams<I, P>, I> id<I, P>() {
-    return Field<UpdateParams<I, P>, I>('id', _$id<I, P>);
-  }
-
-  static P _$data<I, P>(UpdateParams<I, P> e) {
-    return e.data;
-  }
-
-  static Field<UpdateParams<I, P>, P> data<I, P>() {
-    return Field<UpdateParams<I, P>, P>('data', _$data<I, P>);
+  Map<String, Object?> toWire(
+    Map<String, Object?> Function(I value) encodeI,
+    Map<String, Object?> Function(P value) encodeP,
+  ) {
+    final map = <String, Object?>{};
+    map['id'] = encodeI(this.id);
+    map['data'] = encodeP(this.data);
+    final _params = this.params;
+    if (_params != null) {
+      map['params'] = _params;
+    }
+    return map;
   }
 }
 
-extension UpdateParamsCompareE on UpdateParams {
-  Map<String, dynamic> compareToUpdateParams(UpdateParams other) {
-    final Map<String, dynamic> diff = {};
+String _boundaryDescribe(Object? value) {
+  if (value == null) return 'null';
+  final text = value.toString();
+  final clipped = text.length > 60 ? '${text.substring(0, 60)}…' : text;
+  return '${value.runtimeType} ("$clipped")';
+}
 
-    if (params != other.params) {
-      diff['params'] = () => other.params;
-    }
+List<FieldViolation> _boundaryPrefix(
+  List<FieldViolation> violations,
+  String path,
+) {
+  return violations
+      .map(
+        (violation) => FieldViolation(
+          path: path + violation.path,
+          expected: violation.expected,
+          actual: violation.actual,
+        ),
+      )
+      .toList();
+}
 
-    if (id != other.id) {
-      diff['id'] = () => other.id;
-    }
+T? _boundaryAs<T>(Object? value, String path, List<FieldViolation> violations) {
+  if (value is T) return value;
+  violations.add(
+    FieldViolation(
+      path: path,
+      expected: '$T',
+      actual: _boundaryDescribe(value),
+    ),
+  );
+  return null;
+}
 
-    if (data != other.data) {
-      diff['data'] = () => other.data;
-    }
-    return diff;
-  }
+Map<String, Object?>? _boundaryObject(
+  Object? value,
+  String path,
+  List<FieldViolation> violations,
+) {
+  if (value is Map<String, Object?>) return value;
+  violations.add(
+    FieldViolation(
+      path: path,
+      expected: 'Map<String, Object?>',
+      actual: _boundaryDescribe(value),
+    ),
+  );
+  return null;
 }

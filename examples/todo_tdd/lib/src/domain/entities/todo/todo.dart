@@ -3,11 +3,10 @@
 
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 
-part 'todo.zorphy.dart';
-part 'todo.g.dart';
+part '../../../../_br_/src/domain/entities/todo/todo.part.dart';
 
 /// Todo entity
-@Zorphy(generateJson: true, generateCompareTo: true)
+@ZorphyEntity(principalKey: #id)
 abstract class $Todo {
   String get id;
   String get title;

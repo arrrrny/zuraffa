@@ -124,7 +124,7 @@ class ApiBridgeBuilder {
 
   /// Ensures every return type on which the bridge emits `toJson()` actually
   /// exposes that serializer in the entity library (including extensions in
-  /// generated `.zorphy.dart` files).
+  /// generated shared parts).
   void _validateReturnSerializers(List<_UseCaseDescriptor> useCases) {
     for (final useCase in useCases) {
       final returnType = useCase.returnType.trim();
@@ -144,9 +144,27 @@ class ApiBridgeBuilder {
   }
 
   bool _typeExposesToJson(String typeName) {
+    for (final declaration in _entityDeclarations(typeName)) {
+      if (declaration is ast.ClassDeclaration &&
+          declaration.namePart.typeName.lexeme == typeName &&
+          _membersExposeToJson(declaration.body.members)) {
+        return true;
+      }
+      if (declaration is ast.ExtensionDeclaration &&
+          declaration.onClause?.extendedType.toSource() == typeName &&
+          _membersExposeToJson(declaration.body.members)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Iterable<ast.CompilationUnitMember> _entityDeclarations(
+    String typeName,
+  ) sync* {
     final entitySnake = StringUtils.camelToSnake(typeName);
     final entityDir = p.join(outputDir, 'domain', 'entities', entitySnake);
-    if (!fileSystem.isDirectorySync(entityDir)) return false;
+    if (!fileSystem.isDirectorySync(entityDir)) return;
 
     final parser = const FileParser();
     for (final filePath in fileSystem.listSync(entityDir)) {
@@ -156,22 +174,48 @@ class ApiBridgeBuilder {
         path: filePath,
       );
       final unit = result.unit;
-      if (unit == null) continue;
+      if (unit != null) yield* unit.declarations;
+    }
+  }
 
-      for (final declaration in unit.declarations) {
-        if (declaration is ast.ClassDeclaration &&
-            declaration.namePart.typeName.lexeme == typeName &&
-            _membersExposeToJson(declaration.body.members)) {
-          return true;
-        }
-        if (declaration is ast.ExtensionDeclaration &&
-            declaration.onClause?.extendedType.toSource() == typeName &&
-            _membersExposeToJson(declaration.body.members)) {
-          return true;
+  /// Reuses the typed descriptors that generated query-by-ID handlers use.
+  /// Use each descriptor's wire name, which may differ from its Dart member.
+  String _queryFieldsArgument(String entity) {
+    final fields = <String>[];
+    for (final declaration in _entityDeclarations(entity)) {
+      if (declaration is! ast.ClassDeclaration ||
+          declaration.namePart.typeName.lexeme != '${entity}Fields') {
+        continue;
+      }
+      for (final member
+          in declaration.body.members.whereType<ast.FieldDeclaration>()) {
+        if (!member.isStatic) continue;
+        final type = member.fields.type;
+        for (final variable in member.fields.variables) {
+          if (variable.name.lexeme.startsWith('_')) continue;
+          final initializer = variable.initializer;
+          final fieldType =
+              type ??
+              switch (initializer) {
+                ast.InstanceCreationExpression() =>
+                  initializer.constructorName.type,
+                _ => null,
+              };
+          // The unresolved AST may read an implicit constructor call as
+          // a method invocation.
+          if ((fieldType is ast.NamedType &&
+                  fieldType.name.lexeme == 'Field') ||
+              (type == null &&
+                  initializer is ast.MethodInvocation &&
+                  initializer.target == null &&
+                  initializer.methodName.name == 'Field')) {
+            final ref = '${entity}Fields.${variable.name.lexeme}';
+            fields.add('$ref.name: $ref');
+          }
         }
       }
     }
-    return false;
+    return fields.isEmpty ? '' : ', {${fields.join(', ')}}';
   }
 
   bool _membersExposeToJson(ast.NodeList<ast.ClassMember> members) {
@@ -363,9 +407,10 @@ class ApiBridgeBuilder {
     for (final uc in useCases) {
       final pt = uc.paramsType;
       if (_isNoParams(pt) || _isPrimitive(pt)) continue;
-      // Resolve imports by the base type: `QueryParams<Product>` needs no
-      // entity-dir lookup, `Product` must not duplicate the entity import.
-      final paramSnake = StringUtils.camelToSnake(pt.split('<').first.trim());
+      final paramType = _isQueryParams(pt) || _isListQueryParams(pt)
+          ? _extractEntityFromGeneric(pt)
+          : pt.split('<').first.trim();
+      final paramSnake = StringUtils.camelToSnake(paramType);
       if (!addedParamImports.add(paramSnake)) continue;
 
       // Only import if a domain/entities/{snake} directory exists.
@@ -544,7 +589,7 @@ class ApiBridgeBuilder {
     if (id == null || id.isEmpty) {
       return ZuraffaApiBridge.errorResponse('badRequest', 'id is required');
     }
-    final params = ${uc.paramsType}(filter: ${entityName}Fields.id.eq(id));
+    final params = ${uc.paramsType}.fromTrusted(filter: ${entityName}Fields.id.eq(id));
     final useCase = getIt<${uc.className}>();
     final result = await useCase(params);
     return ZuraffaApiBridge.serializeResult(
@@ -567,7 +612,7 @@ class ApiBridgeBuilder {
     final entityName = _extractEntityFromGeneric(uc.paramsType);
     final tryStmts = <Code>[
       Code("""
-    final params = ListQueryParams<$entityName>();
+    final params = ListQueryParams<$entityName>.fromTrusted();
     final useCase = getIt<${uc.className}>();
     final result = await useCase(params);
     return ZuraffaApiBridge.serializeResult(
@@ -595,7 +640,7 @@ class ApiBridgeBuilder {
       return ZuraffaApiBridge.errorResponse('deserialization', e.toString());
     }
     json.putIfAbsent('id', () => DateTime.now().microsecondsSinceEpoch.toString());
-    final params = ${uc.paramsType}.fromJson(json);
+    final params = ${_paramsFromJsonExpr(uc.paramsType)};
     final useCase = getIt<${uc.className}>();
     final result = await useCase(params);
     return ZuraffaApiBridge.serializeResult(
@@ -632,7 +677,7 @@ class ApiBridgeBuilder {
       return ZuraffaApiBridge.errorResponse('deserialization', e.toString());
     }
     json.putIfAbsent('id', () => DateTime.now().microsecondsSinceEpoch.toString());
-    final params = ${uc.paramsType}.fromJson(json);"""),
+    final params = ${_paramsFromJsonExpr(uc.paramsType)};"""),
       );
     }
 
@@ -713,6 +758,24 @@ class ApiBridgeBuilder {
   bool _isListQueryParams(String paramsType) {
     final base = paramsType.trim().split('<').first.trim();
     return base == 'ListQueryParams' && paramsType.contains('<');
+  }
+
+  /// v3 generated params classes expose only `fromTrusted` and the top-level
+  /// `queryParamsFromWire` / `listQueryParamsFromWire` decoders — the v2
+  /// unnamed constructors and `fromJson` are gone (review #2179).
+  String _paramsFromJsonExpr(String paramsType) {
+    final t = paramsType.trim();
+    if (_isQueryParams(t)) {
+      final e = _extractEntityFromGeneric(t);
+      return 'queryParamsFromWire<$e>(json, (v) => v as $e'
+          '${_queryFieldsArgument(e)})';
+    }
+    if (_isListQueryParams(t)) {
+      final e = _extractEntityFromGeneric(t);
+      return 'listQueryParamsFromWire<$e>(json, (v) => v as $e'
+          '${_queryFieldsArgument(e)})';
+    }
+    return '$t.fromJson(json)';
   }
 
   /// Extracts the entity type from a generic like `QueryParams<Product>` → `Product`.

@@ -34,7 +34,7 @@ void main() {
 
   group('FeatureContract entity', () {
     test('constructs with all contract surfaces', () {
-      final contract = FeatureContract(
+      final contract = FeatureContract.fromTrusted(
         id: 'login',
         displayName: 'Login',
         entities: const ['User', 'Session'],
@@ -65,7 +65,7 @@ void main() {
     });
 
     test('copyWith preserves unspecified fields and overrides the rest', () {
-      final contract = FeatureContract(
+      final contract = FeatureContract.fromTrusted(
         id: 'login',
         displayName: 'Login',
         entities: const ['User'],
@@ -85,13 +85,13 @@ void main() {
     });
 
     test('equality is value-based', () {
-      final a = FeatureContract(
+      final a = FeatureContract.fromTrusted(
         id: 'login',
         displayName: 'Login',
         entities: const ['User'],
         routes: const {'/login'},
       );
-      final b = FeatureContract(
+      final b = FeatureContract.fromTrusted(
         id: 'login',
         displayName: 'Login',
         entities: const ['User'],

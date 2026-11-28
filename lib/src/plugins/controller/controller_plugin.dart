@@ -18,6 +18,7 @@ import '../../utils/string_utils.dart';
 import '../../utils/project_flavor.dart';
 import 'builders/controller_class_builder.dart';
 import 'capabilities/create_controller_capability.dart';
+import '../../utils/crud_method_vocabulary.dart';
 
 part 'controller_plugin_bodies.dart';
 part 'controller_plugin_methods.dart';

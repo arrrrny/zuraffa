@@ -60,24 +60,62 @@ Future<void> writeEntityStub(
   );
   await entityDir.create(recursive: true);
   final entityFile = File(path.join(entityDir.path, '$entitySnake.dart'));
+  // A hand-written stand-in for a zorphy v3 entity's generated surface: the
+  // concrete class with `fromTrusted` + `copyWith`, the `<E>Fields` registry
+  // of write-capable `ZorphyField`s the toggle writes through, and the
+  // `<E>Patch` with the full `ZorphyPatch` algebra. The integration suites
+  // COMPILE these fixtures, so every type here is the real
+  // zorphy_annotation one.
   await entityFile.writeAsString('''
-class $name {
+import 'package:zorphy_annotation/zorphy_annotation.dart';
+
+final class $name {
+  const $name.fromTrusted({required this.id});
+
   final $idType id;
 
-  const $name({required this.id});
-
-  $name copyWithField(Object field, Object? value) => this;
+  $name copyWith({$idType? id}) => $name.fromTrusted(id: id ?? this.id);
 }
 
-class ${name}Patch {
-  final $idType? id;
+abstract final class ${name}Fields {
+  static const ZorphyField<$name, $idType> id = ZorphyField<$name, $idType>(
+    name: 'id',
+    jsonKey: 'id',
+    pointer: '/id',
+    get: _getId,
+    set: _setId,
+  );
 
-  const ${name}Patch({this.id});
+  static final List<ZorphyField<$name, Object?>> all = [id.asObject];
+
+  static $idType _getId($name root) => root.id;
+  static $name _setId($name root, $idType value) => root.copyWith(id: value);
 }
 
-class ${name}Fields {
-  static const Field<$name, $idType> id = Field(name: 'id');
-  static const Field<$name, String> slug = Field(name: 'slug');
+final class ${name}Patch implements ZorphyPatch<$name> {
+  const ${name}Patch({this.id = const PatchValue.unchanged()});
+
+  final PatchValue<$idType> id;
+
+  @override
+  bool get isEmpty => id.isUnchanged;
+  @override
+  bool get isNotEmpty => !isEmpty;
+
+  @override
+  $name apply(covariant $name target) => target.copyWith(
+    id: id.isUnchanged ? target.id : id.valueOrNull,
+  );
+
+  @override
+  ZorphyPatch<$name> compose(covariant ZorphyPatch<$name> next) => next;
+
+  @override
+  ZorphyPatch<$name> invert($name before) =>
+      ${name}Patch(id: PatchValue<$idType>.set(before.id));
+
+  @override
+  Map<String, Object?> toWire() => const <String, Object?>{};
 }
 ''');
 }

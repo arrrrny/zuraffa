@@ -97,7 +97,7 @@ name: my_app
 dependencies:
   flutter:
     sdk: flutter
-  zuraffa: ^6.0.0
+  zuraffa: ^8.0.0
 dev_dependencies:
   build_runner: ^2.4.0
 ''';
@@ -116,7 +116,7 @@ dev_dependencies:
       const pubspecWithDevZuraffa = '''
 name: my_app
 dev_dependencies:
-  zuraffa: ^6.0.0
+  zuraffa: ^8.0.0
 ''';
       final missing = GeneratedImportScanner.missingFromPubspec(
         pubspecWithDevZuraffa,

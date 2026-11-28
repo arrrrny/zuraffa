@@ -306,7 +306,8 @@ linter:
 .dart_tool/
 .packages
 build/
-*.zorphy.dart
+# build_runner's generated output (the zorphy v3 shared parts live here)
+_br_/
 *.g.dart
 coverage/
 ''';

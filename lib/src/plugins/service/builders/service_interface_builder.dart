@@ -7,6 +7,7 @@ import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/project_flavor.dart';
+import '../../../utils/crud_method_vocabulary.dart';
 
 class ServiceInterfaceBuilder {
   final SpecLibrary specLibrary;
@@ -235,7 +236,7 @@ class ServiceInterfaceBuilder {
       // signature here keeps the triad compilable.
       case 'toggle':
         returnType = 'Future<$entityName>';
-        final fieldEnum = 'Field<$entityName, dynamic>';
+        final fieldEnum = toggleFieldType(entityName);
         parameters.add(
           Parameter(
             (p) => p

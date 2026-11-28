@@ -47,8 +47,9 @@ import '../core/result.dart';
 ///
 /// ## Error Handling
 /// - Throw [AppFailure] subclasses for expected errors
-/// - Any other exception is automatically wrapped in [UnknownFailure]
-/// - [CancelledException] is converted to [CancellationFailure]
+/// - Any other exception is classified through `AppFailure.from` (for
+///   example, a deadline error becomes a [TimeoutFailure])
+/// - [CancelledException] is converted to [CancelledFailure]
 abstract class UseCase<T, Params> with Loggable {
   /// Execute the use case with the given [params].
   ///
@@ -73,12 +74,15 @@ abstract class UseCase<T, Params> with Loggable {
       return Result.success(value);
     } on CancelledException catch (e) {
       logger.info('$runtimeType was cancelled: ${e.message}');
-      return Result.failure(CancellationFailure(e.message));
-    } on AppFailure catch (e) {
-      logger.warning('$runtimeType failed with AppFailure: $e');
+      return Result.failure(AppFailure.cancelled(message: e.message));
+    } on AppFailure catch (e, stackTrace) {
+      logger.warning(
+        '$runtimeType failed with AppFailure: '
+        '${e.runtimeType}(${e.message})',
+      );
       FailureReporterRegistry.instance.reportFailure(
         e,
-        stackTrace: e.stackTrace,
+        stackTrace: reportedFailureStackTrace(e, stackTrace),
         attributes: {'usecase': '$runtimeType'},
       );
 
@@ -99,7 +103,8 @@ abstract class UseCase<T, Params> with Loggable {
   /// Override this method to implement the use case logic.
   ///
   /// - Throw [AppFailure] subclasses for expected/recoverable errors
-  /// - Any other exception will be wrapped in [UnknownFailure]
+  /// - Any other exception is classified through `AppFailure.from` (for
+  ///   example, a deadline error becomes a [TimeoutFailure])
   /// - Periodically check `cancelToken?.throwIfCancelled()` for long operations
   ///
   /// The returned value will be wrapped in [Success].

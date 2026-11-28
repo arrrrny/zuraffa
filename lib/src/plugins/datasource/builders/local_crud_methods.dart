@@ -52,12 +52,12 @@ extension LocalDataSourceBuilderCrud on LocalDataSourceBuilder {
                         'orElse': Method(
                           (m) => m
                             ..lambda = true
-                            ..body = refer('notFoundFailure')
-                                .call([
-                                  literalString(
+                            ..body = refer('AppFailure.notFound')
+                                .call([], {
+                                  'message': literalString(
                                     '$entityName not found in cache',
                                   ),
-                                ])
+                                })
                                 .thrown
                                 .code,
                         ).closure,
@@ -69,9 +69,9 @@ extension LocalDataSourceBuilderCrud on LocalDataSourceBuilder {
         ..statements.add(
           declareFinal('updated')
               .assign(
-                refer('params').property('data').property('applyTo').call([
-                  refer('existing'),
-                ]),
+                refer(
+                  'params',
+                ).property('data').property('apply').call([refer('existing')]),
               )
               .statement,
         )
@@ -107,15 +107,15 @@ extension LocalDataSourceBuilderCrud on LocalDataSourceBuilder {
         )
         ..statements.add(
           Code(
-            'if (existing == null) { throw notFoundFailure(\'$entityName not found in cache\'); }',
+            'if (existing == null) { throw AppFailure.notFound(message: \'$entityName not found in cache\'); }',
           ),
         )
         ..statements.add(
           declareFinal('updated')
               .assign(
-                refer('params').property('data').property('applyTo').call([
-                  refer('existing'),
-                ]),
+                refer(
+                  'params',
+                ).property('data').property('apply').call([refer('existing')]),
               )
               .statement,
         )
@@ -157,12 +157,12 @@ extension LocalDataSourceBuilderCrud on LocalDataSourceBuilder {
                         'orElse': Method(
                           (m) => m
                             ..lambda = true
-                            ..body = refer('notFoundFailure')
-                                .call([
-                                  literalString(
+                            ..body = refer('AppFailure.notFound')
+                                .call([], {
+                                  'message': literalString(
                                     '$entityName not found in cache',
                                   ),
-                                ])
+                                })
                                 .thrown
                                 .code,
                         ).closure,
@@ -213,12 +213,12 @@ extension LocalDataSourceBuilderCrud on LocalDataSourceBuilder {
                         'orElse': Method(
                           (m) => m
                             ..lambda = true
-                            ..body = refer('notFoundFailure')
-                                .call([
-                                  literalString(
+                            ..body = refer('AppFailure.notFound')
+                                .call([], {
+                                  'message': literalString(
                                     '$entityName not found in cache',
                                   ),
-                                ])
+                                })
                                 .thrown
                                 .code,
                         ).closure,
@@ -239,7 +239,7 @@ extension LocalDataSourceBuilderCrud on LocalDataSourceBuilder {
         );
         b.statements.add(
           Code(
-            'if (existing == null) { throw notFoundFailure(\'$entityName not found in cache\'); }',
+            'if (existing == null) { throw AppFailure.notFound(message: \'$entityName not found in cache\'); }',
           ),
         );
       }
@@ -247,8 +247,8 @@ extension LocalDataSourceBuilderCrud on LocalDataSourceBuilder {
       b.statements.add(
         declareFinal('updated')
             .assign(
-              refer('existing').property('copyWithField').call([
-                refer('params').property('field'),
+              refer('params').property('field').property('set').call([
+                refer('existing'),
                 refer('params').property('value'),
               ]),
             )

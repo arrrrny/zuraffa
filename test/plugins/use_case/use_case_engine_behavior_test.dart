@@ -12,7 +12,7 @@
 //       service completes with surfaces as Success;
 //   (b) it surfaces Result.failure when the Service throws;
 //   (c) the failure path goes through the same sealed AppFailure the
-//       service threw (ServerFailure surfaces AS ServerFailure);
+//       service threw (NetworkFailure surfaces AS NetworkFailure);
 //   (d) the generated DI registration is idempotent —
 //       registerLoginUseCase(getIt) twice in one process must not throw
 //       "already registered" (the pilot's lesson 4, #1102's
@@ -81,7 +81,7 @@ import 'package:zuraffa/zuraffa.dart';
 class _FailingAuthService implements AuthService {
   @override
   Future<AuthSession> login(LoginParams params) async {
-    throw AppFailure.server('invalid credentials', statusCode: 401);
+    throw AppFailure.network(message: 'invalid credentials', statusCode: 401);
   }
 }
 
@@ -120,7 +120,7 @@ void main() {
     final failure = result.fold<AppFailure?>((_) => null, (f) => f);
     expect(
       failure,
-      isA<ServerFailure>(),
+      isA<NetworkFailure>(),
       reason: 'the surfaced failure must be the sealed AppFailure subtype '
           'the service threw - not a generic wrap',
     );

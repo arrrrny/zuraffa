@@ -281,7 +281,7 @@ dependencies:
 name: fresh_app
 dependencies:
   flutter: {sdk: flutter}
-  zuraffa_flutter: ^6.0.0
+  zuraffa_flutter: ^8.0.0
 ''';
       final missing = DependencyWirer.findMissing(pubspec, isFlutter: true);
       expect(missing.map((s) => s.name), contains('zuraffa_ui'));
@@ -292,7 +292,7 @@ dependencies:
 name: fresh_app
 dependencies:
   flutter: {sdk: flutter}
-  zuraffa_flutter: ^6.0.0
+  zuraffa_flutter: ^8.0.0
   zuraffa_ui: ^0.1.0
 ''';
       final missing = DependencyWirer.findMissing(pubspec, isFlutter: true);

@@ -14,49 +14,95 @@ import 'package:zuraffa/src/skin/builders/skin_contract_kit_builder.dart';
 
 /// Issue #1197 (part of #908 P0): the two-end skew matrix.
 ///
-/// Every `package:zuraffa/*` import the generator EMITS must resolve
-/// against BOTH ends of the supported core range — the OLDEST
-/// supported core (git tag `v6.1.0`, materialized here via
-/// `git archive`) and the NEWEST master (this checkout). A URI that
-/// only exists on master (the `skin.dart` barrel) must be a
-/// floor-registered surface gated at runtime — never silently
-/// emitted, or every generated slice dies once on version skew.
+/// The supported core range is the generator's own major. Every
+/// `package:zuraffa/*` import the generator EMITS must resolve against
+/// BOTH ends of that range — the OLDEST supported core (the lowest
+/// stable `v<major>.*` tag, materialized via `git archive`) and the
+/// NEWEST master (this checkout). A URI that only exists on master (the
+/// shape of the `skin.dart` barrel at #1197) must be floor-registered
+/// and gated at runtime — never silently emitted, or every generated
+/// slice dies once on version skew.
+///
+/// Before the major's first release no stable tag exists: the old end
+/// IS this checkout, and the matrix says so instead of borrowing a
+/// core from another major.
 void main() {
   final repoRoot = _findRepoRoot();
   final masterCore = InstalledCore(
     root: repoRoot,
     version: _pubspecVersion(repoRoot),
   );
+  final oldestTag = _oldestStableTag(repoRoot, generatorMajor);
 
-  late Directory oldCoreDir;
-  late InstalledCore oldCore;
+  Directory? oldCoreDir;
+  InstalledCore? oldCore;
 
   setUpAll(() async {
-    oldCoreDir = await _materializeTag('v6.1.0', repoRoot);
+    if (oldestTag == null) return;
+    oldCoreDir = await _materializeTag(oldestTag, repoRoot);
     oldCore = InstalledCore(
-      root: oldCoreDir.path,
-      version: _pubspecVersion(oldCoreDir.path),
+      root: oldCoreDir!.path,
+      version: _pubspecVersion(oldCoreDir!.path),
     );
   });
 
   tearDownAll(() async {
-    if (oldCoreDir.existsSync()) await oldCoreDir.delete(recursive: true);
+    if (oldCoreDir != null) await oldCoreDir!.delete(recursive: true);
   });
+
+  /// The static half of the contract, for one emitted URI: it exists
+  /// on master, and it exists on the oldest supported core or carries
+  /// a declared floor.
+  void expectTwoEndSafe(String uri, String context) {
+    expect(
+      masterCore.exposes(uri),
+      isTrue,
+      reason:
+          '$context emits package:zuraffa/$uri — file does not exist '
+          'on MASTER (generator self-inconsistent)',
+    );
+    if (oldCore == null || oldCore!.exposes(uri)) return;
+    expect(
+      coreApiFloors.where((f) => f.uri == uri),
+      hasLength(1),
+      reason:
+          '$context emits package:zuraffa/$uri which the oldest '
+          'supported core ($oldestTag) lacks — register it in '
+          'coreApiFloors and gate the emission site (#1197)',
+    );
+  }
 
   group('the two ends of the matrix', () {
     test('master end exposes the skin barrel', () {
       expect(masterCore.exposes('skin.dart'), isTrue);
     });
 
-    test('oldest supported core (v6.1.0 tag) does NOT expose it', () {
-      // The reproduced #1197 skew: published 6.1.0 predates the
-      // runtime skin-contract kit (spec 1102). Version strings alone
-      // cannot arbitrate — the tag shipped pubspec 6.0.1 — so the
-      // contract gates on AVAILABILITY and stamps floors advisorially.
-      expect(oldCore.exposes('skin.dart'), isFalse);
-      expect(oldCore.version, '6.0.1');
-      expect(masterCore.version, isNotNull);
-    });
+    if (oldestTag == null) {
+      test('pre-release: no stable v$generatorMajor.* tag yet, so the old end '
+          'IS this checkout', () {
+        expect(oldCore, isNull);
+        expect(
+          _pubspecVersion(repoRoot),
+          startsWith('$generatorMajor.'),
+          reason:
+              'the generator must be on the major it derives its '
+              'floor from',
+        );
+      });
+    } else {
+      test('oldest supported core ($oldestTag) is an in-major core', () {
+        // Version strings cannot arbitrate a minor (the reproduced #1197
+        // skew: a tag shipped a different pubspec version than its name)
+        // — but the major is the contract, and the surface gates below
+        // stay availability-based.
+        expect(
+          compareVersions(oldCore!.version!, supportedCoreFloor),
+          greaterThanOrEqualTo(0),
+        );
+        expect(oldCore!.exposes('skin.dart'), isTrue);
+        expect(masterCore.version, isNotNull);
+      });
+    }
   });
 
   group('emitted imports resolve on both ends', () {
@@ -64,33 +110,8 @@ void main() {
       final src = const SkinContractKitBuilder().build(routes: ['home']);
       final uris = _zuraffaImports(src);
       expect(uris, contains('skin.dart'));
-
-      // Master end: the emission is self-consistent with master.
       for (final uri in uris) {
-        expect(
-          masterCore.exposes(uri),
-          isTrue,
-          reason: 'skin kit emits package:zuraffa/$uri — missing on MASTER',
-        );
-      }
-      // Old end: skin.dart is floor-registered, and the runtime gate
-      // refuses emission when the resolved core lacks it (the gate
-      // itself is proven in bug_1197_skew_contract_test.dart). The
-      // static contract here: no URI may be missing from the old end
-      // WITHOUT a declared floor.
-      for (final uri in uris) {
-        if (!oldCore.exposes(uri)) {
-          expect(
-            coreApiFloors.where((f) => f.uri == uri),
-            hasLength(1),
-            reason:
-                'package:zuraffa/$uri (skin kit) does not exist in the '
-                'oldest supported core (v6.1.0) and is NOT '
-                'floor-registered — every generated slice would break '
-                'on the published core (issue #1197). Register it in '
-                'coreApiFloors and gate the emission site.',
-          );
-        }
+        expectTwoEndSafe(uri, 'skin kit');
       }
     });
 
@@ -99,18 +120,7 @@ void main() {
       final uris = _zuraffaImports(src);
       expect(uris, contains('skin.dart'));
       for (final uri in uris) {
-        expect(
-          masterCore.exposes(uri),
-          isTrue,
-          reason: '$uri missing on MASTER',
-        );
-        if (!oldCore.exposes(uri)) {
-          expect(
-            coreApiFloors.where((f) => f.uri == uri),
-            hasLength(1),
-            reason: '$uri missing on oldest core without a floor',
-          );
-        }
+        expectTwoEndSafe(uri, 'app router');
       }
     });
 
@@ -120,18 +130,7 @@ void main() {
       final uris = _zuraffaImports(src);
       expect(uris, contains('skin.dart'));
       for (final uri in uris) {
-        expect(
-          masterCore.exposes(uri),
-          isTrue,
-          reason: '$uri missing on MASTER',
-        );
-        if (!oldCore.exposes(uri)) {
-          expect(
-            coreApiFloors.where((f) => f.uri == uri),
-            hasLength(1),
-            reason: '$uri missing on oldest core without a floor',
-          );
-        }
+        expectTwoEndSafe(uri, 'view');
       }
     });
 
@@ -142,14 +141,7 @@ void main() {
       ];
       for (final src in sources) {
         for (final uri in _zuraffaImports(src)) {
-          expect(
-            oldCore.exposes(uri),
-            isTrue,
-            reason:
-                'bare emission uses package:zuraffa/$uri — missing on '
-                'the oldest supported core',
-          );
-          expect(masterCore.exposes(uri), isTrue);
+          expectTwoEndSafe(uri, 'bare emission');
         }
       }
     });
@@ -162,27 +154,27 @@ void main() {
         final uris = _sweepDirectiveImports(repoRoot);
         expect(uris, isNotEmpty);
         for (final entry in uris.entries) {
-          final uri = entry.key;
-          expect(
-            masterCore.exposes(uri),
-            isTrue,
-            reason:
-                '${entry.value} emits package:zuraffa/$uri — file does '
-                'not exist on MASTER (generator self-inconsistent)',
-          );
-          if (!oldCore.exposes(uri)) {
-            expect(
-              coreApiFloors.where((f) => f.uri == uri),
-              hasLength(1),
-              reason:
-                  '${entry.value} emits package:zuraffa/$uri which the '
-                  'oldest supported core lacks — register it in '
-                  'coreApiFloors and gate its emission site (#1197)',
-            );
-          }
+          expectTwoEndSafe(entry.key, entry.value);
         }
       },
     );
+
+    test('every surface a gate requires exists on master', () {
+      // The runtime half's own precondition: `requireSurfaces` is fed
+      // URI literals at its emission sites. One that master does not
+      // expose would refuse every emission, everywhere.
+      final required = _sweepRequiredUris(repoRoot);
+      expect(required, containsAll(['skin.dart', 'simulation.dart']));
+      for (final uri in required) {
+        expect(
+          masterCore.exposes(uri),
+          isTrue,
+          reason:
+              'a SkewContract gate requires package:zuraffa/$uri — '
+              'file does not exist on MASTER',
+        );
+      }
+    });
   });
 }
 
@@ -219,12 +211,9 @@ Map<String, String> _sweepDirectiveImports(String repoRoot) {
   final directive = RegExp(
     r"""Directive\.import\(\s*'package:zuraffa/([a-zA-Z0-9_/.-]+\.dart)'""",
   );
-  final libDir = Directory(p.join(repoRoot, 'lib'));
-  for (final file in libDir.listSync(recursive: true, followLinks: false)) {
-    if (file is! File || !file.path.endsWith('.dart')) continue;
-    final src = file.readAsStringSync();
-    for (final m in directive.allMatches(src)) {
-      found[m.group(1)!] = p.relative(file.path, from: repoRoot);
+  for (final entry in _libSources(repoRoot).entries) {
+    for (final m in directive.allMatches(entry.value)) {
+      found[m.group(1)!] = entry.key;
     }
     // Raw triple-quoted emission templates (the skin kit) are covered
     // by the builder-output scans above — this sweep stays on the
@@ -232,6 +221,53 @@ Map<String, String> _sweepDirectiveImports(String repoRoot) {
     // generator's own self-imports.
   }
   return found;
+}
+
+/// Every URI literal handed to a `requiredUris: [...]` gate.
+Set<String> _sweepRequiredUris(String repoRoot) {
+  final found = <String>{};
+  final list = RegExp(r'requiredUris:\s*(?:const\s*)?\[([^\]]*)\]');
+  for (final src in _libSources(repoRoot).values) {
+    for (final m in list.allMatches(src)) {
+      for (final uri in RegExp(r"'([^']+)'").allMatches(m.group(1)!)) {
+        found.add(uri.group(1)!);
+      }
+    }
+  }
+  return found;
+}
+
+/// lib-relative path → source, for every hand-written Dart file under
+/// lib/ (generated parts excluded).
+Map<String, String> _libSources(String repoRoot) {
+  final sources = <String, String>{};
+  final libDir = Directory(p.join(repoRoot, 'lib'));
+  for (final file in libDir.listSync(recursive: true, followLinks: false)) {
+    if (file is! File || !file.path.endsWith('.dart')) continue;
+    final relative = p.relative(file.path, from: repoRoot);
+    if (relative.startsWith('lib${p.separator}_br_')) continue;
+    sources[relative] = file.readAsStringSync();
+  }
+  return sources;
+}
+
+/// The lowest stable `v<major>.*` tag (pre-release tags excluded: a
+/// caret constraint never resolves them), or null before the major's
+/// first release.
+String? _oldestStableTag(String repoRoot, int major) {
+  final result = Process.runSync('git', [
+    'tag',
+    '--list',
+    'v$major.*',
+  ], workingDirectory: repoRoot);
+  final tags =
+      (result.stdout as String)
+          .split('\n')
+          .map((t) => t.trim())
+          .where((t) => t.isNotEmpty && !t.contains('-'))
+          .toList()
+        ..sort((a, b) => compareVersions(a.substring(1), b.substring(1)));
+  return tags.isEmpty ? null : tags.first;
 }
 
 /// Materializes [tag]'s `lib/` + `pubspec.yaml` into a temp dir via

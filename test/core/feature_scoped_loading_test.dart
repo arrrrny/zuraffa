@@ -93,12 +93,12 @@ class _FakePlugin extends ZuraffaPlugin {
 }
 
 void main() {
-  final login = FeatureContract(
+  final login = FeatureContract.fromTrusted(
     id: 'login',
     displayName: 'Login',
     routes: const {'/login'},
   );
-  final checkout = FeatureContract(
+  final checkout = FeatureContract.fromTrusted(
     id: 'checkout',
     displayName: 'Checkout',
     routes: const {'/checkout'},

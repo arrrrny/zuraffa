@@ -494,7 +494,7 @@ Lanes:
           if (bareRoot.existsSync()) await bareRoot.delete(recursive: true);
         });
 
-        final typed = FeatureContract(
+        final typed = FeatureContract.fromTrusted(
           id: 'login',
           displayName: 'Login',
           entities: ['User'],

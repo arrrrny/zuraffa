@@ -1,8 +1,8 @@
 @Tags(['regression', 'e2e'])
 // Spec 1692 — the tdd make path must consult the 016 id-gate BEFORE
 // generation: a unit behavior whose FR traces to a Key Entity that
-// resolves ID-LESS (no `id`, no `*Id` field, no `autoId`, not a value
-// object) and whose plan carries an id-dependent surface (`mock create`
+// resolves ID-LESS (no `id`, no `*Id` field, not a value object) and
+// whose plan carries an id-dependent surface (`mock create`
 // for the traced entity) refuses upfront with the #307 remediation text,
 // never spawning a pipeline step. The mock certification backstop stays
 // as the second line of defense (it is what caught the bug downstream

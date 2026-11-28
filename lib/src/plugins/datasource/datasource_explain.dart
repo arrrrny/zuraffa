@@ -18,6 +18,7 @@ import 'package:path/path.dart' as p;
 
 import '../../models/generator_config.dart';
 import '../../utils/string_utils.dart';
+import '../../utils/crud_method_vocabulary.dart';
 
 /// The datasource `--explain` plan builder. Stateless; instantiate freely.
 class DatasourceExplainer {
@@ -170,8 +171,7 @@ class DatasourceExplainer {
           );
         case 'toggle':
           signatures.add(
-            'Future<${config.name}> toggle(ToggleParams<${config.idFieldType}, '
-            'Field<${config.name}, dynamic>>)',
+            'Future<${config.name}> toggle(${toggleParamsType(config.name, config.idFieldType)})',
           );
         case 'delete':
           signatures.add(

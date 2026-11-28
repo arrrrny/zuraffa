@@ -38,7 +38,7 @@ extension FutureToResultExtension<T> on Future<T> {
   /// ## Example
   /// ```dart
   /// final result = await httpClient.get('/users/123').toResultWith(
-  ///   onError: (e, st) => ServerFailure(e.toString(), stackTrace: st),
+  ///   onError: (e, st) => AppFailure.network(message: e.toString(), stackTrace: st),
   /// );
   /// ```
   Future<Result<T, AppFailure>> toResultWith({
@@ -60,7 +60,7 @@ extension FutureToResultExtension<T> on Future<T> {
   /// ## Example
   /// ```dart
   /// final result = await httpClient.get('/users/123').toResultCatching<HttpException>(
-  ///   onError: (e, st) => ServerFailure(e.message, statusCode: e.statusCode),
+  ///   onError: (e, st) => AppFailure.network(message: e.message, statusCode: e.statusCode),
   /// );
   /// ```
   Future<Result<T, AppFailure>> toResultCatching<E extends Object>({
@@ -185,7 +185,9 @@ extension FutureNullableExtension<T> on Future<T?> {
     try {
       final value = await this;
       if (value == null) {
-        return Result.failure(NotFoundFailure(message ?? 'Value not found'));
+        return Result.failure(
+          AppFailure.notFound(message: message ?? 'Value not found'),
+        );
       }
       return Result.success(value);
     } catch (e, stackTrace) {
@@ -200,7 +202,7 @@ extension FutureNullableExtension<T> on Future<T?> {
   /// ## Example
   /// ```dart
   /// final result = await repository.findUser('123')
-  ///     .toResultOrFailure(ValidationFailure('User ID is required'));
+  ///     .toResultOrFailure(AppFailure.boundaryViolation(message: 'User ID is required'));
   /// ```
   Future<Result<T, AppFailure>> toResultOrFailure(
     AppFailure failureIfNull,

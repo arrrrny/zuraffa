@@ -118,7 +118,7 @@ import '../lib/src/data/datasources/product/product_datasource.dart';
 class InMemoryProductDataSource with Loggable, FailureHandler
     implements ProductDataSource {
   final items = <Product>[
-    Product(
+    Product.fromTrusted(
       id: 'p1',
       name: 'Desk',
       price: 7.25,
@@ -136,11 +136,11 @@ class InMemoryProductDataSource with Loggable, FailureHandler
 
 Future<void> main() async {
   final ProductDataSource dataSource = InMemoryProductDataSource();
-  final product = await dataSource.get(const QueryParams<Product>());
+  final product = await dataSource.get(QueryParams<Product>.fromTrusted());
   if (product.name != 'Desk') {
     throw StateError('behavior check failed: datasource contract broken');
   }
-  final list = await dataSource.getList(const ListQueryParams<Product>());
+  final list = await dataSource.getList(ListQueryParams<Product>.fromTrusted());
   if (list.length != 1) {
     throw StateError('behavior check failed: list contract broken');
   }

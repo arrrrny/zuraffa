@@ -4,7 +4,7 @@ import 'dart:async';
 
 import 'package:zuraffa/mock.dart';
 
-import '../../../domain/entities/todo/todo.dart';
+import '../../../domain/entities/todo/todo.dart' hide TodoMockData;
 import '../../mock/todo_mock_data.dart';
 import 'todo_datasource.dart';
 
@@ -56,9 +56,9 @@ class TodoMockDataSource
     await Future<void>.delayed(_delay);
     final existing = TodoMockData.todos.firstWhere(
       (item) => item.id == params.id,
-      orElse: () => throw notFoundFailure('Todo not found in mock data'),
+      orElse: () => throw AppFailure.notFound(message: 'Todo not found in mock data'),
     );
-    final updated = params.data.applyTo(existing);
+    final updated = params.data.apply(existing);
     final index = TodoMockData.todos.indexOf(existing);
     TodoMockData.todos[index] = updated;
     logger.info('Successfully updated Todo');
@@ -71,7 +71,7 @@ class TodoMockDataSource
     await Future<void>.delayed(_delay);
     final existing = TodoMockData.todos.firstWhere(
       (item) => item.id == params.id,
-      orElse: () => throw notFoundFailure('Todo not found in mock data'),
+      orElse: () => throw AppFailure.notFound(message: 'Todo not found in mock data'),
     );
     TodoMockData.todos.remove(existing);
     logger.info('Successfully deleted Todo');

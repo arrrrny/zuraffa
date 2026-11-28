@@ -22,10 +22,20 @@ class ZikZak {
   final String id;
   const ZikZak(this.id);
 
-  ZikZak copyWithField(Object field, Object? value) => this;
+  ZikZak copyWith({Object? id}) => this;
 }
 
 class ZikZakPatch {}
+
+/// v3 field registry the toggle writes through (`<E>Fields.<f>.set`).
+class ZikZakFields {
+  static const Object id = _IdField();
+}
+
+class _IdField {
+  const _IdField();
+  ZikZak set(ZikZak existing, Object? value) => existing;
+}
 ''';
 
 /// The REAL #1928 shape: a Zorphy part-file entity. The source declares the

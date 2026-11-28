@@ -131,7 +131,7 @@ class AuthGenerator {
                   'final userRole = await _roleProvider();',
                   'final required = Role.satisfies(userRole, requiredRole);',
                   'if (required) return;',
-                  'throw AppFailure.session("Unauthorized: requires \${requiredRole.name} role");',
+                  'throw AppFailure.policyDenied(message: "Unauthorized: requires \${requiredRole.name} role", reason: "unauthenticated");',
                 ]),
               ),
           ),
@@ -153,7 +153,7 @@ class AuthGenerator {
                   'for (final role in roles) {',
                   '  if (Role.satisfies(userRole, role)) return;',
                   '}',
-                  'throw AppFailure.session("Unauthorized: requires one of \${roles.map((r) => r.name)}");',
+                  'throw AppFailure.policyDenied(message: "Unauthorized: requires one of \${roles.map((r) => r.name)}", reason: "unauthenticated");',
                 ]),
               ),
           ),
@@ -251,7 +251,7 @@ class AuthGenerator {
       bodyLines.addAll([
         'final userRole = await _guard._roleProvider();',
         'if (!($roleChecks)) {',
-        "  throw AppFailure.session('Unauthorized: requires one of [${entry.roles.join(', ')}]');",
+        "  throw AppFailure.policyDenied(message: 'Unauthorized: requires one of [${entry.roles.join(', ')}]', reason: 'unauthenticated');",
         '}',
       ]);
     } else {

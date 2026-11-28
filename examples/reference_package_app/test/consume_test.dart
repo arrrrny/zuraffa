@@ -31,7 +31,7 @@ void main() {
       expect(dataSource, isA<NoteMockDataSource>());
 
       final note = await usecase.execute(
-        QueryParams<Note>(params: {'id': 'id 1'}),
+        QueryParams<Note>.fromTrusted(params: {'id': 'id 1'}),
         null,
       );
       expect(note.id, 'id 1');
@@ -57,10 +57,8 @@ void main() {
       'params': {'id': 'id 2'},
     });
     expect(result.isError, isFalse);
-    // The mock datasource's query returns a note from its fixture data —
-    // the invocation (namespacing + DI-resolved execution + standard
-    // result shape) is what this proves, not the mock's filtering.
-    expect(result.text, contains('Note(id:'));
+    // A params-only lookup must select the requested record, not the first fixture.
+    expect(result.text, contains('Note(id: id 2, body: body 2)'));
   });
 
   test('FR-006/FR-007: full lifecycle order + discoverable id', () async {

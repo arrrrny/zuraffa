@@ -34,7 +34,7 @@ void main() {
       'class LoginPatch { const LoginPatch(); } '
       'class Login { final String id; final String username; '
       'const Login({required this.id, required this.username}); '
-      'Login copyWithField(String field, Object? value) => this; }',
+      'Login copyWith({Object? id}) => this; }',
     );
     plugin = MockPlugin(
       outputDir: outputDir,

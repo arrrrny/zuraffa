@@ -66,10 +66,13 @@ void main() {
         code.contains('SignalResult<\$\$AddItemToOrderResult>.success'),
         true,
       );
-      expect(code.contains("const ServerFailure('No data returned')"), true);
+      expect(
+        code.contains("AppFailure.network(message: 'No data returned')"),
+        true,
+      );
       expect(
         code.contains(
-          "const ServerFailure('Missing __typename in union result')",
+          "AppFailure.network(message: 'Missing __typename in union result')",
         ),
         true,
       );

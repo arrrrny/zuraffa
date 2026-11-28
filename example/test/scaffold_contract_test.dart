@@ -30,10 +30,18 @@ void main() {
       final src = f.readAsStringSync();
       expect(
         src,
-        contains('@Zorphy('),
-        reason: 'entity must be zorphy-annotated (generator marker)',
+        contains('@ZorphyEntity(principalKey: #id)'),
+        reason: 'entity must be a zorphy v3 @ZorphyEntity (generator marker)',
       );
-      expect(src, contains("part 'todo.zorphy.dart';"));
+      // The v3 shared part lives under build_runner's `_br_/`, mirroring
+      // the library's own path; the v2 standalone part is never written.
+      expect(
+        src,
+        contains(
+          "part '../../../../_br_/src/domain/entities/todo/todo.part.dart';",
+        ),
+      );
+      expect(src, isNot(contains('.zorphy.dart')));
     });
 
     test('entity declares all 8 spec fields with correct types', () {
@@ -152,12 +160,14 @@ void main() {
   });
 
   group('A3/U9 — zfa build codegen artifacts', () {
-    test('zorphy part file with comparisons/copyWith emitted', () {
-      final f = File('lib/src/domain/entities/todo/todo.zorphy.dart');
+    test('zorphy shared part with comparisons/copyWith emitted', () {
+      final f = File('lib/_br_/src/domain/entities/todo/todo.part.dart');
       expect(
         f.existsSync(),
         isTrue,
-        reason: 'build_runner must emit todo.zorphy.dart',
+        reason:
+            'build_runner must emit the todo shared part under '
+            'lib/_br_/ (zorphy v3)',
       );
       final src = f.readAsStringSync();
       expect(
@@ -230,9 +240,10 @@ void main() {
           final src = f.readAsStringSync();
           // Every CLI writer emits a GENERATED/Auto-generated header; a
           // hand-written file would carry neither the header nor a
-          // framework import. `part of` files (e.g. todo.zorphy.dart,
-          // emitted by the zorphy build_runner generator) cannot exist
-          // without their generated parent, so they count as generated.
+          // framework import. `part of` files (e.g. the todo shared part
+          // under lib/_br_/, emitted by the zorphy build_runner generator)
+          // cannot exist without their generated parent, so they count as
+          // generated.
           final generated =
               src.toLowerCase().contains('generated') ||
               src.contains('part of') ||

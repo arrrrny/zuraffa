@@ -1,6 +1,5 @@
-// ignore_for_file: unused_element
-
-/// Generates Zorphy-annotated Dart entity files from EntitySpec and EnumSpec.
+/// Emits Dart files from GraphQL schema specifications by delegating entity
+/// and enum creation to the `zorphy` CLI.
 library;
 
 import 'dart:io';
@@ -16,7 +15,6 @@ import '../utils/string_utils.dart';
 /// Emits Dart entity and enum files from GraphQL schema specifications.
 class GraphQLEntityEmitter {
   final String outputDir;
-  final bool useZorphy;
   final bool dryRun;
   final bool force;
   final bool verbose;
@@ -24,7 +22,6 @@ class GraphQLEntityEmitter {
 
   GraphQLEntityEmitter({
     required this.outputDir,
-    this.useZorphy = true,
     this.dryRun = false,
     this.force = false,
     this.verbose = false,
@@ -223,162 +220,6 @@ class GraphQLEntityEmitter {
     );
   }
 
-  String _generateEntityContent(EntitySpec spec, String snakeName) {
-    final directives = <Directive>[
-      Directive.import('package:zorphy_annotation/zorphy_annotation.dart'),
-    ];
-    final referencedEntities = <String>{};
-    for (final field in spec.fields) {
-      if (field.referencedEntity != null) {
-        referencedEntities.add(field.referencedEntity!);
-      }
-    }
-
-    for (final entity in referencedEntities) {
-      final entitySnake = StringUtils.camelToSnake(entity);
-      directives.add(Directive.import('../$entitySnake/$entitySnake.dart'));
-    }
-    directives.add(Directive.part('$snakeName.zorphy.dart'));
-
-    final classSpec = _buildZorphyEntityClass(spec);
-    final library = specLibrary.library(
-      specs: [classSpec],
-      directives: directives,
-    );
-    return specLibrary.emitLibrary(library);
-  }
-
-  String _generateFromJsonField(FieldSpec field) {
-    final jsonKey = "json['${field.name}']";
-
-    if (field.referencedEntity != null) {
-      if (field.isList) {
-        if (field.isNullable) {
-          return "$jsonKey != null ? ($jsonKey as List).map((e) => ${field.referencedEntity}.fromJson(e as Map<String, dynamic>)).toList() : null";
-        } else {
-          return "($jsonKey as List).map((e) => ${field.referencedEntity}.fromJson(e as Map<String, dynamic>)).toList()";
-        }
-      } else {
-        if (field.isNullable) {
-          return "$jsonKey != null ? ${field.referencedEntity}.fromJson($jsonKey as Map<String, dynamic>) : null";
-        } else {
-          return "${field.referencedEntity}.fromJson($jsonKey as Map<String, dynamic>)";
-        }
-      }
-    }
-
-    // Handle primitives and built-in types
-    final baseType = field.isList
-        ? field.dartType.replaceFirst('List<', '').replaceFirst('>', '')
-        : field.dartType;
-
-    if (field.isList) {
-      final castType = _getCastType(baseType);
-      if (field.isNullable) {
-        return "$jsonKey != null ? ($jsonKey as List).map((e) => e as $castType).toList() : null";
-      } else {
-        return "($jsonKey as List).map((e) => e as $castType).toList()";
-      }
-    }
-
-    if (baseType == 'DateTime') {
-      if (field.isNullable) {
-        return "$jsonKey != null ? DateTime.parse($jsonKey as String) : null";
-      } else {
-        return "DateTime.parse($jsonKey as String)";
-      }
-    }
-
-    final castType = _getCastType(baseType);
-    if (field.isNullable) {
-      return "$jsonKey as $castType?";
-    } else {
-      return "$jsonKey as $castType";
-    }
-  }
-
-  String _generateToJsonField(FieldSpec field) {
-    final fieldAccess = field.name;
-
-    if (field.referencedEntity != null) {
-      if (field.isList) {
-        if (field.isNullable) {
-          return "$fieldAccess?.map((e) => e.toJson()).toList()";
-        } else {
-          return "$fieldAccess.map((e) => e.toJson()).toList()";
-        }
-      } else {
-        if (field.isNullable) {
-          return "$fieldAccess?.toJson()";
-        } else {
-          return "$fieldAccess.toJson()";
-        }
-      }
-    }
-
-    // Handle DateTime
-    final baseType = field.isList
-        ? field.dartType.replaceFirst('List<', '').replaceFirst('>', '')
-        : field.dartType;
-
-    if (baseType == 'DateTime') {
-      if (field.isList) {
-        if (field.isNullable) {
-          return "$fieldAccess?.map((e) => e.toIso8601String()).toList()";
-        } else {
-          return "$fieldAccess.map((e) => e.toIso8601String()).toList()";
-        }
-      } else {
-        if (field.isNullable) {
-          return "$fieldAccess?.toIso8601String()";
-        } else {
-          return "$fieldAccess.toIso8601String()";
-        }
-      }
-    }
-
-    return fieldAccess;
-  }
-
-  String _getCastType(String dartType) {
-    switch (dartType) {
-      case 'int':
-      case 'double':
-      case 'bool':
-      case 'String':
-        return dartType;
-      case 'Map<String, dynamic>':
-        return 'Map<String, dynamic>';
-      default:
-        return 'dynamic';
-    }
-  }
-
-  String _generateEnumContent(EnumSpec spec, String snakeName) {
-    final directives = <Directive>[
-      Directive.import('package:zorphy_annotation/zorphy_annotation.dart'),
-    ];
-
-    final enumSpec = Enum((e) {
-      e
-        ..name = spec.name
-        ..values.addAll(
-          spec.values.map(
-            (value) => EnumValue((v) => v..name = _toEnumCase(value)),
-          ),
-        )
-        ..annotations.add(refer('ZorphyEnum').call([]));
-      if (spec.description != null && spec.description!.isNotEmpty) {
-        e.docs.add('/// ${spec.description}');
-      }
-    });
-    final library = specLibrary.library(
-      specs: [enumSpec],
-      directives: directives,
-    );
-    return specLibrary.emitLibrary(library);
-  }
-
   String _generateOperationContent(OperationSpec spec) {
     final typeName = spec.type[0].toUpperCase() + spec.type.substring(1);
     final varName = '${spec.name}$typeName';
@@ -429,137 +270,5 @@ class GraphQLEntityEmitter {
   String _graphqlLiteral(String gqlString) {
     final escaped = gqlString.replaceAll(r'$', r'\$');
     return 'r"""$escaped"""';
-  }
-
-  String _fieldType(FieldSpec field) {
-    final nullableSuffix = field.isNullable ? '?' : '';
-    return '${field.dartType}$nullableSuffix';
-  }
-
-  Class _buildZorphyEntityClass(EntitySpec spec) {
-    final getters = spec.fields.map((field) {
-      return Method((m) {
-        m
-          ..name = field.name
-          ..returns = refer(_fieldType(field))
-          ..type = MethodType.getter;
-        if (field.description != null && field.description!.isNotEmpty) {
-          m.docs.add('/// ${field.description}');
-        }
-      });
-    }).toList();
-
-    return Class((c) {
-      c
-        ..name = spec.name
-        ..abstract = true
-        ..annotations.add(
-          refer('Zorphy').call([], {'generateJson': literalBool(true)}),
-        )
-        ..methods.addAll(getters);
-      if (spec.description != null && spec.description!.isNotEmpty) {
-        c.docs.add('/// ${spec.description}');
-      }
-    });
-  }
-
-  Class _buildEntityClass(EntitySpec spec) {
-    final fields = spec.fields.map((field) {
-      return Field((f) {
-        f
-          ..modifier = FieldModifier.final$
-          ..type = refer(_fieldType(field))
-          ..name = field.name;
-        if (field.description != null && field.description!.isNotEmpty) {
-          f.docs.add('/// ${field.description}');
-        }
-      });
-    }).toList();
-
-    final constructor = Constructor(
-      (c) => c
-        ..constant = true
-        ..optionalParameters.addAll(
-          spec.fields.map(
-            (field) => Parameter(
-              (p) => p
-                ..name = field.name
-                ..toThis = true
-                ..named = true
-                ..required = !field.isNullable,
-            ),
-          ),
-        ),
-    );
-
-    final fromJson = Constructor(
-      (c) => c
-        ..factory = true
-        ..name = 'fromJson'
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'json'
-              ..type = refer('Map<String, dynamic>'),
-          ),
-        )
-        ..body = Code(_buildFromJsonBody(spec)),
-    );
-
-    final toJson = Method(
-      (m) => m
-        ..name = 'toJson'
-        ..returns = refer('Map<String, dynamic>')
-        ..body = Code(_buildToJsonBody(spec)),
-    );
-
-    return Class((c) {
-      c
-        ..name = spec.name
-        ..fields.addAll(fields)
-        ..constructors.addAll([constructor, fromJson])
-        ..methods.add(toJson);
-      if (spec.description != null && spec.description!.isNotEmpty) {
-        c.docs.add('/// ${spec.description}');
-      }
-    });
-  }
-
-  String _buildFromJsonBody(EntitySpec spec) {
-    final lines = <String>['return ${spec.name}('];
-    for (final field in spec.fields) {
-      final jsonAccess = _generateFromJsonField(field);
-      lines.add('  ${field.name}: $jsonAccess,');
-    }
-    lines.add(');');
-    return lines.join('\n');
-  }
-
-  String _buildToJsonBody(EntitySpec spec) {
-    final lines = <String>['return {'];
-    for (final field in spec.fields) {
-      final jsonValue = _generateToJsonField(field);
-      lines.add("  '${field.name}': $jsonValue,");
-    }
-    lines.add('};');
-    return lines.join('\n');
-  }
-
-  /// Converts SCREAMING_SNAKE_CASE to camelCase.
-  ///
-  /// Examples:
-  /// - ACTIVE → active
-  /// - SOME_VALUE → someValue
-  /// - MY_LONG_ENUM_VALUE → myLongEnumValue
-  String _toEnumCase(String value) {
-    if (value.isEmpty) return value;
-
-    final parts = value.toLowerCase().split('_');
-    if (parts.isEmpty) return value.toLowerCase();
-    final tail = parts
-        .skip(1)
-        .where((part) => part.isNotEmpty)
-        .map((part) => part[0].toUpperCase() + part.substring(1));
-    return parts.first + tail.join();
   }
 }

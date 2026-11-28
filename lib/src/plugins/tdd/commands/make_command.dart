@@ -3749,9 +3749,10 @@ class MakeCommand extends Command<void> {
   /// value object, or id-bearing) and generation may proceed.
   ///
   /// The 016 id-check is the SAME resolution the main `zfa make` entity-
-  /// resolution step consults ([EntityFieldResolver.resolveIdField]): a
-  /// literal `id`, a `*Id`-suffixed field, or `autoId: true` counts as an
-  /// identity; a value object is the loud-failure carve-out; a MISSING
+  /// resolution step consults ([EntityFieldResolver.resolveIdField]): the
+  /// `principalKey` field, a literal `id`, or a `*Id`-suffixed field
+  /// counts as an identity; a value object is the loud-failure carve-out;
+  /// a MISSING
   /// entity file stays the #496 fail-fast / mock-cert-backstop territory
   /// (fail-open here — the gate refuses only on positive id-less
   /// resolution, never on resolution absence).

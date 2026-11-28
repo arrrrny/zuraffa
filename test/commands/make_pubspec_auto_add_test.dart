@@ -185,7 +185,7 @@ dev_dependencies:
 
       // The pubspec declares the core package — via the textual ensure.
       final pubspec = File('${dir.path}/pubspec.yaml').readAsStringSync();
-      expect(pubspec, contains('zuraffa: ^6.0.0'));
+      expect(pubspec, contains('zuraffa: ^8.0.0'));
 
       // The ensure success surfaces in the completion output…
       expect(output, contains('Ensured zuraffa'));
@@ -231,7 +231,7 @@ dev_dependencies:
         // (not behind the user's back).
         expect(output, contains('Ensured zuraffa'));
         final pubspec = File('${dir.path}/pubspec.yaml').readAsStringSync();
-        expect(pubspec, contains('zuraffa: ^6.0.0'));
+        expect(pubspec, contains('zuraffa: ^8.0.0'));
       },
       timeout: const Timeout(Duration(minutes: 3)),
     );

@@ -216,6 +216,7 @@ class MockDataBuilder {
                 } else {
                   b.statements.add(
                     refer(entityName)
+                        .property('fromTrusted')
                         .call(
                           const [],
                           valueBuilder.generateConstructorCallArgs(

@@ -363,12 +363,16 @@ class MockContractTestWriter {
       ..writeln("import 'package:zuraffa/mock.dart';");
 
     if (entityPath != null && File(entityPath).existsSync()) {
-      buffer.writeln("import '${rel(entityPath)}';");
+      buffer.writeln(
+        "import '${rel(entityPath)}' hide '${entityName}MockData';",
+      );
     }
     for (final name
         in importedEntities.where((n) => n != entityName).toList()..sort()) {
       final path = _entityFile(name, outputDir);
-      if (path != null) buffer.writeln("import '${rel(path)}';");
+      if (path != null) {
+        buffer.writeln("import '${rel(path)}' hide '${name}MockData';");
+      }
     }
     buffer.writeln("import '${rel(interfacePath)}';");
     buffer.writeln("import '${rel(mockPath)}';");
@@ -535,10 +539,13 @@ class MockContractTestWriter {
     final t = paramsType.trim();
     if (isZeroArg || t.isEmpty) return '';
     if (t == 'NoParams') return 'const NoParams()';
-    if (t.startsWith('QueryParams<')) return '$t()';
-    if (t.startsWith('ListQueryParams<')) return '$t()';
+    if (t.startsWith('QueryParams<')) return '$t.fromTrusted()';
+    if (t.startsWith('ListQueryParams<')) return '$t.fromTrusted()';
     if (t.startsWith('InitializationParams')) {
-      return 'const InitializationParams(timeout: Duration.zero)';
+      // v3 generated params classes expose only `fromTrusted`; the unnamed
+      // constructor was removed by the zorphy v3 migration (#2179).
+      // `fromTrusted` is not const (the params Map is defensively copied).
+      return 'InitializationParams.fromTrusted(timeout: Duration.zero)';
     }
     if (t == entityName) {
       // Only synthesize a sample when the mock data fixture exists;
@@ -570,23 +577,25 @@ class MockContractTestWriter {
     final idValue = _firstRecordIdExpr(entityName, outputDir);
     if (idValue == null) return null;
 
-    if (t.startsWith('DeleteParams<')) return '$t(id: $idValue)';
+    if (t.startsWith('DeleteParams<')) return '$t.fromTrusted(id: $idValue)';
     if (t.startsWith('UpdateParams<')) {
       final patch = _patchTypeFor(t);
-      return '$t(id: $idValue, data: $patch())';
+      return '$t.fromTrusted(id: $idValue, data: $patch())';
     }
     if (t.startsWith('ToggleParams<')) {
       final idField = _idFieldName(entityName, outputDir) ?? 'id';
       final fields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
       final value = _toggleSampleValue(fields[idField]);
-      return '$t(id: $idValue, field: '
-          "const Field<$entityName, dynamic>('$idField'), value: $value)";
+      // The registry's own erased descriptor for the id field — a real
+      // write path (`set`), never a fabricated query-only `Field` (zorphy#301).
+      return '$t.fromTrusted(id: $idValue, field: '
+          '${entityName}Fields.$idField.asObject, value: $value)';
     }
     return null;
   }
 
-  /// A type-correct sample value for the toggled field — the generated
-  /// `copyWithField` casts the value to the field's declared type, so a
+  /// A type-correct sample value for the toggled field — the erased field
+  /// descriptor's `set` casts the value to the field's declared type, so a
   /// mistyped (or null) value throws (same convention the test plugin's
   /// `toggleSampleValue` uses).
   String _toggleSampleValue(String? fieldType) {

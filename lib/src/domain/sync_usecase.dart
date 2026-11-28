@@ -57,28 +57,15 @@ abstract class SyncUseCase<T, Params> {
       return error;
     }
 
-    // Convert common exceptions to appropriate failures
-    if (error is ArgumentError) {
-      return ValidationFailure(
-        error.message?.toString() ?? 'Invalid argument',
-        stackTrace: stackTrace,
-        cause: error,
-      );
-    }
-
-    if (error is StateError) {
-      return ValidationFailure(
-        error.message,
-        stackTrace: stackTrace,
-        cause: error,
-      );
-    }
-
-    // Default to UnknownFailure for unexpected exceptions
-    return UnknownFailure(
-      error.toString(),
-      stackTrace: stackTrace,
-      cause: error,
+    // A programming fault (bad argument, invalid state) is not an input the
+    // trust boundary rejected — it is an unexpected failure whose originating
+    // error and throw site are the useful diagnostics.
+    return AppFailure.unexpected(
+      message: error is ArgumentError
+          ? error.message?.toString() ?? 'Invalid argument'
+          : error.toString(),
+      cause: error.toString(),
+      stackTrace: stackTrace.toString(),
     );
   }
 }

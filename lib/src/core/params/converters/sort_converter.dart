@@ -1,84 +1,55 @@
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 
-typedef FieldResolver<T> = Field<T, dynamic>? Function(String fieldName);
+import 'filter_converter.dart';
 
-/// Converter for [Sort] type.
+/// Converter for [ZorphySort].
 ///
-/// Provides static methods for serializing and deserializing Zorphy Sort objects
-/// with generic-aware helpers and optional field resolution to preserve
-/// type-safety and matching behavior.
+/// Serializes with [ZorphySort.toWire] and rebuilds with
+/// [ZorphySort.fromWire]; a sort is only decoded against the entity's real
+/// field registry, so its ordering always reads the real field.
 class SortConverter {
   SortConverter._();
 
-  /// Serializes a [Sort] to JSON.
-  static Map<String, dynamic>? toJson(Sort<dynamic>? sort) {
-    return toJsonTyped<dynamic>(sort);
-  }
+  /// Serializes a [ZorphySort] to JSON.
+  static Map<String, dynamic>? toJson(ZorphySort<dynamic>? sort) =>
+      toJsonTyped<dynamic>(sort);
 
-  /// Serializes a typed [Sort] to JSON with clearer generic context.
-  static Map<String, dynamic>? toJsonTyped<T>(Sort<T>? sort) {
+  /// Serializes a typed [ZorphySort] with clearer generic context.
+  static Map<String, dynamic>? toJsonTyped<T>(ZorphySort<T>? sort) {
     if (sort == null) return null;
     try {
-      return sort.toJson();
+      return sort.toWire();
     } catch (e) {
       throw ArgumentError(
-        'Failed to serialize Sort<$T> to JSON: $e\n'
-        'Ensure the Sort is a valid Zorphy-generated sort.',
+        'Failed to serialize ZorphySort<$T> to JSON: $e\n'
+        'Ensure the sort is a valid zorphy v3 ordering.',
       );
     }
   }
 
-  /// Deserializes a [Sort] from JSON with optional field resolution.
-  static Sort<dynamic>? fromJson(
-    Map<String, dynamic>? json, [
-    Map<String, Field<dynamic, dynamic>>? fields,
-    FieldResolver<dynamic>? resolveField,
-  ]) {
-    return fromJsonTyped<dynamic>(json, fields, resolveField);
-  }
+  /// Deserializes a [ZorphySort] from JSON; [resolve] as in
+  /// [FilterConverter.fromJsonTyped].
+  static ZorphySort<dynamic>? fromJson(
+    Map<String, dynamic>? json,
+    FieldResolver<dynamic> resolve,
+  ) => fromJsonTyped<dynamic>(json, resolve);
 
-  /// Deserializes a typed [Sort] from JSON with optional field resolution.
-  ///
-  /// Provide either a fields map or a resolver to enable matching; otherwise
-  /// a fallback field is created that can read from map-backed entities.
-  static Sort<T>? fromJsonTyped<T>(
-    Map<String, dynamic>? json, [
-    Map<String, Field<T, dynamic>>? fields,
-    FieldResolver<T>? resolveField,
-  ]) {
-    if (json == null) return null;
-    final fieldName = json['field'] as String?;
-    if (fieldName == null) return null;
-    final descending = json['descending'] as bool? ?? false;
-    final field = _resolveField(fieldName, fields, resolveField);
-    return Sort(field, descending: descending);
-  }
-
-  static Field<T, dynamic> _resolveField<T>(
-    String fieldName,
-    Map<String, Field<T, dynamic>>? fields,
-    FieldResolver<T>? resolver,
+  /// Deserializes a typed [ZorphySort] from JSON.
+  static ZorphySort<T>? fromJsonTyped<T>(
+    Map<String, dynamic>? json,
+    FieldResolver<T> resolve,
   ) {
-    final fromMap = fields?[fieldName];
-    if (fromMap != null) return fromMap;
-    final fromResolver = resolver?.call(fieldName);
-    if (fromResolver != null) return fromResolver;
-    return _createField<T>(fieldName);
-  }
-
-  static Field<T, dynamic> _createField<T>(String fieldName) {
-    return Field<T, dynamic>(fieldName, (T entity) {
-      if (entity is Map<String, dynamic>) {
-        return entity[fieldName];
-      }
-      return _missingFieldGetter(fieldName);
-    });
-  }
-
-  static Never _missingFieldGetter(String fieldName) {
-    throw StateError(
-      'Field getter not provided for "$fieldName". '
-      'Provide a Field registry or resolver to enable matching.',
-    );
+    if (json == null) return null;
+    try {
+      return ZorphySort.fromWire<T>(json, resolve);
+    } on FormatException {
+      rethrow;
+    } catch (e) {
+      throw ArgumentError(
+        'Failed to deserialize ZorphySort<$T> from JSON: $json\n'
+        'Error: $e\n'
+        'Provide a field registry (e.g. `<Entity>Fields.all.byPointer`).',
+      );
+    }
   }
 }

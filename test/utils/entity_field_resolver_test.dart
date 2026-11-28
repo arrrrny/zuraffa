@@ -1,13 +1,14 @@
 // Tests for EntityFieldResolver (#294 Gap 1, #307 identity contract).
 //
 // Covers:
-//   - the id-resolution branches (literal `id`, first ending in `Id`,
-//     synthetic `id: String` for `autoId: true`)
+//   - the id-resolution branches, read through the v3 archetype
+//     annotations: the `principalKey` field named by `@ZorphyEntity`,
+//     the literal `id` field, the first field ending in `Id`
 //   - the #307 behavior: NO silent first-field fallback — an entity with
-//     no id-like field and no autoId resolves with a null idField so the
-//     caller (`zfa make`) fails loudly
-//   - value objects (`@ZValueObject` / `kind: ZorphyKind.valueObject`)
-//     resolve with no id at all
+//     no id-like field resolves with a null idField so the caller
+//     (`zfa make`) fails loudly
+//   - value objects (`@ZorphyValue()`) resolve with no id at all, even
+//     when a field name looks id-like
 //   - null when the entity file does not exist
 //   - null when the entity file has no parseable field declarations
 //   - nullable types are stripped from the returned type via `nonNullableType`
@@ -48,6 +49,10 @@ void main() {
     await File(p.join(dir.path, '$snake.dart')).writeAsString(content);
   }
 
+  /// The scaffold `zfa entity create` writes for a root entity: the v3
+  /// annotation naming `id` as its principal key.
+  const entityAnnotation = "@ZorphyEntity(principalKey: #id)";
+
   group('resolveIdField', () {
     test('returns null when the entity file does not exist', () {
       final resolved = EntityFieldResolver.resolveIdField(
@@ -57,7 +62,66 @@ void main() {
       expect(resolved, isNull);
     });
 
-    test('branch 1 — picks the literal `id` field when present', () async {
+    test('resolves the principalKey field the annotation names', () async {
+      await writeEntity('Invoice', '''
+$entityAnnotation
+abstract class \$Invoice {
+  String get id;
+  String get number;
+}
+''');
+      final resolved = EntityFieldResolver.resolveIdField(
+        entityName: 'Invoice',
+        projectRoot: tempRoot.path,
+      );
+      expect(resolved, isNotNull);
+      expect(resolved!.kind, EntitySourceKind.entity);
+      expect(resolved.hasId, isTrue);
+      expect(resolved.idField!.name, 'id');
+      expect(resolved.idField!.type, 'String');
+      expect(resolved.idField!.nonNullableType, 'String');
+    });
+
+    test(
+      'a principalKey naming another field wins over `id` and `*Id`',
+      () async {
+        await writeEntity('Ticket', '''
+@ZorphyEntity(principalKey: #sku)
+abstract class \$Ticket {
+  String get tenantId;
+  String get id;
+  String get sku;
+}
+''');
+        final resolved = EntityFieldResolver.resolveIdField(
+          entityName: 'Ticket',
+          projectRoot: tempRoot.path,
+        );
+        expect(resolved!.idField!.name, 'sku');
+      },
+    );
+
+    test(
+      'a principalKey naming no declared field falls back to `id`',
+      () async {
+        // The key may be inherited from an implemented interface, which
+        // this source-only resolver cannot see.
+        await writeEntity('Refined', '''
+@ZorphyEntity(principalKey: #missing)
+abstract class \$Refined {
+  String get id;
+}
+''');
+        final resolved = EntityFieldResolver.resolveIdField(
+          entityName: 'Refined',
+          projectRoot: tempRoot.path,
+        );
+        expect(resolved!.idField!.name, 'id');
+      },
+    );
+
+    test('branch 2 — picks the literal `id` field of a class with no '
+        'annotation', () async {
       await writeEntity('Product', '''
 abstract class \$Product {
   String get id;
@@ -71,33 +135,28 @@ abstract class \$Product {
       );
       expect(resolved, isNotNull);
       expect(resolved!.kind, EntitySourceKind.entity);
-      expect(resolved.autoId, isFalse);
       expect(resolved.hasId, isTrue);
       expect(resolved.idField!.name, 'id');
-      expect(resolved.idField!.type, 'String');
-      expect(resolved.idField!.nonNullableType, 'String');
     });
 
-    test(
-      'branch 2 — picks the first field ending in `Id` when there is no `id` '
-      '(issue #294 repro: StorePrice uses depotId)',
-      () async {
-        await writeEntity('StorePrice', '''
+    test('branch 3 — picks the first field ending in `Id` when there is no '
+        '`id` (issue #294 repro: StorePrice uses depotId)', () async {
+      await writeEntity('StorePrice', '''
+$entityAnnotation
 abstract class \$StorePrice {
   String get depotId;
   String get storeName;
   double get price;
 }
 ''');
-        final resolved = EntityFieldResolver.resolveIdField(
-          entityName: 'StorePrice',
-          projectRoot: tempRoot.path,
-        );
-        expect(resolved, isNotNull);
-        expect(resolved!.idField!.name, 'depotId');
-        expect(resolved.idField!.type, 'String');
-      },
-    );
+      final resolved = EntityFieldResolver.resolveIdField(
+        entityName: 'StorePrice',
+        projectRoot: tempRoot.path,
+      );
+      expect(resolved, isNotNull);
+      expect(resolved!.idField!.name, 'depotId');
+      expect(resolved.idField!.type, 'String');
+    });
 
     test(
       '#307 — NO silent first-field fallback: an entity with no `id` and no '
@@ -105,6 +164,7 @@ abstract class \$StorePrice {
       () async {
         // Exact #307 shape: first field is an enum-typed getter.
         await writeEntity('ChatMessage', '''
+$entityAnnotation
 abstract class \$ChatMessage {
   ChatMessageRole get role;
   String get content;
@@ -117,54 +177,8 @@ abstract class \$ChatMessage {
         );
         expect(resolved, isNotNull);
         expect(resolved!.kind, EntitySourceKind.entity);
-        expect(resolved.autoId, isFalse);
         expect(resolved.hasId, isFalse);
         expect(resolved.idField, isNull);
-      },
-    );
-
-    test('autoId: true — resolves the synthetic id field as String even when '
-        'the entity declares no id getter', () async {
-      await writeEntity('TelemetryEvent', '''
-import 'package:zorphy_annotation/zorphy_annotation.dart';
-
-@Zorphy(generateJson: true, autoId: true)
-abstract class \$TelemetryEvent {
-  TelemetryEventType get type;
-  String get value;
-}
-''');
-      final resolved = EntityFieldResolver.resolveIdField(
-        entityName: 'TelemetryEvent',
-        projectRoot: tempRoot.path,
-      );
-      expect(resolved, isNotNull);
-      expect(resolved!.autoId, isTrue);
-      expect(resolved.hasId, isTrue);
-      expect(resolved.idField!.name, 'id');
-      expect(resolved.idField!.type, 'String');
-    });
-
-    test(
-      'autoId + explicit id getter — the real field wins, type preserved',
-      () async {
-        await writeEntity('AuthSession', '''
-import 'package:zorphy_annotation/zorphy_annotation.dart';
-
-@Zorphy(generateJson: true, autoId: true)
-abstract class \$AuthSession {
-  String get id;
-  String get token;
-}
-''');
-        final resolved = EntityFieldResolver.resolveIdField(
-          entityName: 'AuthSession',
-          projectRoot: tempRoot.path,
-        );
-        expect(resolved, isNotNull);
-        expect(resolved!.autoId, isTrue);
-        expect(resolved.idField!.name, 'id');
-        expect(resolved.idField!.type, 'String');
       },
     );
 
@@ -172,7 +186,7 @@ abstract class \$AuthSession {
       await writeEntity('ParserConfig', '''
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 
-@ZValueObject
+@ZorphyValue()
 abstract class \$ParserConfig {
   String get separator;
   bool get trimWhitespace;
@@ -189,24 +203,27 @@ abstract class \$ParserConfig {
       expect(resolved.hasId, isFalse);
     });
 
-    test('value object via @Zorphy(kind: ZorphyKind.valueObject)', () async {
-      await writeEntity('MapTransformationOptions', '''
-import 'package:zorphy_annotation/zorphy_annotation.dart';
-
-@Zorphy(kind: ZorphyKind.valueObject, generateJson: true)
-abstract class \$MapTransformationOptions {
-  String get sourceKey;
-  String get targetKey;
+    test(
+      'a value object stays identity-free even with id-like field names',
+      () async {
+        // The reproduced v8 gap: `entity create --kind=value_object`
+        // emits `@ZorphyValue()`, and an id-like field used to turn the
+        // class into a CRUD entity (or, without one, into a refusal).
+        await writeEntity('Money', '''
+@ZorphyValue()
+abstract class \$Money {
+  String? get ownerId;
+  double get amount;
 }
 ''');
-      final resolved = EntityFieldResolver.resolveIdField(
-        entityName: 'MapTransformationOptions',
-        projectRoot: tempRoot.path,
-      );
-      expect(resolved, isNotNull);
-      expect(resolved!.isValueObject, isTrue);
-      expect(resolved.idField, isNull);
-    });
+        final resolved = EntityFieldResolver.resolveIdField(
+          entityName: 'Money',
+          projectRoot: tempRoot.path,
+        );
+        expect(resolved!.isValueObject, isTrue);
+        expect(resolved.idField, isNull);
+      },
+    );
 
     test(
       'prefers literal `id` over an earlier `*Id` field when both exist',
@@ -229,6 +246,7 @@ abstract class \$Audit {
 
     test('handles non-String id types (int)', () async {
       await writeEntity('Counter', '''
+@ZorphyEntity(principalKey: #id)
 abstract class \$Counter {
   int get id;
   int get value;
@@ -280,6 +298,7 @@ abstract class \$WithMap {
 
     test('returns null when entity file has no field declarations', () async {
       await writeEntity('Empty', '''
+$entityAnnotation
 abstract class \$Empty {}
 ''');
       final resolved = EntityFieldResolver.resolveIdField(
@@ -324,8 +343,8 @@ abstract class \$Commented {
     });
 
     test('respects an explicit `Id` suffix (not just `Id` literal)', () async {
-      // `Id` itself (length 2) should NOT match branch 2 — too ambiguous.
-      // With no `id` / `*Id` / autoId the entity is id-less (#307).
+      // `Id` itself (length 2) should NOT match branch 3 — too ambiguous.
+      // With no principalKey / `id` / `*Id` the entity is id-less (#307).
       await writeEntity('Ambiguous', '''
 abstract class \$Ambiguous {
   String get Id;
@@ -344,43 +363,58 @@ abstract class \$Ambiguous {
   });
 
   group('annotation detection', () {
-    test('detectsAutoId only inside a Zorphy annotation arg list', () {
+    test('detectsValueObject reads the v3 annotation only', () {
+      expect(EntityFieldResolver.detectsValueObject('@ZorphyValue()'), isTrue);
       expect(
-        EntityFieldResolver.detectsAutoId('@Zorphy(autoId: true)'),
-        isTrue,
-      );
-      expect(
-        EntityFieldResolver.detectsAutoId(
-          '@Zorphy(generateJson: true, autoId: true)',
+        EntityFieldResolver.detectsValueObject(
+          'class A {}\n\n@ZorphyValue()\nabstract class \$B {}',
         ),
         isTrue,
       );
       expect(
-        EntityFieldResolver.detectsAutoId('@Zorphy(generateJson: true)'),
+        EntityFieldResolver.detectsValueObject('@ZorphyEntity()'),
+        isFalse,
+      );
+      expect(EntityFieldResolver.detectsValueObject(''), isFalse);
+    });
+
+    test('a comment mentioning the annotation classifies nothing', () {
+      expect(
+        EntityFieldResolver.detectsValueObject(
+          '/// Not a @ZorphyValue(): it has an identity.\n'
+          '@ZorphyEntity(principalKey: #id)\nabstract class \$A {}',
+        ),
         isFalse,
       );
       expect(
-        EntityFieldResolver.detectsAutoId('// autoId: true (comment)'),
+        EntityFieldResolver.detectsValueObject(
+          '/* @ZorphyValue() */\nabstract class \$A {}',
+        ),
         isFalse,
+      );
+      expect(
+        EntityFieldResolver.principalKeyField(
+          '// @ZorphyEntity(principalKey: #id)\nabstract class \$A {}',
+        ),
+        isNull,
       );
     });
 
-    test('detectsValueObject via @ZValueObject and kind:', () {
-      expect(EntityFieldResolver.detectsValueObject('@ZValueObject'), isTrue);
+    test('principalKeyField reads the symbol the annotation names', () {
       expect(
-        EntityFieldResolver.detectsValueObject(
-          '@Zorphy(kind: ZorphyKind.valueObject)',
+        EntityFieldResolver.principalKeyField(
+          '@ZorphyEntity(principalKey: #sku)',
         ),
-        isTrue,
+        'sku',
       );
       expect(
-        EntityFieldResolver.detectsValueObject('@Zorphy(kind: valueObject)'),
-        isTrue,
+        EntityFieldResolver.principalKeyField(
+          '@ZorphyEntity(\n  principalKey: #id,\n)\nabstract class \$A {}',
+        ),
+        'id',
       );
-      expect(
-        EntityFieldResolver.detectsValueObject('@Zorphy(generateJson: true)'),
-        isFalse,
-      );
+      expect(EntityFieldResolver.principalKeyField('@ZorphyEntity()'), isNull);
+      expect(EntityFieldResolver.principalKeyField('@ZorphyValue()'), isNull);
     });
   });
 
@@ -474,7 +508,7 @@ abstract class \$Order {
         await writeEntity('ChatMessage', '''
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 
-@Zorphy(generateJson: true)
+$entityAnnotation
 abstract class \$ChatMessage {
   ChatMessageRole get role;
   String get content;

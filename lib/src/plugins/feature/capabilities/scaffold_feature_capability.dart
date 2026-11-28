@@ -302,7 +302,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         featureName.toLowerCase(),
       );
       if (fileSystem.existsSync(entityDirPath)) {
-        // Delete the entire entity folder (entity + any .g.dart, .zorphy.dart files)
+        // Delete the entire entity folder (entity + any sibling generated files)
         final entityFiles = await fileSystem.list(entityDirPath);
         for (final entityFile in entityFiles) {
           if (entityFile.endsWith('.dart')) {

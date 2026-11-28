@@ -59,7 +59,7 @@ void main() {
       // previewed before).
       expect(
         out,
-        contains('zuraffa_flutter: ^6.0.0'),
+        contains('zuraffa_flutter: ^8.0.0'),
         reason:
             'the generated lib/app.dart imports '
             'package:zuraffa_flutter/zuraffa_flutter.dart — the day-zero '

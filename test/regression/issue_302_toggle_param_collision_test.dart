@@ -7,7 +7,7 @@ library;
 // three positional parameters:
 //
 //   1. `<idType> <config.idField>`  (the id)
-//   2. `Field<Entity, dynamic> field`  (the field to toggle)
+//   2. `ZorphyField<Entity, Object?> field`  (the field to toggle)
 //   3. `bool value`  (the new toggle value)
 //
 // The third parameter was hardcoded to the name `value`. When the entity
@@ -19,7 +19,7 @@ library;
 //
 //   Future<void> toggleBarcode(
 //     String value,                       // <-- id param named `value`
-//     Field<Barcode, dynamic> field,
+//     ZorphyField<Barcode, Object?> field,
 //     bool value, [                       // <-- toggle-value param ALSO `value`
 //     CancelToken? cancelToken,
 //   ]) ...
@@ -96,11 +96,10 @@ void main() {
             'Resolver should resolve the id-less Barcode contract without '
             'silently falling back to the first field',
       );
-      // #307: no `id` / `*Id` / `autoId` → id-less entity (zfa make fails
-      // loudly). The `value`-as-id toggle-collision scenario (#302) now
-      // requires an explicit `--id-field=value` on `zfa make`.
+      // #307: no `id` / `*Id` → id-less entity (zfa make fails loudly).
+      // The `value`-as-id toggle-collision scenario (#302) now requires an
+      // explicit `--id-field=value` on `zfa make`.
       expect(resolved!.kind, EntitySourceKind.entity);
-      expect(resolved.autoId, isFalse);
       expect(resolved.idField, isNull);
       expect(resolved.hasId, isFalse);
     });

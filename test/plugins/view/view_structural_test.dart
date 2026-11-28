@@ -149,6 +149,37 @@ dependencies:
     },
   );
 
+  test('hides re-exported MockData from the entity import', () async {
+    final entity = File('$outputDir/domain/entities/product/product.dart');
+    await entity.create(recursive: true);
+    await entity.writeAsString('class Product {}\nclass ProductMockData {}\n');
+    final mockData = File('$outputDir/data/mock/product_mock_data.dart');
+    await mockData.create(recursive: true);
+    await mockData.writeAsString('class ProductMockData {}\n');
+
+    final files = await buildPlugin().generate(
+      GeneratorConfig(
+        name: 'Product',
+        methods: const ['get'],
+        generateView: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    final content = File(files.single.path).readAsStringSync();
+    expect(
+      content,
+      contains(
+        "import '../../../domain/entities/product/product.dart' "
+        "hide ProductMockData;",
+      ),
+    );
+    expect(
+      content,
+      contains("import '../../../data/mock/product_mock_data.dart';"),
+    );
+  });
+
   test('marks generated output and wires createState via builder', () async {
     final files = await buildPlugin().generate(
       GeneratorConfig(

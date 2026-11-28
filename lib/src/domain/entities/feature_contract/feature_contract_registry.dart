@@ -52,7 +52,7 @@ FeatureContract parseFeatureContractYaml(
     );
   }
 
-  return FeatureContract(
+  return FeatureContract.fromTrusted(
     id: id,
     displayName: map['display_name']?.toString() ?? id,
     entities: _stringList(map['entities']) ?? const <String>[],

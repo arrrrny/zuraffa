@@ -118,10 +118,13 @@ class ErrorMappingConfig {
     final msg = message ?? errorTypeName;
 
     return switch (category) {
-      'business' || 'validation' => ValidationFailure(msg, code: errorTypeName),
-      'session' => UnauthorizedFailure(msg, code: errorTypeName),
-      'network' => NetworkFailure(msg, code: errorTypeName),
-      _ => UnknownFailure(msg, code: errorTypeName),
+      'business' || 'validation' => AppFailure.boundaryViolation(
+        message: msg,
+        code: errorTypeName,
+      ),
+      'session' => AppFailure.policyDenied(message: msg, code: errorTypeName),
+      'network' => AppFailure.network(message: msg, code: errorTypeName),
+      _ => AppFailure.unexpected(message: msg, code: errorTypeName),
     };
   }
 }

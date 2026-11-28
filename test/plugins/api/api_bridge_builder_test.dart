@@ -228,6 +228,51 @@ extension ProductSerialization on Product {
       },
     );
 
+    test('binds both stream query decoders to the entity fields', () async {
+      await createEntity(
+        outputDir: outputDir,
+        entitySnake: 'product',
+        entityName: 'Product',
+      );
+      final entity = File('$outputDir/domain/entities/product/product.dart');
+      await entity.writeAsString('''
+abstract final class ProductFields {
+  static const id = Field<Product, String>('product_id', _id);
+  static String _id(Product product) => product.id;
+  static const unrelated = 'not a field';
+}
+''', mode: FileMode.append);
+      for (final wrapper in ['QueryParams', 'ListQueryParams']) {
+        final className = 'Watch${wrapper}UseCase';
+        await createUseCase(
+          outputDir: outputDir,
+          entitySnake: 'product',
+          className: className,
+          content:
+              'class $className extends '
+              'StreamUseCase<Product, $wrapper<Product>> {}',
+        );
+      }
+
+      final files = await ApiBridgeBuilder(
+        outputDir: outputDir,
+      ).generate(GeneratorConfig(name: 'Product', outputDir: outputDir));
+      final content = await File(files.single.path).readAsString();
+      for (final decoder in [
+        'queryParamsFromWire',
+        'listQueryParamsFromWire',
+      ]) {
+        expect(
+          content,
+          matches(
+            '$decoder<Product>'
+            r'\(\s*json,\s*\(v\) => v as Product,\s*\{\s*'
+            r'ProductFields\.id\.name: ProductFields\.id,?\s*\},?\s*\)',
+          ),
+        );
+      }
+    });
+
     test('generates StreamUseCase handler with streaming response', () async {
       await createEntity(
         outputDir: outputDir,
@@ -477,10 +522,7 @@ extension ProductSerialization on Product {
       // Truncated fragments like these would not compile.
       expect(content, isNot(contains('QueryParams<Product.')));
       expect(content, isNot(contains('QueryParams<Product(')));
-      expect(
-        content,
-        contains('QueryParams<Product>(filter: ProductFields.id.eq(id))'),
-      );
+      expect(content, contains('QueryParams<Product>.fromTrusted('));
     });
 
     test('QueryParams usecases get a typed id handler', () async {
@@ -503,7 +545,10 @@ extension ProductSerialization on Product {
               'class GetProductListUseCase extends UseCase<List<Product>, ListQueryParams<Product>> {}',
         },
       ]);
-      expect(content, contains('final params = ListQueryParams<Product>();'));
+      expect(
+        content,
+        contains('final params = ListQueryParams<Product>.fromTrusted();'),
+      );
       expect(content, contains('params: {}'));
       expect(content, isNot(contains('id is required')));
       // Generic return type must survive intact for the toJson helper.
@@ -590,7 +635,10 @@ extension ProductSerialization on Product {
           },
         ]);
         expect(content, contains("params: {'args': 'QueryParams<Product>'}"));
-        expect(content, contains('QueryParams<Product>.fromJson(json)'));
+        expect(
+          content,
+          contains('queryParamsFromWire<Product>(json, (v) => v as Product)'),
+        );
       },
     );
   });

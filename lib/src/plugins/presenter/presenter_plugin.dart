@@ -18,6 +18,7 @@ import '../../utils/string_utils.dart';
 import '../../utils/project_flavor.dart';
 import 'builders/presenter_class_builder.dart';
 import 'capabilities/create_presenter_capability.dart';
+import '../../utils/crud_method_vocabulary.dart';
 
 class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
@@ -538,11 +539,14 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   ) {
     final paramsExpression = config.queryFieldType == 'NoParams'
         ? refer('NoParams').constInstance([])
-        : refer('QueryParams<$entityName>').call([], {
-            'filter': refer('Eq').call([
-              refer('${entityName}Fields').property(config.queryField),
-              refer(config.queryField),
-            ]),
+        : refer('QueryParams<$entityName>').property('fromTrusted').call([], {
+            // v3: the field descriptor IS the predicate builder
+            // (`<E>Fields.<f>.equals(v)` -> ZorphyFilter), the type
+            // QueryParams.filter carries.
+            'filter': refer('${entityName}Fields')
+                .property(config.queryField)
+                .property('equals')
+                .call([refer(config.queryField)]),
           });
 
     final callExpression = refer('_${info.fieldName}')
@@ -574,20 +578,28 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   Method _buildGetListMethod(ParsedUseCaseInfo info, String entityName) {
     final callExpression = refer('_${info.fieldName}')
         .property('call')
-        .call([refer('params')], {'cancelToken': refer('cancelToken')});
+        .call(
+          [
+            refer('params').ifNullThen(
+              refer('ListQueryParams<$entityName>.fromTrusted').call([]),
+            ),
+          ],
+          {'cancelToken': refer('cancelToken')},
+        );
 
     return Method(
       (m) => m
         ..name = 'get${entityName}List'
         ..returns = refer('Future<Result<List<$entityName>, AppFailure>>')
         ..optionalParameters.addAll([
+          // `fromTrusted` is not const (the `params` Map is defensively
+          // copied) and a default parameter value must be — so the default
+          // is `null` and an omitted query is built at call time.
           Parameter(
             (p) => p
               ..name = 'params'
-              ..type = refer('ListQueryParams<$entityName>')
-              ..defaultTo = refer(
-                'ListQueryParams<$entityName>',
-              ).constInstance([]).code,
+              ..type = refer('ListQueryParams<$entityName>?')
+              ..defaultTo = const Code('null'),
           ),
           _cancelTokenParam(),
         ])
@@ -632,9 +644,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final dataType = config.useZorphy
         ? '${entityName}Patch'
         : 'Partial<$entityName>';
-    final updateParams = refer(
-      'UpdateParams<${config.idFieldType}, $dataType>',
-    ).call([], {'id': refer(config.idField), 'data': refer('data')});
+    final updateParams = refer('UpdateParams<${config.idFieldType}, $dataType>')
+        .property('fromTrusted')
+        .call([], {'id': refer(config.idField), 'data': refer('data')});
     final callExpression = refer('_${info.fieldName}')
         .property('call')
         .call([updateParams], {'cancelToken': refer('cancelToken')});
@@ -667,7 +679,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     ParsedUseCaseInfo info,
     String entityName,
   ) {
-    final fieldEnum = 'Field<$entityName, dynamic>';
+    final fieldEnum = toggleFieldType(entityName);
     // #302: forward `toggleValue` (not `value`) into the ToggleParams.value
     // field. The toggle-value parameter is renamed to `toggleValue` below so
     // it can never collide with `config.idField` (which resolves to `value`
@@ -675,7 +687,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     // The ToggleParams constructor's `value:` named field is unaffected — it
     // is a class field name, not a parameter name.
     final toggleParams =
-        refer('ToggleParams<${config.idFieldType}, $fieldEnum>').call([], {
+        refer(
+          'ToggleParams<${config.idFieldType}, $fieldEnum>',
+        ).property('fromTrusted').call([], {
           'id': refer(config.idField),
           'field': refer('field'),
           'value': refer('toggleValue'),
@@ -716,7 +730,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   Method _buildDeleteMethod(GeneratorConfig config, ParsedUseCaseInfo info) {
     final deleteParams = refer(
       'DeleteParams<${config.idFieldType}>',
-    ).call([], {'id': refer(config.idField)});
+    ).property('fromTrusted').call([], {'id': refer(config.idField)});
     final callExpression = refer('_${info.fieldName}')
         .property('call')
         .call([deleteParams], {'cancelToken': refer('cancelToken')});
@@ -746,11 +760,14 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   ) {
     final paramsExpression = config.queryFieldType == 'NoParams'
         ? refer('NoParams').constInstance([])
-        : refer('QueryParams<$entityName>').call([], {
-            'filter': refer('Eq').call([
-              refer('${entityName}Fields').property(config.queryField),
-              refer(config.queryField),
-            ]),
+        : refer('QueryParams<$entityName>').property('fromTrusted').call([], {
+            // v3: the field descriptor IS the predicate builder
+            // (`<E>Fields.<f>.equals(v)` -> ZorphyFilter), the type
+            // QueryParams.filter carries.
+            'filter': refer('${entityName}Fields')
+                .property(config.queryField)
+                .property('equals')
+                .call([refer(config.queryField)]),
           });
 
     final callExpression = refer('_${info.fieldName}')
@@ -782,20 +799,28 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   Method _buildWatchListMethod(ParsedUseCaseInfo info, String entityName) {
     final callExpression = refer('_${info.fieldName}')
         .property('call')
-        .call([refer('params')], {'cancelToken': refer('cancelToken')});
+        .call(
+          [
+            refer('params').ifNullThen(
+              refer('ListQueryParams<$entityName>.fromTrusted').call([]),
+            ),
+          ],
+          {'cancelToken': refer('cancelToken')},
+        );
 
     return Method(
       (m) => m
         ..name = 'watch${entityName}List'
         ..returns = refer('Stream<Result<List<$entityName>, AppFailure>>')
         ..optionalParameters.addAll([
+          // `fromTrusted` is not const (the `params` Map is defensively
+          // copied) and a default parameter value must be — so the default
+          // is `null` and an omitted query is built at call time.
           Parameter(
             (p) => p
               ..name = 'params'
-              ..type = refer('ListQueryParams<$entityName>')
-              ..defaultTo = refer(
-                'ListQueryParams<$entityName>',
-              ).constInstance([]).code,
+              ..type = refer('ListQueryParams<$entityName>?')
+              ..defaultTo = const Code('null'),
           ),
           _cancelTokenParam(),
         ])
@@ -812,11 +837,14 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   ) {
     final paramsExpression = config.queryFieldType == 'NoParams'
         ? refer('NoParams').constInstance([])
-        : refer('QueryParams<$entityName>').call([], {
-            'filter': refer('Eq').call([
-              refer('${entityName}Fields').property(config.queryField),
-              refer(config.queryField),
-            ]),
+        : refer('QueryParams<$entityName>').property('fromTrusted').call([], {
+            // v3: the field descriptor IS the predicate builder
+            // (`<E>Fields.<f>.equals(v)` -> ZorphyFilter), the type
+            // QueryParams.filter carries.
+            'filter': refer('${entityName}Fields')
+                .property(config.queryField)
+                .property('equals')
+                .call([refer(config.queryField)]),
           });
 
     final getCall = refer('_${info.fieldName}')

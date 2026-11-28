@@ -5,6 +5,7 @@ import 'package:yaml/yaml.dart';
 
 import '../core/dependencies/dependency_wirer.dart';
 import '../core/project/project_root.dart';
+import '../utils/zorphy_annotations.dart';
 
 /// Outcome of inspecting a project's `build.yaml` from the build command.
 enum BuildYamlStatus {
@@ -19,7 +20,7 @@ enum BuildYamlStatus {
 
   /// A `build.yaml` exists, does not register the `zorphy:zorphy` builder,
   /// and the project provably does not use the zuraffa/zorphy
-  /// code-generation pipeline — no `@Zorphy`-annotated source under `lib/`
+  /// code-generation pipeline — no zorphy-annotated source under `lib/`
   /// and no `zorphy` dependency declared in `pubspec.yaml`. There is nothing
   /// for the zorphy builder to generate, so the missing registration is not a
   /// misconfiguration and the build proceeds (issue #1709).
@@ -33,7 +34,7 @@ enum BuildYamlStatus {
 ///
 /// Before delegating to `build_runner`, [BuildCommand] asks this guard whether
 /// the project's `build.yaml` is in a state that will actually produce
-/// `.zorphy.dart` / `.g.dart` outputs. When the file is missing, the build
+/// generated outputs. When the file is missing, the build
 /// command scaffolds it (reusing [DependencyWirer.buildYamlContent]); when the
 /// file exists but omits the zorphy builder, the build command fails loudly
 /// with an actionable error instead of silently reporting success with 0
@@ -70,7 +71,7 @@ class BuildYamlGuard {
 
   /// True when the project at [projectRoot] carries any signal of the
   /// zuraffa/zorphy code-generation pipeline: at least one
-  /// `@Zorphy`/`@ZorphyMixin`-annotated source under `lib/`, OR a `zorphy`
+  /// zorphy-annotated source under `lib/` (any v3 archetype), OR a `zorphy`
   /// dependency (the `zorphy` builder or `zorphy_annotation`) declared in any
   /// `pubspec.yaml` dependency section. Both signals are consulted so a
   /// project that annotated sources without (yet) declaring the dependency —
@@ -85,28 +86,30 @@ class BuildYamlGuard {
   }
 
   /// True when at least one non-generated `.dart` source under `lib/` carries
-  /// an `@Zorphy` / `@ZorphyMixin` annotation. `//` line comments are stripped
-  /// before matching so a comment that merely mentions `@Zorphy` does not
-  /// false-positive (important so the guard never breaks a correctly
-  /// configured project — zuraffa#276).
+  /// a zorphy annotation. Comments are stripped before matching so a comment
+  /// that merely mentions one does not false-positive (important so the
+  /// guard never breaks a correctly configured project — zuraffa#276).
+  ///
+  /// Generated outputs are skipped, including everything under `lib/_br_/`
+  /// (where the zorphy v3 builder writes its shared parts).
   static bool hasZorphyAnnotatedSources({String? projectRoot}) {
     final libPath = projectRoot != null ? p.join(projectRoot, 'lib') : 'lib';
     final libDir = Directory(libPath);
     if (!libDir.existsSync()) return false;
     for (final entity in libDir.listSync(recursive: true)) {
-      if (entity is File && entity.path.endsWith('.dart')) {
-        final name = p.basename(entity.path);
-        if (name.endsWith('.zorphy.dart') || name.endsWith('.g.dart')) {
-          continue;
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      final name = p.basename(entity.path);
+      final relativeSegments = p.split(p.relative(entity.path, from: libPath));
+      final generated =
+          relativeSegments.first == '_br_' || name.endsWith('.g.dart');
+      if (generated) continue;
+      try {
+        final src = entity.readAsStringSync();
+        if (hasZorphyAnnotation(src)) {
+          return true;
         }
-        try {
-          final src = entity.readAsStringSync();
-          if (_containsZorphyAnnotation(src)) {
-            return true;
-          }
-        } catch (_) {
-          // Ignore unreadable files.
-        }
+      } catch (_) {
+        // Ignore unreadable files.
       }
     }
     return false;
@@ -150,38 +153,6 @@ class BuildYamlGuard {
   static bool _hasPubspec(String root) =>
       File(p.join(root, 'pubspec.yaml')).existsSync();
 
-  /// Returns true when [source] contains an `@Zorphy` or `@ZorphyMixin`
-  /// annotation outside of `//` line comments.
-  static bool _containsZorphyAnnotation(String source) {
-    final re = RegExp(r'@Zorphy(?:Mixin)?\b');
-    for (final line in source.split('\n')) {
-      if (re.hasMatch(_stripLineComment(line))) return true;
-    }
-    return false;
-  }
-
-  /// Strips a `//` line comment from [line], ignoring `//` that appears inside
-  /// a single- or double-quoted string literal.
-  static String _stripLineComment(String line) {
-    var inSingle = false;
-    var inDouble = false;
-    for (var i = 0; i < line.length; i++) {
-      final ch = line[i];
-      if (ch == "'" && !inDouble) {
-        inSingle = !inSingle;
-      } else if (ch == '"' && !inSingle) {
-        inDouble = !inDouble;
-      } else if (ch == '/' &&
-          i + 1 < line.length &&
-          line[i + 1] == '/' &&
-          !inSingle &&
-          !inDouble) {
-        return line.substring(0, i);
-      }
-    }
-    return line;
-  }
-
   /// Scaffolds a `build.yaml` that registers the zorphy + json_serializable
   /// builders. Only call when [check] returned [BuildYamlStatus.missing] —
   /// never overwrite an existing `build.yaml`.
@@ -211,7 +182,7 @@ class BuildYamlGuard {
 ❌ build.yaml exists but does not register the zorphy builder.
 
    build_runner ran successfully but wrote 0 outputs because no builder is
-   configured to process @Zorphy annotations. Add the following under
+   configured to process zorphy annotations. Add the following under
    `targets:\$default.builders:` in build.yaml:
 
        builders:
@@ -231,7 +202,7 @@ class BuildYamlGuard {
   /// its dry-run preview always carry the same finding and cannot drift apart
   /// (review note on #1748).
   static const String notApplicableReason =
-      'this project has no @Zorphy sources and no zorphy dependency — the '
+      'this project has no zorphy sources and no zorphy dependency — the '
       'zuraffa code-generation pipeline is not in use';
 
   /// The informational line shown when [check] returned

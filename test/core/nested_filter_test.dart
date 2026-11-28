@@ -21,17 +21,32 @@ class UrlTemplate {
   String toString() => 'UrlTemplate(id: $id, endpoints: $endpoints)';
 }
 
-// Mock Zorphy generated fields
+// Hand-built v3 field descriptors: the shape the zorphy generator emits on
+// `<Entity>Fields` (name, wire key, JSON pointer, get/set pair).
 class UrlEndpointFields {
-  static final id = Field<UrlEndpoint, String>('id', (e) => e.id);
-  static final name = Field<UrlEndpoint, String>('name', (e) => e.name);
+  static final id = ZorphyField<UrlEndpoint, String>(
+    name: 'id',
+    jsonKey: 'id',
+    pointer: '/id',
+    get: (e) => e.id,
+    set: (e, value) => UrlEndpoint(id: value, name: e.name),
+  );
+  static final name = ZorphyField<UrlEndpoint, String>(
+    name: 'name',
+    jsonKey: 'name',
+    pointer: '/name',
+    get: (e) => e.name,
+    set: (e, value) => UrlEndpoint(id: e.id, name: value),
+  );
 }
 
 class UrlTemplateFields {
-  static final id = Field<UrlTemplate, String>('id', (e) => e.id);
-  static final endpoints = Field<UrlTemplate, List<UrlEndpoint>>(
-    'endpoints',
-    (e) => e.endpoints,
+  static final endpoints = ZorphyField<UrlTemplate, List<UrlEndpoint>>(
+    name: 'endpoints',
+    jsonKey: 'endpoints',
+    pointer: '/endpoints',
+    get: (e) => e.endpoints,
+    set: (e, value) => UrlTemplate(id: e.id, endpoints: value),
   );
 }
 
@@ -51,9 +66,9 @@ void main() {
 
     final templates = [templateWithSearch, templateWithoutSearch];
 
-    test('Filter using Filter directly', () {
-      final endpointFilter = UrlEndpointFields.name.eq('search');
-      final templateFilter = UrlTemplateFields.endpoints.filter(endpointFilter);
+    test('Filter using ZorphyField.nested directly', () {
+      final endpointFilter = UrlEndpointFields.name.equals('search');
+      final templateFilter = UrlTemplateFields.endpoints.nested(endpointFilter);
 
       final results = templates
           .where((t) => templateFilter.matches(t))
@@ -65,7 +80,7 @@ void main() {
     });
 
     test('Filter using query() - User syntax', () {
-      final query = UrlEndpointFields.name.eq('search').toQuery();
+      final query = UrlEndpointFields.name.equals('search').toQuery();
       final templateFilter = UrlTemplateFields.endpoints.query(query);
 
       final results = templates
@@ -77,7 +92,9 @@ void main() {
     });
 
     test('Filter using list() - User syntax', () {
-      final query = UrlEndpointFields.name.eq('search').toListQuery(limit: 10);
+      final query = UrlEndpointFields.name
+          .equals('search')
+          .toListQuery(limit: 10);
       final templateFilter = UrlTemplateFields.endpoints.list(query);
 
       final results = templates
@@ -88,13 +105,14 @@ void main() {
       expect(results.length, 1);
     });
 
-    test('Serialization to JSON', () {
-      final query = UrlEndpointFields.name.eq('search').toQuery();
+    test('Serialization to v3 wire', () {
+      final query = UrlEndpointFields.name.equals('search').toQuery();
       final templateFilter = UrlTemplateFields.endpoints.query(query);
 
-      final json = templateFilter.toJson();
-      expect(json, {
-        'endpoints': {'name': 'search'},
+      expect(templateFilter.toWire(), {
+        'field': '/endpoints',
+        'op': 'nested',
+        'filter': {'field': '/name', 'op': 'eq', 'value': 'search'},
       });
     });
   });

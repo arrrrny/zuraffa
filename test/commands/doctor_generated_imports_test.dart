@@ -37,7 +37,7 @@ name: sandbox
 environment:
   sdk: '>=3.0.0 <4.0.0'
 dependencies:
-  zuraffa: ^6.0.0
+  zuraffa: ^8.0.0
 ''';
 
 DoctorCheckResult _pick(List<DoctorCheckResult> results, String id) =>
@@ -145,7 +145,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  zuraffa: ^6.0.0
+  zuraffa: ^8.0.0
 ''');
       final libFile = File('${dir.path}/lib/src/presentation/v.dart');
       await libFile.parent.create(recursive: true);

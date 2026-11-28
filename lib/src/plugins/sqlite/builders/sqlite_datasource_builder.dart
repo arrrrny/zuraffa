@@ -8,6 +8,7 @@ import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
+import '../../../utils/crud_method_vocabulary.dart';
 
 /// Generates a SQLite-backed DataSource for an entity (issue #464).
 ///
@@ -25,8 +26,8 @@ import '../../../utils/entity_utils.dart';
 ///   offset/limit slicing (`getList`). SQL-level `Filter` translation is
 ///   deliberately out of scope for this generator.
 /// - **Writes** are real SQL keyed by the entity's id field:
-///   `INSERT OR REPLACE` (create), SELECT → `params.data.applyTo` →
-///   `UPDATE ... WHERE id = ?` (update), SELECT → `copyWithField` →
+///   `INSERT OR REPLACE` (create), SELECT → `params.data.apply` →
+///   `UPDATE ... WHERE id = ?` (update), SELECT → `field.set` →
 ///   UPDATE (toggle), `DELETE ... WHERE id = ?` (delete).
 /// - **watch/watchList** are poll-based streams over the table, matching
 ///   the mock datasource's streaming contract.
@@ -294,14 +295,14 @@ class SqliteDataSourceBuilder {
                           .statement,
                       Code(
                         'if (existing == null) { '
-                        "throw notFoundFailure('$entityName not found in $table'); }",
+                        "throw AppFailure.notFound(message: '$entityName not found in $table'); }",
                       ),
                     ],
                     declareFinal('updated')
                         .assign(
                           refer('params')
                               .property('data')
-                              .property('applyTo')
+                              .property('apply')
                               .call([refer('existing')]),
                         )
                         .statement,
@@ -317,8 +318,7 @@ class SqliteDataSourceBuilder {
           break;
 
         case 'toggle':
-          final toggleParamsType =
-              'ToggleParams<${config.idFieldType}, Field<$entityName, dynamic>>';
+          final paramsType = toggleParamsType(entityName, config.idFieldType);
           methods.add(
             Method(
               (m) => m
@@ -330,7 +330,7 @@ class SqliteDataSourceBuilder {
                   Parameter(
                     (p) => p
                       ..name = 'params'
-                      ..type = refer(toggleParamsType),
+                      ..type = refer(paramsType),
                   ),
                 )
                 ..body = Block(
@@ -344,12 +344,14 @@ class SqliteDataSourceBuilder {
                         .statement,
                     Code(
                       'if (existing == null) { '
-                      "throw notFoundFailure('$entityName not found in $table'); }",
+                      "throw AppFailure.notFound(message: '$entityName not found in $table'); }",
                     ),
                     declareFinal('updated')
                         .assign(
-                          refer('existing').property('copyWithField').call([
-                            refer('params').property('field'),
+                          refer(
+                            'params',
+                          ).property('field').property('set').call([
+                            refer('existing'),
                             refer('params').property('value'),
                           ]),
                         )

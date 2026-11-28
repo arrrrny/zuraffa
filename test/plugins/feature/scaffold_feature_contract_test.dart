@@ -132,7 +132,7 @@ void main() {
         projectRoot: workspace.path,
       );
 
-      final login = FeatureContract(
+      final login = FeatureContract.fromTrusted(
         id: 'login',
         displayName: 'Login',
         routes: const {'/login'},

@@ -62,14 +62,42 @@ void main() {
   });
 
   group('canSkipTerminalBuild (U2 — run shapes)', () {
-    test('an @Zorphy-annotated write never skips', () {
-      const content = '@Zorphy\nclass User {}\n';
+    test('a write declaring a v3 zorphy archetype never skips', () {
+      const content =
+          '@ZorphyEntity(principalKey: #id)\nabstract class \$User {}\n';
       final skip = BuildRelevance.canSkipTerminalBuild(
         before: {'lib/user.dart': 'old'},
         after: {'lib/user.dart': 'new'},
         readContent: (_) => content,
       );
       expect(skip, isFalse);
+    });
+
+    test('every v3 zorphy annotation is builder-facing (raw match)', () {
+      // The list is the shared vocabulary: a name missing from it would
+      // let a write that declares an archetype skip the build and leave
+      // its generated part stale.
+      const names = [
+        'ZorphyEntity(principalKey: #id)',
+        'ZorphyValue()',
+        'ZorphyUnion()',
+        'ZorphyState()',
+        'ZorphyIntent()',
+        'ZorphyDomainBool()',
+        'ZorphyMock()',
+      ];
+      for (final name in names) {
+        expect(
+          BuildRelevance.builderFacingAnnotation.hasMatch('@$name\n'),
+          isTrue,
+          reason: '@$name must be builder-facing',
+        );
+      }
+      // A runtime class that merely shares the prefix is not an annotation.
+      expect(
+        BuildRelevance.builderFacingAnnotation.hasMatch('@ZorphyField()\n'),
+        isFalse,
+      );
     });
 
     test('an @JsonSerializable-annotated write never skips', () {
@@ -327,7 +355,9 @@ void main() {
         '(non-Dart + annotation — issue #1634 review)', () async {
       const triggers = <String, Map<String, String>>{
         'non-Dart source': {'i18n/strings.i18n.json': '{"title": "hi"}\n'},
-        'builder-facing annotation': {'a.dart': '@Zorphy\nclass A {}\n'},
+        'builder-facing annotation': {
+          'a.dart': '@ZorphyValue()\nabstract class \$A {}\n',
+        },
       };
       for (final walked in const ['lib', 'test', 'bin', 'tool']) {
         for (final trigger in triggers.entries) {
@@ -396,7 +426,10 @@ void main() {
       'the pristine setup build.yaml PLUS a builder-facing annotation '
       'still runs the first build (issue #1655 — the scan still governs)',
       () async {
-        writeLibFile('user.dart', '@Zorphy\nclass User {}\n');
+        writeLibFile(
+          'user.dart',
+          '@ZorphyEntity(principalKey: #id)\nabstract class \$User {}\n',
+        );
         File(
           p.join(root.path, 'build.yaml'),
         ).writeAsStringSync(DependencyWirer.buildYamlContent);

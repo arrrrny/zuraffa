@@ -192,11 +192,17 @@ extension TestBuilderEntity on TestBuilder {
     }
 
     if (entityFile != null) {
-      directives.add(Directive.import(toPackageImport(entityFile.path)));
+      directives.add(
+        Directive.import(
+          toPackageImport(entityFile.path),
+          hide: ['${entityName}MockData'],
+        ),
+      );
     } else {
       directives.add(
         Directive.import(
           'package:$packageName/src/domain/entities/$entitySnake/$entitySnake.dart',
+          hide: ['${entityName}MockData'],
         ),
       );
     }
@@ -499,6 +505,11 @@ extension TestBuilderEntity on TestBuilder {
   /// All eight canonical signatures are overridden so the class satisfies
   /// `implements {Entity}DataSource` for any entity regardless of which subset
   /// of methods its use case actually exercises.
+  ///
+  /// No `@override`: the set is a superset of what any given generated
+  /// interface declares, and `@override` on a member the interface does not
+  /// carry is `override_on_non_overriding_member`. An implementing member
+  /// needs no annotation; a non-overriding one must not have one.
   List<Method> _throwingDataSourceMethods(GeneratorConfig config) {
     final e = config.name;
     final id = config.idFieldType;
@@ -510,7 +521,6 @@ extension TestBuilderEntity on TestBuilder {
           (b) => b
             ..name = name
             ..returns = refer(ret)
-            ..annotations.add(refer('override'))
             ..requiredParameters.addAll(
               params.map(
                 (p) => Parameter(
@@ -530,9 +540,7 @@ extension TestBuilderEntity on TestBuilder {
       make('getList', 'Future<List<$e>>', [('params', 'ListQueryParams<$e>')]),
       make('create', 'Future<$e>', [('entity', e)]),
       make('update', 'Future<$e>', [('params', 'UpdateParams<$id, $patch>')]),
-      make('toggle', 'Future<$e>', [
-        ('params', 'ToggleParams<$id, Field<$e, dynamic>>'),
-      ]),
+      make('toggle', 'Future<$e>', [('params', toggleParamsType(e, id))]),
       make('delete', 'Future<Map<String, dynamic>>', [
         ('params', 'DeleteParams<$id>'),
       ]),
@@ -558,8 +566,8 @@ extension TestBuilderEntity on TestBuilder {
     // The legacy mocktail toggle tests hardcoded `value: true`, which only
     // "passed" because the repository was mocked to return Success
     // unconditionally. With native mocks the datasource actually runs
-    // `copyWithField(field, value)`; the value's runtime type must match the
-    // toggled (id/query) field's declared type or `copyWithField` throws
+    // `field.set(existing, value)`; the value's runtime type must match the
+    // toggled (id/query) field's declared type or `set` throws
     // ArgumentError and the use case returns Failure. Emit a type-correct
     // sample value for the id field type so the success path stays green.
     Expression toggleSampleValue(String type) {
@@ -582,36 +590,49 @@ extension TestBuilderEntity on TestBuilder {
     switch (method) {
       case 'get':
       case 'watch':
-        paramsExpr = refer('QueryParams<$e>').call([], {
+        // v3: the field descriptor builds the predicate (`<E>Fields.<f>
+        // .equals(v)` -> ZorphyFilter); a v2 `Eq(Field, v)` cannot take a
+        // ZorphyField.
+        paramsExpr = refer('QueryParams<$e>').property('fromTrusted').call([], {
           'filter': refer(
-            'Eq',
-          ).call([refer('${e}Fields').property(qf), refer('t$e').property(qf)]),
+            '${e}Fields',
+          ).property(qf).property('equals').call([refer('t$e').property(qf)]),
         });
         break;
       case 'getList':
       case 'watchList':
-        paramsExpr = refer('ListQueryParams<$e>').call([]);
+        paramsExpr = refer(
+          'ListQueryParams<$e>',
+        ).property('fromTrusted').call([]);
         break;
       case 'create':
         paramsExpr = refer('t$e');
         break;
       case 'update':
-        paramsExpr = refer('UpdateParams<$id, ${e}Patch>').call([], {
-          'id': refer('t$e').property(config.idField),
-          'data': refer('${e}Patch').call([]),
-        });
+        paramsExpr = refer('UpdateParams<$id, ${e}Patch>')
+            .property('fromTrusted')
+            .call([], {
+              'id': refer('t$e').property(config.idField),
+              'data': refer('${e}Patch').call([]),
+            });
         break;
       case 'toggle':
-        paramsExpr = refer('ToggleParams<$id, Field<$e, dynamic>>').call([], {
-          'id': refer('t$e').property(config.idField),
-          'field': refer('${e}Fields').property(qf),
-          'value': toggleSampleValue(config.queryFieldType),
-        });
+        paramsExpr = refer(toggleParamsType(e, id))
+            .property('fromTrusted')
+            .call([], {
+              'id': refer('t$e').property(config.idField),
+              // Erased on purpose: the typed `<E>Fields.<qf>` constant is not a
+              // `ZorphyField<E, Object?>` (invariant V); `asObject` is the
+              // write-capable carrier the toggle writes through (zorphy#301).
+              'field': refer('${e}Fields').property(qf).property('asObject'),
+              'value': toggleSampleValue(config.queryFieldType),
+            });
         break;
       case 'delete':
-        paramsExpr = refer(
-          'DeleteParams<$id>',
-        ).call([], {'id': refer('t$e').property(config.idField)});
+        paramsExpr = refer('DeleteParams<$id>').property('fromTrusted').call(
+          [],
+          {'id': refer('t$e').property(config.idField)},
+        );
         break;
       default:
         paramsExpr = refer('t$e');

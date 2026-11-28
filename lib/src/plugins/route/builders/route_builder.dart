@@ -140,7 +140,7 @@ class RouteBuilder {
   }
 
   /// Whether the entity backing [config] is a Zorphy value object
-  /// (`@ZValueObject` / `kind: ZorphyKind.valueObject`).
+  /// (`@ZorphyValue()`).
   Future<bool> _isValueObject(GeneratorConfig config) async {
     final entityPath = path.join(
       outputDir,

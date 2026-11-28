@@ -13,13 +13,13 @@ import 'error_mapping_config.dart';
 /// final data = result.data?['addItemToOrder'] as Map<String, dynamic>?;
 /// if (data == null) {
 ///   return SignalResult<$$AddItemToOrderResult>.failure(
-///     const ServerFailure('No data returned'),
+///     AppFailure.network(message: 'No data returned'),
 ///   );
 /// }
 /// final typename = data['__typename'] as String?;
 /// if (typename == null) {
 ///   return SignalResult<$$AddItemToOrderResult>.failure(
-///     const ServerFailure('Missing __typename in union result'),
+///     AppFailure.network(message: 'Missing __typename in union result'),
 ///   );
 /// }
 /// if (_errorConfig.isError(typename, operationName: 'addItemToOrder')) {
@@ -124,7 +124,7 @@ class UnionResultHandler {
         ),
         cb.Code('if (data == null) {'),
         cb.Code('  return SignalResult<$returnType>.failure('),
-        cb.Code("    const ServerFailure('No data returned'),"),
+        cb.Code("    AppFailure.network(message: 'No data returned'),"),
         cb.Code('  );'),
         cb.Code('}'),
         cb.Code(''),
@@ -132,7 +132,7 @@ class UnionResultHandler {
         cb.Code('if (typename == null) {'),
         cb.Code('  return SignalResult<$returnType>.failure('),
         cb.Code(
-          "    const ServerFailure('Missing __typename in union result'),",
+          "    AppFailure.network(message: 'Missing __typename in union result'),",
         ),
         cb.Code('  );'),
         cb.Code('}'),

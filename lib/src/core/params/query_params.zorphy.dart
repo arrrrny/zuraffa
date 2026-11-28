@@ -1,103 +1,32 @@
-// dart format width=80
-// ignore_for_file: UNNECESSARY_CAST
-// ignore_for_file: type=lint
-
 part of 'query_params.dart';
 
-// **************************************************************************
-// ZorphyGenerator
-// **************************************************************************
+// ignore_for_file: UNNECESSARY_CAST
+// ignore_for_file: type=lint
+final class _ZorphyCopyWithSentinel {
+  const _ZorphyCopyWithSentinel();
+}
 
-@JsonSerializable(
-  explicitToJson: true,
-  checked: true,
-  genericArgumentFactories: true,
-)
-class QueryParams<T> extends Params {
-  const QueryParams({Map<String, dynamic>? this.params, Filter<T>? this.filter})
-    : super();
+const Object _sentinel = _ZorphyCopyWithSentinel();
 
-  factory QueryParams.fromJson(
-    Map<String, dynamic> json,
-    T Function(Object? json) fromJsonT,
-  ) {
-    final instance = _$QueryParamsFromJson(json, fromJsonT);
-    return QueryParams(
-      params: instance.params,
-      filter: json['filter'] != null
-          ? FilterConverter.fromJson(json['filter'] as Map<String, dynamic>)
-                as Filter<T>?
-          : null,
-    );
-  }
+final class QueryParams<T> implements ZorphyValueBase {
+  QueryParams.fromTrusted({this.filter, Map<String, dynamic>? params})
+    : params = params == null ? null : Map<String, dynamic>.of(params);
 
-  @override
+  final ZorphyFilter<T>? filter;
+
   final Map<String, dynamic>? params;
 
-  @JsonKey(
-    includeFromJson: false,
-    includeToJson: false,
-    toJson: FilterConverter.toJson,
-    fromJson: FilterConverter.fromJson,
-  )
-  final Filter<T>? filter;
-
-  QueryParams copyWith({Map<String, dynamic>? params, Filter<T>? filter}) {
-    return QueryParams(
-      params: params ?? this.params,
-      filter: filter ?? this.filter,
-    );
-  }
-
-  /// Returns a copy of this entity with [field] set to [value].
-  ///
-  /// Delegates to [copyWith]: the receiver is never mutated and a
-  /// null [value] keeps the current field value.
-  QueryParams copyWithField<TValue>(
-    Field<QueryParams<T>, TValue> field,
-    TValue value,
-  ) {
-    switch (field.name) {
-      case 'params':
-        return copyWith(params: value as Map<String, dynamic>?);
-      case 'filter':
-        return copyWith(filter: value as Filter<T>?);
-      default:
-        throw ArgumentError.value(
-          field.name,
-          'field',
-          'QueryParams has no settable field with this name',
-        );
-    }
-  }
-
-  QueryParams copyWithQueryParams({
-    Map<String, dynamic>? params,
-    Filter<T>? filter,
+  QueryParams<T> copyWith({
+    Object? filter = _sentinel,
+    Object? params = _sentinel,
   }) {
-    return copyWith(params: params, filter: filter);
-  }
-
-  QueryParams patchWithQueryParams([QueryParamsPatch? patchInput]) {
-    final _patcher = patchInput ?? QueryParamsPatch();
-    final _patchMap = _patcher.patchMap;
-    return QueryParams(
-      params: _patchMap.containsKey(QueryParams$.params)
-          ? ((_patchMap[QueryParams$.params] is Function)
-                    ? _patchMap[QueryParams$.params](this.params)
-                    : (_patchMap[QueryParams$.params] is Patch)
-                    ? _patchMap[QueryParams$.params].applyTo(this.params)
-                    : _patchMap[QueryParams$.params])
-                as Map<String, dynamic>?
-          : this.params,
-      filter: _patchMap.containsKey(QueryParams$.filter)
-          ? ((_patchMap[QueryParams$.filter] is Function)
-                    ? _patchMap[QueryParams$.filter](this.filter)
-                    : (_patchMap[QueryParams$.filter] is Patch)
-                    ? _patchMap[QueryParams$.filter].applyTo(this.filter)
-                    : _patchMap[QueryParams$.filter])
-                as Filter<T>?
-          : this.filter,
+    return QueryParams<T>.fromTrusted(
+      filter: identical(filter, _sentinel)
+          ? this.filter
+          : filter as ZorphyFilter<T>?,
+      params: identical(params, _sentinel)
+          ? this.params
+          : params as Map<String, dynamic>?,
     );
   }
 
@@ -105,91 +34,146 @@ class QueryParams<T> extends Params {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is QueryParams &&
-        params == other.params &&
-        filter == other.filter;
+        this.filter == other.filter &&
+        QueryParams._zorphyCollectionEquals(this.params, other.params);
   }
 
   @override
-  int get hashCode {
-    return Object.hash(this.params, this.filter);
-  }
+  int get hashCode =>
+      Object.hashAll([filter, QueryParams._zorphyCollectionHash(params)]);
 
   @override
-  String toString() {
-    return 'QueryParams(' + 'params: ${params}' + ', ' + 'filter: ${filter})';
-  }
-}
+  String toString() => 'QueryParams(filter: $filter, params: $params)';
 
-extension QueryParamsPropertyHelpers<T> on QueryParams<T> {
-  bool get hasFilter {
-    return this.filter != null;
-  }
-
-  bool get noFilter {
-    return this.filter == null;
-  }
-
-  Filter<T> get filterRequired {
-    return this.filter ?? (throw StateError('filter is required but was null'));
-  }
-}
-
-extension QueryParamsSerialization<T> on QueryParams<T> {
-  Map<String, dynamic> toJson(Object? Function(T value) toJsonT) {
-    final data = _$QueryParamsToJson(this, toJsonT);
-    if (filter != null) data['filter'] = FilterConverter.toJson(filter!);
-    return data;
-  }
-}
-
-enum QueryParams$ { params, filter }
-
-class QueryParamsPatch extends PatchBase<QueryParams, QueryParams$> {
-  QueryParams applyTo(QueryParams entity) {
-    return entity.patchWithQueryParams(this);
-  }
-
-  QueryParamsPatch withParams(Map<String, dynamic>? value) {
-    patchMap[QueryParams$.params] = value;
-    return this;
-  }
-
-  QueryParamsPatch withFilter(dynamic value) {
-    patchMap[QueryParams$.filter] = value;
-    return this;
-  }
-}
-
-/// Field descriptors for [QueryParams] query construction
-abstract final class QueryParamsFields<T> {
-  static Map<String, dynamic>? _$params<T>(QueryParams<T> e) {
-    return e.params;
-  }
-
-  static Field<QueryParams<T>, Map<String, dynamic>?> params<T>() {
-    return Field<QueryParams<T>, Map<String, dynamic>?>('params', _$params<T>);
-  }
-
-  static Filter<T>? _$filter<T>(QueryParams<T> e) {
-    return e.filter;
-  }
-
-  static Field<QueryParams<T>, Filter<T>?> filter<T>() {
-    return Field<QueryParams<T>, Filter<T>?>('filter', _$filter<T>);
-  }
-}
-
-extension QueryParamsCompareE on QueryParams {
-  Map<String, dynamic> compareToQueryParams(QueryParams other) {
-    final Map<String, dynamic> diff = {};
-
-    if (params != other.params) {
-      diff['params'] = () => other.params;
+  static bool _zorphyCollectionEquals(Object? a, Object? b) {
+    if (identical(a, b)) return true;
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) return false;
+      }
+      return true;
     }
-
-    if (filter != other.filter) {
-      diff['filter'] = () => other.filter;
+    if (a is Set && b is Set) {
+      if (a.length != b.length) return false;
+      return a.every(b.contains);
     }
-    return diff;
+    if (a is Map && b is Map) {
+      if (a.length != b.length) return false;
+      for (final entry in a.entries) {
+        if (!b.containsKey(entry.key) || b[entry.key] != entry.value) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
   }
+
+  static int _zorphyCollectionHash(Object? value) {
+    if (value is List) return Object.hashAll(value);
+    if (value is Set) {
+      return value.fold<int>(0, (hash, element) => hash + element.hashCode);
+    }
+    if (value is Map) {
+      return value.entries.fold<int>(
+        0,
+        (hash, entry) => hash + Object.hash(entry.key, entry.value),
+      );
+    }
+    return value.hashCode;
+  }
+
+  static ZorphyBoundaryResult<QueryParams<T>> fromWire<T>(
+    Map<String, Object?> raw,
+    ZorphyBoundaryResult<T> Function(Map<String, Object?> raw) decodeT,
+  ) {
+    final violations = <FieldViolation>[];
+    final Object? raw_filter = raw['filter'];
+    ZorphyFilter<T>? _filter;
+    if (raw_filter != null) {
+      _filter = _boundaryAs<ZorphyFilter<T>>(raw_filter, '/filter', violations);
+    }
+    final Object? raw_params = raw['params'];
+    Map<String, dynamic>? _params;
+    if (raw_params != null) {
+      final map_params = _boundaryObject(raw_params, '/params', violations);
+      if (map_params != null) {
+        final decoded_params = <String, dynamic>{};
+        for (final entry in map_params.entries) {
+          final path_params = '/params' + '/' + entry.key;
+          if (map_params[entry.key] == null) {
+            decoded_params[entry.key] = null;
+          } else {
+            final element_params = _boundaryAs<dynamic>(
+              map_params[entry.key],
+              path_params,
+              violations,
+            );
+            if (element_params != null) {
+              decoded_params[entry.key] = element_params;
+            }
+          }
+        }
+        _params = decoded_params;
+      }
+    }
+    if (violations.isNotEmpty) {
+      return BoundaryErr<QueryParams<T>>(
+        targetType: 'QueryParams',
+        violations: violations,
+      );
+    }
+    return BoundaryOk<QueryParams<T>>(
+      QueryParams.fromTrusted(filter: _filter, params: _params),
+    );
+  }
+
+  Map<String, Object?> toWire(Map<String, Object?> Function(T value) encodeT) {
+    final map = <String, Object?>{};
+    final _filter = this.filter;
+    if (_filter != null) {
+      map['filter'] = _filter;
+    }
+    final _params = this.params;
+    if (_params != null) {
+      map['params'] = _params;
+    }
+    return map;
+  }
+}
+
+String _boundaryDescribe(Object? value) {
+  if (value == null) return 'null';
+  final text = value.toString();
+  final clipped = text.length > 60 ? '${text.substring(0, 60)}…' : text;
+  return '${value.runtimeType} ("$clipped")';
+}
+
+T? _boundaryAs<T>(Object? value, String path, List<FieldViolation> violations) {
+  if (value is T) return value;
+  violations.add(
+    FieldViolation(
+      path: path,
+      expected: '$T',
+      actual: _boundaryDescribe(value),
+    ),
+  );
+  return null;
+}
+
+Map<String, Object?>? _boundaryObject(
+  Object? value,
+  String path,
+  List<FieldViolation> violations,
+) {
+  if (value is Map<String, Object?>) return value;
+  violations.add(
+    FieldViolation(
+      path: path,
+      expected: 'Map<String, Object?>',
+      actual: _boundaryDescribe(value),
+    ),
+  );
+  return null;
 }

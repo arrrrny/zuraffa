@@ -34,8 +34,10 @@ class TodoController extends ChangeNotifier {
     notifyListeners();
 
     final params = filter != null
-        ? ListQueryParams<Todo>(filter: Eq(TodoFields.priority, filter))
-        : const ListQueryParams<Todo>();
+        ? ListQueryParams<Todo>.fromTrusted(
+            filter: Eq(TodoFields.priority, filter),
+          )
+        : ListQueryParams<Todo>.fromTrusted();
 
     _subscription?.cancel();
     _subscription = _presenter.watchTodoList(params).listen((result) {
@@ -53,7 +55,7 @@ class TodoController extends ChangeNotifier {
     _state = _state.copyWith(isCreating: true);
     notifyListeners();
 
-    final todo = Todo(
+    final todo = Todo.fromTrusted(
       id: DateTime.now().millisecondsSinceEpoch,
       title: title.trim(),
       description: '',

@@ -54,18 +54,18 @@ dev_dependencies:
       final result = await const PubspecZuraffaEnsure().ensure(tmp.path);
 
       expect(result.added, isTrue);
-      expect(result.constraint, '^6.0.0');
+      expect(result.constraint, '^8.0.0');
       final content = readPubspec();
       expect(
         content,
-        contains('  zuraffa: ^6.0.0\n'),
+        contains('  zuraffa: ^8.0.0\n'),
         reason:
             'the declaration lands inside the dependencies block:\n'
             '$content',
       );
       // RUNTIME dependency — never dev_dependencies.
       final devIndex = content.indexOf('dev_dependencies:');
-      final zuraffaIndex = content.indexOf('zuraffa: ^6.0.0');
+      final zuraffaIndex = content.indexOf('zuraffa: ^8.0.0');
       expect(
         zuraffaIndex < devIndex,
         isTrue,
@@ -119,7 +119,7 @@ dev_dependencies:
           reason: 'blank lines between entries are preserved',
         );
         // The insertion sits before the next top-level key.
-        final insertion = content.indexOf('zuraffa: ^6.0.0');
+        final insertion = content.indexOf('zuraffa: ^8.0.0');
         final dev = content.indexOf('dev_dependencies:');
         expect(insertion, greaterThan(0));
         expect(insertion, lessThan(dev));
@@ -167,7 +167,7 @@ dependency_overrides:
       final depsIndex = content.indexOf('dependencies:');
       final zuraffaInDeps = content
           .substring(depsIndex, content.indexOf('dependency_overrides:'))
-          .contains('zuraffa: ^6.0.0');
+          .contains('zuraffa: ^8.0.0');
       expect(zuraffaInDeps, isTrue);
     });
 
@@ -204,7 +204,7 @@ dependencies:
       );
 
       expect(result.added, isTrue);
-      expect(readPubspec(), contains('zuraffa: ^6.0.0'));
+      expect(readPubspec(), contains('zuraffa: ^8.0.0'));
     });
 
     test('a missing dependencies section gets one appended', () async {
@@ -216,7 +216,7 @@ environment:
       final result = await const PubspecZuraffaEnsure().ensure(tmp.path);
 
       expect(result.added, isTrue);
-      expect(readPubspec(), contains('dependencies:\n  zuraffa: ^6.0.0\n'));
+      expect(readPubspec(), contains('dependencies:\n  zuraffa: ^8.0.0\n'));
     });
 
     test(
@@ -229,7 +229,7 @@ dependencies: {}
         final result = await const PubspecZuraffaEnsure().ensure(tmp.path);
 
         expect(result.added, isTrue);
-        expect(readPubspec(), contains('dependencies:\n  zuraffa: ^6.0.0\n'));
+        expect(readPubspec(), contains('dependencies:\n  zuraffa: ^8.0.0\n'));
       },
     );
   });
