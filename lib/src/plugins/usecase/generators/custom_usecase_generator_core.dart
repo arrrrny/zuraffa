@@ -8,9 +8,9 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
   ) {
     switch (config.useCaseType) {
       case 'stream':
-        return 'StreamUseCase<$returnsType, $paramsType>';
+        return 'WatchUseCase<WatchUseCaseIntent<$paramsType>, $returnsType>';
       case 'background':
-        return 'BackgroundUseCase<$returnsType, $paramsType>';
+        return 'UseCase<$returnsType, $paramsType>';
       case 'os_background':
         return 'OsBackgroundTaskUseCase<$returnsType>';
       case 'completable':

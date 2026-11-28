@@ -226,17 +226,29 @@ class CommonPatterns {
     if (await fs.exists(filePath)) {
       final content = await fs.read(filePath);
       final extendsMatch = RegExp(
-        r'extends (UseCase|StreamUseCase|CompletableUseCase|SyncUseCase)<(.+)>',
+        r'extends (UseCase|WatchUseCase|StreamUseCase|CompletableUseCase|SyncUseCase)\s*<',
       ).firstMatch(content);
       if (extendsMatch != null) {
         useCaseType = extendsMatch.group(1)?.toLowerCase();
-        final typesStr = extendsMatch.group(2);
+        final typesStr = _extractBalancedTypeArgs(content, extendsMatch.end);
         if (typesStr != null) {
           final types = _splitByComma(typesStr);
           if (useCaseType == 'completableusecase') {
             useCaseType = 'completable';
             paramsType = types[0];
             returnsType = 'void';
+          } else if (useCaseType == 'watchusecase') {
+            useCaseType = 'stream';
+            final watchParams = types.isNotEmpty ? types[0] : 'NoParams';
+            paramsType =
+                watchParams.startsWith('WatchUseCaseIntent<') &&
+                    watchParams.endsWith('>')
+                ? watchParams.substring(
+                    'WatchUseCaseIntent<'.length,
+                    watchParams.length - 1,
+                  )
+                : watchParams;
+            returnsType = types.length > 1 ? types[1] : 'void';
           } else if (types.isNotEmpty) {
             returnsType = types[0];
             paramsType = types.length > 1 ? types[1] : 'NoParams';
@@ -385,6 +397,17 @@ class CommonPatterns {
       }
     }
     return -1;
+  }
+
+  static String? _extractBalancedTypeArgs(String content, int start) {
+    var depth = 1;
+    for (var i = start; i < content.length; i++) {
+      final char = content[i];
+      if (char == '<') depth++;
+      if (char == '>') depth--;
+      if (depth == 0) return content.substring(start, i);
+    }
+    return null;
   }
 
   static List<String> _splitByComma(String input) {

@@ -67,20 +67,34 @@ class Get${_toPascal(entitySnake)}ListUseCase extends UseCase<List<${_toPascal(e
   Future<List<${_toPascal(entitySnake)}>> call(ListQueryParams<${_toPascal(entitySnake)}> params) async => [];
 }
 ''');
+
+    await File(
+      p.join(dir.path, 'watch_${entitySnake}_usecase.dart'),
+    ).writeAsString('''
+import 'package:zuraffa/zuraffa.dart';
+class Watch${_toPascal(entitySnake)}UseCase extends WatchUseCase<WatchUseCaseIntent<QueryParams<${_toPascal(entitySnake)}>>, ${_toPascal(entitySnake)}> {
+  Watch${_toPascal(entitySnake)}UseCase(super.source);
+  @override
+  Result<${_toPascal(entitySnake)}, AppFailure> read(WatchUseCaseIntent<QueryParams<${_toPascal(entitySnake)}>> intent, ZfaContext ctx) => throw UnimplementedError();
+  @override
+  Future<Result<${_toPascal(entitySnake)}, AppFailure>> execute(WatchUseCaseIntent<QueryParams<${_toPascal(entitySnake)}>> intent, ZfaContext ctx) async => throw UnimplementedError();
+}
+''');
   }
 
   group('UseCaseIntrospector — FR-004', () {
-    test('introspect fixture Listing entity → 4 use case records', () async {
+    test('introspect fixture Listing entity → 5 use case records', () async {
       await writeFixtureUseCases('listing');
       final introspector = UseCaseIntrospector(projectRoot: tmp.path);
       final results = await introspector.introspect('Listing');
-      expect(results.length, 4);
+      expect(results.length, 5);
 
       final classNames = results.map((m) => m.className).toSet();
       expect(classNames, contains('CreateListingUseCase'));
       expect(classNames, contains('GetListingUseCase'));
       expect(classNames, contains('DeleteListingUseCase'));
       expect(classNames, contains('GetListingListUseCase'));
+      expect(classNames, contains('WatchListingUseCase'));
 
       // Verb derivation.
       final byClass = {for (final m in results) m.className: m};
@@ -88,10 +102,16 @@ class Get${_toPascal(entitySnake)}ListUseCase extends UseCase<List<${_toPascal(e
       expect(byClass['GetListingUseCase']!.verb, 'get');
       expect(byClass['DeleteListingUseCase']!.verb, 'delete');
       expect(byClass['GetListingListUseCase']!.verb, 'list');
+      expect(byClass['WatchListingUseCase']!.verb, 'watch');
 
       // Return type extraction.
       expect(byClass['DeleteListingUseCase']!.returnType, 'bool');
       expect(byClass['GetListingListUseCase']!.returnType, 'List<Listing>');
+      expect(byClass['WatchListingUseCase']!.returnType, 'Listing');
+      expect(
+        byClass['WatchListingUseCase']!.paramsType,
+        'QueryParams<Listing>',
+      );
 
       // @AgentInternal detection.
       expect(byClass['DeleteListingUseCase']!.isAgentInternal, isTrue);

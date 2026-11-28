@@ -22,9 +22,9 @@ import 'src/core/module/contracts.dart';
 /// in Flutter applications:
 
 ///
-/// - **StreamUseCase**: Reactive operations that emit multiple values over time
+/// - **WatchUseCase**: Reactive operations exposed as an owner-bound signal
 /// - **SyncUseCase**: Synchronous operations that return immediately without async
-/// - **BackgroundUseCase**: CPU-intensive operations that run on a separate isolate
+/// - **UseCase**: Single-shot asynchronous operations
 /// - **OsBackgroundTask**: OS-scheduled periodic background tasks via workmanager
 /// - **Controller**: Manages UI state and coordinates with UseCases
 /// - **Presenter**: Optional orchestration layer for complex business flows
@@ -313,6 +313,14 @@ export 'src/domain/usecase.dart';
 
 /// SyncUseCase for synchronous operations
 export 'src/domain/sync_usecase.dart';
+
+/// WatchUseCase for owner-bound reactive operations
+export 'src/core/usecase/watch_usecase.dart' show WatchUseCase;
+export 'src/core/usecase/watch_usecase_intent.dart' show WatchUseCaseIntent;
+
+/// Signals returned by WatchUseCase
+export 'src/core/signals/zfa_signal.dart'
+    show ZfaReadonlySignal, ZfaSignal, ZfaSignalSubscription;
 
 /// OsBackgroundTask for OS-scheduled background tasks wrapping workmanager
 export 'src/domain/os_background_task.dart';

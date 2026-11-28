@@ -7,9 +7,6 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
     String returnsType,
     List<Field> dependencyFields,
   ) {
-    if (config.useCaseType == 'background') {
-      return _buildBackgroundMethods(paramsType, returnsType);
-    }
     final methodName = config.hasService
         ? config.getServiceMethodName()
         : config.getRepoMethodName();
@@ -27,48 +24,22 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
         : '';
 
     if (config.useCaseType == 'stream') {
-      final executeBody = depField.isEmpty
-          ? Block(
-              (b) => b
-                ..statements.add(Code('// TODO: Implement usecase logic'))
-                ..statements.add(
-                  refer('UnimplementedError').call([]).thrown.statement,
-                ),
-            )
+      final dependencyCall = depField.isEmpty
+          ? null
           : refer(depField)
                 .property(methodName)
                 .call(
                   config.hasMultipleParams
                       ? config.multipleParams
-                            .map((p) => refer('params').property(p.name))
+                            .map(
+                              (p) => refer(
+                                'intent',
+                              ).property('params').property(p.name),
+                            )
                             .toList()
-                      : [refer('params')],
-                )
-                .code;
-      return [
-        Method(
-          (b) => b
-            ..name = 'execute'
-            ..returns = refer('Stream<$returnsType>')
-            ..requiredParameters.add(
-              Parameter(
-                (p) => p
-                  ..name = 'params'
-                  ..type = refer(paramsType),
-              ),
-            )
-            ..optionalParameters.add(
-              Parameter(
-                (p) => p
-                  ..name = 'cancelToken'
-                  ..type = refer('CancelToken?'),
-              ),
-            )
-            ..annotations.add(CodeExpression(Code('override')))
-            ..lambda = depField.isNotEmpty
-            ..body = executeBody,
-        ),
-      ];
+                      : [refer('intent').property('params')],
+                );
+      return _buildWatchMethods(paramsType, returnsType, dependencyCall);
     }
 
     if (config.useCaseType == 'sync') {
@@ -164,136 +135,104 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
     ];
   }
 
-  List<Method> _buildBackgroundMethods(String paramsType, String returnsType) {
-    final buildTask = Method(
+  List<Method> _buildWatchMethods(
+    String paramsType,
+    String returnsType,
+    Expression? dependencyCall,
+  ) {
+    final intentType = 'WatchUseCaseIntent<$paramsType>';
+    final resultType = TypeReference(
+      (t) => t
+        ..symbol = 'Result'
+        ..types.addAll([refer(returnsType), refer('AppFailure')]),
+    );
+    final readMethod = Method(
       (b) => b
-        ..name = 'buildTask'
-        ..returns = refer('BackgroundTask<$paramsType>')
+        ..name = 'read'
+        ..returns = resultType
+        ..requiredParameters.addAll([
+          Parameter(
+            (p) => p
+              ..name = 'intent'
+              ..type = refer(intentType),
+          ),
+          Parameter(
+            (p) => p
+              ..name = 'ctx'
+              ..type = refer('ZfaContext'),
+          ),
+        ])
         ..annotations.add(CodeExpression(Code('override')))
         ..body = Block(
-          (bb) => bb..statements.add(refer('_process').returned.statement),
-        ),
-    );
-
-    final processMethod = Method(
-      (b) => b
-        ..name = '_process'
-        ..static = true
-        ..returns = refer('void')
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'context'
-              ..type = refer('BackgroundTaskContext<$paramsType>'),
-          ),
-        )
-        ..body = Block(
           (bb) => bb
             ..statements.add(
-              declareFinal(
-                'params',
-              ).assign(refer('context').property('params')).statement,
-            )
-            ..statements.add(
-              refer('Future')
-                  .property('sync')
-                  .call([
-                    Method(
-                      (m) => m
-                        ..lambda = true
-                        ..body = refer(
-                          'processData',
-                        ).call([refer('params')]).code,
-                    ).closure,
-                  ])
-                  .property('then')
-                  .call([
-                    Method(
-                      (m) => m
-                        ..requiredParameters.add(
-                          Parameter((p) => p..name = 'result'),
-                        )
-                        ..body = Block(
-                          (bbb) => bbb
-                            ..statements.add(
-                              refer('context').property('sendData').call([
-                                refer('result'),
-                              ]).statement,
-                            )
-                            ..statements.add(
-                              refer(
-                                'context',
-                              ).property('sendDone').call([]).statement,
-                            ),
-                        ),
-                    ).closure,
-                  ])
-                  .property('catchError')
-                  .call([
-                    Method(
-                      (m) => m
-                        ..requiredParameters.addAll([
-                          Parameter((p) => p..name = 'error'),
-                          Parameter((p) => p..name = 'stackTrace'),
-                        ])
-                        ..body = Block(
-                          (bbb) => bbb
-                            ..statements.add(
-                              refer('context').property('sendError').call([
-                                refer('error'),
-                                refer('stackTrace'),
-                              ]).statement,
-                            ),
-                        ),
-                    ).closure,
-                  ])
-                  .statement,
+              refer(
+                'UnimplementedError',
+              ).call([literalString('Implement read')]).thrown.statement,
             ),
         ),
     );
-
-    final processData = Method(
+    final executeBody = Block((b) {
+      b.statements.add(
+        refer('ctx').property('throwIfCancelled').call([]).statement,
+      );
+      if (dependencyCall == null) {
+        b.statements.add(
+          refer(
+            'UnimplementedError',
+          ).call([literalString('Implement execute')]).thrown.statement,
+        );
+      } else {
+        b.statements.add(
+          refer('Result')
+              .property('success')
+              .call([dependencyCall.property('first').awaited])
+              .returned
+              .statement,
+        );
+      }
+    });
+    final executeMethod = Method(
       (b) => b
-        ..name = 'processData'
-        ..static = true
-        ..returns = refer(returnsType)
-        ..requiredParameters.add(
+        ..name = 'execute'
+        ..returns = TypeReference(
+          (t) => t
+            ..symbol = 'Future'
+            ..types.add(resultType),
+        )
+        ..modifier = MethodModifier.async
+        ..requiredParameters.addAll([
           Parameter(
             (p) => p
-              ..name = 'params'
-              ..type = refer(paramsType),
+              ..name = 'intent'
+              ..type = refer(intentType),
           ),
-        )
-        ..body = Block(
-          (bb) => bb
-            ..statements.add(
-              refer('UnimplementedError')
-                  .call([
-                    literalString('Implement your background processing logic'),
-                  ])
-                  .thrown
-                  .statement,
-            ),
-        ),
+          Parameter(
+            (p) => p
+              ..name = 'ctx'
+              ..type = refer('ZfaContext'),
+          ),
+        ])
+        ..annotations.add(CodeExpression(Code('override')))
+        ..body = executeBody,
     );
-
-    return [buildTask, processMethod, processData];
+    return [readMethod, executeMethod];
   }
 
-  Method _buildOrchestratorExecute(
+  List<Method> _buildOrchestratorExecute(
     GeneratorConfig config,
     String paramsType,
     String returnsType,
   ) {
-    final signature = config.useCaseType == 'stream'
-        ? 'Stream<$returnsType>'
-        : config.useCaseType == 'completable'
+    if (config.useCaseType == 'stream') {
+      return _buildWatchMethods(paramsType, returnsType, null);
+    }
+    final signature = config.useCaseType == 'completable'
         ? 'Future<void>'
         : config.useCaseType == 'sync'
         ? returnsType
         : 'Future<$returnsType>';
-    final isAsync =
-        config.useCaseType != 'sync' && config.useCaseType != 'stream';
+    final isAsync = config.useCaseType != 'sync';
     final executeBody = Block((b) {
       if (config.useCaseType == 'sync') {
         b.statements.add(Code('// TODO: Implement orchestration logic'));
@@ -315,47 +254,49 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
       }
     });
 
-    return Method((b) {
-      b
-        ..name = 'execute'
-        ..returns = refer(signature)
-        ..modifier = isAsync ? MethodModifier.async : null
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'params'
-              ..type = refer(paramsType),
-          ),
-        )
-        ..annotations.add(CodeExpression(Code('override')))
-        ..body = executeBody;
-      if (config.useCaseType != 'sync') {
-        b.optionalParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'cancelToken'
-              ..type = refer('CancelToken?'),
-          ),
-        );
-      }
-    });
+    return [
+      Method((b) {
+        b
+          ..name = 'execute'
+          ..returns = refer(signature)
+          ..modifier = isAsync ? MethodModifier.async : null
+          ..requiredParameters.add(
+            Parameter(
+              (p) => p
+                ..name = 'params'
+                ..type = refer(paramsType),
+            ),
+          )
+          ..annotations.add(CodeExpression(Code('override')))
+          ..body = executeBody;
+        if (config.useCaseType != 'sync') {
+          b.optionalParameters.add(
+            Parameter(
+              (p) => p
+                ..name = 'cancelToken'
+                ..type = refer('CancelToken?'),
+            ),
+          );
+        }
+      }),
+    ];
   }
 
-  Method _buildPolymorphicExecute(
+  List<Method> _buildPolymorphicExecute(
     GeneratorConfig config,
     String paramsType,
     String returnsType,
     String variant,
   ) {
-    final signature = config.useCaseType == 'stream'
-        ? 'Stream<$returnsType>'
-        : config.useCaseType == 'completable'
+    if (config.useCaseType == 'stream') {
+      return _buildWatchMethods(paramsType, returnsType, null);
+    }
+    final signature = config.useCaseType == 'completable'
         ? 'Future<void>'
         : config.useCaseType == 'sync'
         ? returnsType
         : 'Future<$returnsType>';
-    final isAsync =
-        config.useCaseType != 'sync' && config.useCaseType != 'stream';
+    final isAsync = config.useCaseType != 'sync';
     final executeBody = Block((b) {
       if (config.useCaseType == 'sync') {
         b.statements.add(Code('// TODO: Implement $variant variant'));
@@ -377,30 +318,32 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
       }
     });
 
-    return Method((b) {
-      b
-        ..name = 'execute'
-        ..returns = refer(signature)
-        ..modifier = isAsync ? MethodModifier.async : null
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'params'
-              ..type = refer(paramsType),
-          ),
-        )
-        ..annotations.add(CodeExpression(Code('override')))
-        ..body = executeBody;
-      if (config.useCaseType != 'sync') {
-        b.optionalParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'cancelToken'
-              ..type = refer('CancelToken?'),
-          ),
-        );
-      }
-    });
+    return [
+      Method((b) {
+        b
+          ..name = 'execute'
+          ..returns = refer(signature)
+          ..modifier = isAsync ? MethodModifier.async : null
+          ..requiredParameters.add(
+            Parameter(
+              (p) => p
+                ..name = 'params'
+                ..type = refer(paramsType),
+            ),
+          )
+          ..annotations.add(CodeExpression(Code('override')))
+          ..body = executeBody;
+        if (config.useCaseType != 'sync') {
+          b.optionalParameters.add(
+            Parameter(
+              (p) => p
+                ..name = 'cancelToken'
+                ..type = refer('CancelToken?'),
+            ),
+          );
+        }
+      }),
+    ];
   }
 
   _FactoryClassParts _buildPolymorphicFactory(

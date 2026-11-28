@@ -31,7 +31,7 @@ import 'cancel_token.dart';
 /// ## Usage with use cases
 ///
 /// ```dart
-/// class GetUrlListingUseCase extends StreamUseCase<UrlListing, UrlSpark> {
+/// class GetUrlListingUseCase extends WatchUseCase<UrlSpark, UrlListing> {
 ///   final ListingService _service;
 ///   final FetchStrategy<UrlSpark, Listing> _strategy;
 ///

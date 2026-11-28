@@ -25,14 +25,19 @@ class _UseCaseDescriptor {
   /// camelCase method name derived from class name, e.g. `getProduct`
   final String methodName;
 
-  /// The type parameter T from `extends UseCase<T, P>` or `StreamUseCase<T,P>`
+  /// The result type from `extends UseCase<T, P>` or
+  /// `WatchUseCase<WatchUseCaseIntent<P>, T>`.
   final String returnType;
 
-  /// The type parameter P (params type)
+  /// The params type from the second argument of `UseCase<T, P>` or the
+  /// `WatchUseCaseIntent<P>` argument of `WatchUseCase`.
   final String paramsType;
 
-  /// True when extends `StreamUseCase`
+  /// True when the use case exposes reactive values.
   final bool isStream;
+
+  /// True when the reactive use case extends `WatchUseCase`.
+  final bool isWatch;
 
   /// True when the params type has a Zorphy entity directory
   /// (i.e. `fromJson` is available for JSON deserialization).
@@ -44,6 +49,7 @@ class _UseCaseDescriptor {
     required this.returnType,
     required this.paramsType,
     required this.isStream,
+    required this.isWatch,
     required this.hasFromJson,
   });
 }
@@ -87,7 +93,7 @@ class ApiBridgeBuilder {
       print(
         '⚠️  No UseCases found for $entityName in '
         'lib/src/domain/usecases/$entitySnake/. '
-        'Ensure UseCases extend UseCase<T,P> or StreamUseCase<T,P>.',
+        'Ensure UseCases extend UseCase<T,P> or WatchUseCase<P,T>.',
       );
       return [];
     }
@@ -235,6 +241,14 @@ class ApiBridgeBuilder {
     return type.substring(firstOpen + 1, lastClose).trim();
   }
 
+  String _unwrapWatchIntent(String type) {
+    const prefix = 'WatchUseCaseIntent<';
+    if (type.startsWith(prefix) && type.endsWith('>')) {
+      return type.substring(prefix.length, type.length - 1).trim();
+    }
+    return type;
+  }
+
   // ---------------------------------------------------------------------------
   // Discovery
   // ---------------------------------------------------------------------------
@@ -282,27 +296,31 @@ class ApiBridgeBuilder {
   /// Parse a single UseCase file and return its descriptor, or null if not a UseCase.
   _UseCaseDescriptor? _parseUseCaseFile(String content) {
     // Match: class FooUseCase extends UseCase<ReturnType, ParamsType> {
-    //    or: class WatchFooUseCase extends StreamUseCase<ReturnType, ParamsType> {
+    //    or: class WatchFooUseCase extends WatchUseCase<ParamsType, ReturnType> {
     // The type-argument list is captured whole and split at the top-level
     // comma so nested generics survive intact:
     // `UseCase<List<Product>, UpdateParams<String, ProductPatch>>` must yield
     // `List<Product>` and `UpdateParams<String, ProductPatch>`, not truncated
     // fragments that would produce uncompilable bridges.
     final re = RegExp(
-      r'class\s+(\w+UseCase)\s+extends\s+(StreamUseCase|UseCase)<(.+)>\s*\{',
+      r'class\s+(\w+UseCase)\s+extends\s+(WatchUseCase|StreamUseCase|UseCase)\s*<',
     );
     final match = re.firstMatch(content);
     if (match == null) return null;
 
-    final typeArgs = match.group(3)!;
+    final typeArgs = _extractBalancedTypeArgs(content, match.end);
+    if (typeArgs == null) return null;
     final comma = _topLevelComma(typeArgs);
     if (comma == -1) return null;
 
     final className = match.group(1)!.trim();
     final baseClass = match.group(2)!.trim();
-    final returnType = typeArgs.substring(0, comma).trim();
-    final paramsType = typeArgs.substring(comma + 1).trim();
-    final isStream = baseClass == 'StreamUseCase';
+    final firstType = typeArgs.substring(0, comma).trim();
+    final secondType = typeArgs.substring(comma + 1).trim();
+    final isWatch = baseClass == 'WatchUseCase';
+    final returnType = isWatch ? secondType : firstType;
+    final paramsType = isWatch ? _unwrapWatchIntent(firstType) : secondType;
+    final isStream = baseClass != 'UseCase';
 
     // Convert `GetProductUseCase` → `getProduct`
     final methodName = _classNameToMethodName(className);
@@ -313,8 +331,20 @@ class ApiBridgeBuilder {
       returnType: returnType,
       paramsType: paramsType,
       isStream: isStream,
+      isWatch: isWatch,
       hasFromJson: _paramsTypeHasFromJson(paramsType),
     );
+  }
+
+  String? _extractBalancedTypeArgs(String content, int start) {
+    var depth = 1;
+    for (var i = start; i < content.length; i++) {
+      final char = content[i];
+      if (char == '<') depth++;
+      if (char == '>') depth--;
+      if (depth == 0) return content.substring(start, i);
+    }
+    return null;
   }
 
   /// Index of the first comma at generic nesting depth 0 in [s], or -1.
@@ -653,7 +683,7 @@ class ApiBridgeBuilder {
         '${_generateToJsonHelper(uc)}';
   }
 
-  /// Handler for StreamUseCase — subscribe/poll/cancel pattern.
+  /// Handler for reactive use cases — subscribe/poll/cancel pattern.
   String _generateStreamHandler(
     _UseCaseDescriptor uc,
     String handlerName,
@@ -682,7 +712,27 @@ class ApiBridgeBuilder {
     }
 
     tryStmts.add(
-      Code("""
+      Code(
+        uc.isWatch
+            ? """
+    final useCase = getIt<${uc.className}>();
+    final intent = WatchUseCaseIntent<${uc.paramsType}>(params);
+    final signal = useCase.watch(intent, ZfaContext.root(), owner: useCase);
+    final subscriptionId = ZuraffaApiBridge.generateSubscriptionId();
+
+    // Subscribe and cache each signal Result value for polling.
+    ZuraffaApiBridge.registerSignalSubscription(subscriptionId, signal, (result) {
+      final serialized = result.fold(
+        (v) => <String, dynamic>{'status': 'success', 'data': _toJsonFor${_capitalize(uc.methodName)}(v)},
+        (f) => <String, dynamic>{'status': 'error', 'failure': {'type': f.runtimeType.toString(), 'message': f.message}},
+      );
+      ZuraffaApiBridge.updateStreamValue(subscriptionId, serialized);
+    });
+
+    return developer.ServiceExtensionResponse.result(
+      jsonEncode({'status': 'streaming', 'subscriptionId': subscriptionId}),
+    );"""
+            : """
     final useCase = getIt<${uc.className}>();
     final stream = useCase(params);
     final subscriptionId = ZuraffaApiBridge.generateSubscriptionId();
@@ -707,7 +757,8 @@ class ApiBridgeBuilder {
 
     return developer.ServiceExtensionResponse.result(
       jsonEncode({'status': 'streaming', 'subscriptionId': subscriptionId}),
-    );"""),
+    );""",
+      ),
     );
 
     return '${_emitHandler(handlerName, _handlerBlock(method, tryStmts))}\n'

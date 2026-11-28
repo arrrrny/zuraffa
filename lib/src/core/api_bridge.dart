@@ -9,24 +9,22 @@ import 'package:uuid/uuid.dart';
 import 'api_endpoint.dart';
 import 'failure.dart';
 import 'result.dart';
+import 'signals/zfa_signal.dart';
 import 'zuraffa_bridge_facade.dart';
 
 // ---------------------------------------------------------------------------
-// Private stream record — holds both the subscription and the latest value.
-//
-// WHY: _handlePollStream needs two things simultaneously: the StreamSubscription
-// (to cancel) and the last emitted value (to return to the caller). A plain
-// Map<String, StreamSubscription> can store only one of these. _StreamRecord
-// holds both in one slot without a Tuple dependency.
+// Private subscription record — holds the cancel handle and latest value.
+// Streams and signals share the poll/cancel lifecycle, so the record stores
+// one normalized async cancellation callback instead of either concrete type.
 // ---------------------------------------------------------------------------
 class _StreamRecord {
-  final StreamSubscription<dynamic> subscription;
+  final Future<void> Function() cancel;
 
-  /// The last value emitted by the stream, serialized to JSON-encodable form.
-  /// Null until the stream emits its first event.
+  /// The last value emitted by the stream or signal, serialized to JSON form.
+  /// Null until the subscription emits its first event.
   dynamic latestValue;
 
-  _StreamRecord(this.subscription);
+  _StreamRecord(this.cancel);
 }
 
 /// VM Service extension bridge for Zuraffa.
@@ -112,24 +110,34 @@ class ZuraffaApiBridge {
     developer.registerExtension(endpoint.method, handler);
   }
 
-  /// Register a StreamUseCase subscription so it can be polled and cancelled.
+  /// Register a stream subscription so it can be polled and cancelled.
   ///
-  /// Called from generated stream handlers. [onValue] is invoked each time
-  /// the stream emits, caching the value for later retrieval by `_pollStream`.
-  ///
-  /// Returns the generated [subscriptionId] so the generated handler can
-  /// include it in its initial response.
+  /// Called from generated legacy stream handlers. Returns [subscriptionId]
+  /// so the generated handler can include it in its initial response.
   static String registerStreamSubscription(
     String subscriptionId,
     StreamSubscription<dynamic> subscription,
     void Function(dynamic latestValue) onValue,
   ) {
-    final record = _StreamRecord(subscription);
-    _streamSubscriptions[subscriptionId] = record;
+    _streamSubscriptions[subscriptionId] = _StreamRecord(subscription.cancel);
+    return subscriptionId;
+  }
 
-    // Wrap onValue so _StreamRecord.latestValue stays current.
-    // The generated handler's listen() callback should call onValue(value)
-    // after updating latestValue.  We store the record here.
+  /// Register a WatchUseCase signal subscription for polling and cancellation.
+  ///
+  /// The record is installed before [signal.listen] because signal listeners
+  /// receive the current value synchronously.
+  static String registerSignalSubscription(
+    String subscriptionId,
+    ZfaSignal<dynamic> signal,
+    void Function(dynamic value) onValue,
+  ) {
+    ZfaSignalSubscription? subscription;
+    _streamSubscriptions[subscriptionId] = _StreamRecord(() async {
+      subscription?.cancel();
+      signal.dispose();
+    });
+    subscription = signal.listen(onValue);
     return subscriptionId;
   }
 
@@ -204,7 +212,7 @@ class ZuraffaApiBridge {
     Map<String, String> parameters,
   ) => _handleList(method, parameters);
 
-  /// Poll the latest value emitted by a StreamUseCase subscription.
+  /// Poll the latest value emitted by a stream or signal subscription.
   ///
   /// Exposed as `ext.zuraffa._pollStream`.
   ///
@@ -245,7 +253,7 @@ class ZuraffaApiBridge {
     return developer.ServiceExtensionResponse.result(jsonEncode(latest));
   }
 
-  /// Cancel a StreamUseCase subscription and remove it from the registry.
+  /// Cancel a stream or signal subscription and remove it from the registry.
   ///
   /// Exposed as `ext.zuraffa._cancelStream`.
   @visibleForTesting
@@ -264,7 +272,7 @@ class ZuraffaApiBridge {
     }
 
     final record = _streamSubscriptions.remove(subscriptionId);
-    await record?.subscription.cancel();
+    await record?.cancel();
 
     return developer.ServiceExtensionResponse.result(
       jsonEncode({'status': 'cancelled'}),
@@ -303,7 +311,7 @@ class ZuraffaApiBridge {
   @visibleForTesting
   static Future<void> resetForTesting() async {
     for (final record in _streamSubscriptions.values) {
-      await record.subscription.cancel();
+      await record.cancel();
     }
     _streamSubscriptions.clear();
     _endpoints.clear();

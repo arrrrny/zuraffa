@@ -518,7 +518,7 @@ class UseCaseCreateCommand extends Command<void> {
     for (final raw in block['methods'] as List) {
       final method = raw as Map<String, dynamic>;
       final variantDisplay = method['variant'] == 'stream'
-          ? 'Stream<${method['resultType']}>'
+          ? 'Future<Result<${method['resultType']}, AppFailure>>'
           : method['variant'] == 'void'
           ? 'Future<void>'
           : 'Future<${method['resultType']}>';

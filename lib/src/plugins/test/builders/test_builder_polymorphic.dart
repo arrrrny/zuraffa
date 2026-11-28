@@ -129,20 +129,36 @@ extension TestBuilderPolymorphic on TestBuilder {
               final testBody = Block((t) {
                 if (config.useCaseType == 'stream') {
                   t.statements.add(
-                    declareFinal(
-                      'result',
-                    ).assign(refer('useCase').call([callArgs])).statement,
+                    declareFinal('result')
+                        .assign(
+                          refer('useCase')
+                              .property('watch')
+                              .call(
+                                [
+                                  refer(
+                                    'WatchUseCaseIntent<${config.paramsType ?? 'NoParams'}>',
+                                  ).call([callArgs]),
+                                  refer('ZfaContext').property('root').call([]),
+                                ],
+                                {'owner': refer('useCase')},
+                              ),
+                        )
+                        .statement,
                   );
                   t.statements.add(
-                    refer('expectLater')
-                        .call([
-                          refer('result'),
-                          refer('emits').call([
-                            refer('isA').call([], {}, [refer('Success')]),
-                          ]),
-                        ])
-                        .awaited
-                        .statement,
+                    refer('expect').call([
+                      CodeExpression(
+                        Code(
+                          'result.value.isSuccess || result.value.isFailure',
+                        ),
+                      ),
+                      literalBool(true),
+                    ]).statement,
+                  );
+                  t.statements.add(
+                    refer(
+                      'addTearDown',
+                    ).call([refer('result').property('dispose')]).statement,
                   );
                 } else {
                   t.statements.add(
@@ -163,7 +179,7 @@ extension TestBuilderPolymorphic on TestBuilder {
                 refer('test').call([
                   literalString(
                     config.useCaseType == 'stream'
-                        ? 'should emit values from stream'
+                        ? 'should expose a watch signal'
                         : 'should return Success',
                   ),
                   testBody.toClosure(asAsync: true),

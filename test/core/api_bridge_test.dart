@@ -6,6 +6,7 @@ import 'package:zuraffa/src/core/api_bridge.dart';
 import 'package:zuraffa/src/core/api_endpoint.dart';
 import 'package:zuraffa/src/core/failure.dart';
 import 'package:zuraffa/src/core/result.dart';
+import 'package:zuraffa/src/core/signals/zfa_signal.dart';
 
 void main() {
   setUp(() async {
@@ -232,6 +233,45 @@ void main() {
 
       await controller.close();
     });
+
+    test(
+      'registerSignalSubscription stores and cancels a signal listener',
+      () async {
+        final signal = ZfaSignal<int>(1);
+        var notifications = 0;
+
+        final id = ZuraffaApiBridge.registerSignalSubscription(
+          'signal-1',
+          signal,
+          (value) {
+            notifications++;
+            ZuraffaApiBridge.updateStreamValue('signal-1', {'value': value});
+          },
+        );
+        expect(id, 'signal-1');
+
+        final initialPoll = await ZuraffaApiBridge.handlePollStream(
+          'ext.zuraffa._pollStream',
+          {'subscriptionId': 'signal-1'},
+        );
+        expect(jsonDecode(initialPoll.result!)['value'], 1);
+        expect(notifications, 1);
+
+        signal.value = 2;
+        final poll = await ZuraffaApiBridge.handlePollStream(
+          'ext.zuraffa._pollStream',
+          {'subscriptionId': 'signal-1'},
+        );
+        expect(jsonDecode(poll.result!)['value'], 2);
+        expect(notifications, 2);
+
+        await ZuraffaApiBridge.handleCancelStream('ext.zuraffa._cancelStream', {
+          'subscriptionId': 'signal-1',
+        });
+        expect(signal.isDisposed, isTrue);
+        expect(notifications, 2);
+      },
+    );
 
     test('pollStream returns pending before first emission', () async {
       final controller = StreamController<int>.broadcast();
