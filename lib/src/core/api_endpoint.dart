@@ -18,7 +18,7 @@ class ApiEndpoint {
   /// Return type name: e.g. `Product` or `List<Product>`
   final String returns;
 
-  /// True when the UseCase extends StreamUseCase.
+  /// True when the UseCase exposes reactive values.
   final bool isStream;
 
   const ApiEndpoint({

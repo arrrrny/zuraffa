@@ -7,16 +7,6 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
     String returnsType,
     List<Field> dependencyFields,
   ) {
-    if (config.useCaseType == 'background') {
-      final buildTaskSource =
-          '@override\nBackgroundTask<$paramsType> buildTask() { return _process; }';
-      final processSource =
-          'static void _process(BackgroundTaskContext<$paramsType> context) {\n  try {\n    final params = context.params;\n    final result = processData(params);\n    context.sendData(result);\n    context.sendDone();\n  } catch (e, stackTrace) {\n    context.sendError(e, stackTrace);\n  }\n}';
-      final processDataSource =
-          'static $returnsType processData($paramsType params) {\n  // TODO: Implement your background processing logic\n  throw UnimplementedError(\'Implement your background processing logic\');\n}';
-      return [buildTaskSource, processSource, processDataSource];
-    }
-
     final methodName = config.hasService
         ? config.getServiceMethodName()
         : config.getRepoMethodName();
@@ -25,12 +15,30 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
         : '';
 
     if (config.useCaseType == 'stream') {
-      final body = depField.isEmpty
-          ? '// TODO: Implement logic\n  throw UnimplementedError();'
-          : 'return $depField.$methodName(${config.hasMultipleParams ? config.multipleParams.map((p) => 'params.${p.name}').join(', ') : 'params'});';
-      return [
-        '@override\nStream<$returnsType> execute($paramsType params, CancelToken? cancelToken) {\n  $body\n}',
-      ];
+      final dependencyCall = depField.isEmpty
+          ? null
+          : refer(depField)
+                .property(methodName)
+                .call(
+                  config.hasMultipleParams
+                      ? config.multipleParams
+                            .map(
+                              (p) => refer(
+                                'intent',
+                              ).property('params').property(p.name),
+                            )
+                            .toList()
+                      : [refer('intent').property('params')],
+                );
+      return _buildWatchMethods(paramsType, returnsType, dependencyCall).map((
+        method,
+      ) {
+        return method
+            .accept(
+              DartEmitter(orderDirectives: true, useNullSafetySyntax: true),
+            )
+            .toString();
+      }).toList();
     }
 
     if (config.useCaseType == 'sync') {

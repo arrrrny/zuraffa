@@ -2,7 +2,7 @@
 ///
 /// The generator emits Dart source files declaring:
 /// * `<Entity>ListScreen` — a list screen bound to the entity's
-///   `getList` use case via [StreamUseCaseBinding] (or [UseCaseResultBinding]
+///   `getList` use case via [WatchUseCaseBinding] (or [UseCaseResultBinding]
 ///   for one-shot reads).
 /// * `<Entity>DetailScreen` — a detail screen bound to the entity's `get`
 ///   use case via [UseCaseResultBinding].
@@ -69,7 +69,7 @@ class TuiUseCaseSpec {
   /// The use case's return type (e.g. `Product`, `List<Product>`).
   final String returnsType;
 
-  /// Whether the use case is a stream (StreamUseCase) or one-shot (UseCase).
+  /// Whether the use case is reactive (WatchUseCase) or one-shot (UseCase).
   final bool isStream;
 
   /// The params type, if any (e.g. `String` for `get(id: String)`).

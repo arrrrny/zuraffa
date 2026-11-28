@@ -262,7 +262,7 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         receiptEntries.add(
           _receiptEntry(
             name: config.useCaseType == 'stream'
-                ? 'should emit values from stream'
+                ? 'should expose a watch signal'
                 : 'should return Success',
             file: file,
             method: 'execute',
@@ -282,7 +282,7 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         receiptEntries.add(
           _receiptEntry(
             name: config.useCaseType == 'stream'
-                ? 'should emit values from stream'
+                ? 'should expose a watch signal'
                 : 'should return Success',
             file: file,
             method: 'execute',
@@ -628,7 +628,7 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   /// Determines the usecase flavor from the target class's `extends`
   /// superclass name — exact match, so `OsBackgroundTaskUseCase` never
-  /// trips the `BackgroundUseCase` branch the way a substring scan could.
+  /// trips the background branch the way a substring scan could.
   String _resolveUseCaseType(ast.CompilationUnit? unit, String className) {
     if (unit == null) return 'usecase';
     for (final declaration in unit.declarations) {
@@ -638,6 +638,7 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       if (superclass == null) return 'usecase';
       final superName = superclass.toSource().split('<').first.trim();
       return switch (superName) {
+        'WatchUseCase' => 'stream',
         'StreamUseCase' => 'stream',
         'SyncUseCase' => 'sync',
         'OsBackgroundTaskUseCase' => 'os_background',

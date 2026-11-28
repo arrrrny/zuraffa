@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:test/test.dart';
+import 'package:zuraffa/src/core/builder/patterns/common_patterns.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/usecase/usecase_plugin.dart';
@@ -44,6 +45,36 @@ void main() {
     expect(content.contains('QueryParams<Todo>'), isTrue);
     expect(content.contains('CancelToken?'), isTrue);
   });
+
+  test(
+    'parses formatted WatchUseCase output for DI and test consumers',
+    () async {
+      final file = File(
+        '$outputDir/domain/usecases/product/watch_product_usecase.dart',
+      );
+      await file.create(recursive: true);
+      await file.writeAsString('''
+class WatchProductUseCase extends WatchUseCase<
+  WatchUseCaseIntent<QueryParams<Product>>,
+  Product
+> {}
+''');
+
+      final info = await CommonPatterns.parseUseCaseInfo(
+        'WatchProduct',
+        GeneratorConfig(
+          name: 'Product',
+          domain: 'product',
+          outputDir: outputDir,
+        ),
+        outputDir,
+      );
+
+      expect(info.useCaseType, 'stream');
+      expect(info.paramsType, 'QueryParams<Product>');
+      expect(info.returnsType, 'Product');
+    },
+  );
 
   test('generates custom sync usecase with repo dependency', () async {
     final plugin = UseCasePlugin(
@@ -97,13 +128,110 @@ void main() {
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';
     expect(content.contains('class StreamUserUseCase'), isTrue);
-    expect(content.contains('StreamUseCase<User, UserParams>'), isTrue);
-    expect(content.contains('Stream<User> execute'), isTrue);
-    expect(content.contains('UserParams'), isTrue);
-    expect(content.contains('CancelToken?'), isTrue);
+    expect(
+      content.contains('WatchUseCase<WatchUseCaseIntent<UserParams>, User>'),
+      isTrue,
+    );
+    expect(content.contains('Result<User, AppFailure> read('), isTrue);
+    expect(
+      content.contains('Future<Result<User, AppFailure>> execute('),
+      isTrue,
+    );
+    expect(content.contains('WatchUseCaseIntent<UserParams> intent'), isTrue);
+    expect(content.contains('ZfaContext ctx'), isTrue);
+    expect(content.contains('CancelToken?'), isFalse);
     expect(content.contains('final UserService _userService;'), isTrue);
     expect(content.contains('StreamUserUseCase(this._userService);'), isTrue);
-    expect(content.contains('return _userService.streamUser(params);'), isTrue);
+    expect(
+      content.contains(
+        'return Result.success(await _userService.streamUser(intent.params).first);',
+      ),
+      isTrue,
+    );
+  });
+
+  test('generates custom background usecase with async UseCase base', () async {
+    final serviceDir = Directory('$outputDir/domain/services');
+    await serviceDir.create(recursive: true);
+    await File('${serviceDir.path}/user_service.dart').writeAsString(
+      'abstract class UserService {\n  Future<User> backgroundUser(UserParams params);\n}',
+    );
+    final plugin = UseCasePlugin(
+      outputDir: outputDir,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
+    );
+    final config = GeneratorConfig(
+      name: 'BackgroundUser',
+      service: 'User',
+      domain: 'user',
+      paramsType: 'UserParams',
+      returnsType: 'User',
+      useCaseType: 'background',
+      outputDir: outputDir,
+    );
+    final files = await plugin.generate(config);
+    final content = files.first.content ?? '';
+    expect(content.contains('class BackgroundUserUseCase'), isTrue);
+    expect(content.contains('UseCase<User, UserParams>'), isTrue);
+    expect(content.contains('Future<User> execute'), isTrue);
+    expect(content.contains('CancelToken?'), isTrue);
+    expect(content.contains('BackgroundUseCase'), isFalse);
+    expect(content.contains('BackgroundTask'), isFalse);
+    expect(
+      content.contains('return await _userService.backgroundUser(params);'),
+      isTrue,
+    );
+  });
+
+  test('appends background execute without retired task APIs', () async {
+    final serviceDir = Directory('$outputDir/domain/services');
+    await serviceDir.create(recursive: true);
+    await File('${serviceDir.path}/user_service.dart').writeAsString(
+      'abstract class UserService {\n  Future<User> backgroundUser(UserParams params);\n}',
+    );
+    final file = File(
+      '$outputDir/domain/usecases/user/background_user_usecase.dart',
+    );
+    await file.create(recursive: true);
+    await file.writeAsString('''
+import 'package:zuraffa/zuraffa.dart';
+import '../../services/user_service.dart';
+
+class BackgroundUserUseCase extends UseCase<User, UserParams> {
+  BackgroundUserUseCase(this._userService);
+  final UserService _userService;
+}
+''');
+
+    final plugin = UseCasePlugin(
+      outputDir: outputDir,
+      options: const GeneratorOptions(dryRun: false, force: false),
+    );
+    final config = GeneratorConfig(
+      name: 'BackgroundUser',
+      service: 'User',
+      domain: 'user',
+      paramsType: 'UserParams',
+      returnsType: 'User',
+      useCaseType: 'background',
+      appendToExisting: true,
+      force: false,
+      outputDir: outputDir,
+    );
+    final files = await plugin.generate(config);
+    final content = await file.readAsString();
+    expect(files.single.action, 'overwritten');
+    expect(content, contains('Future<User> execute('));
+    expect(
+      content,
+      contains('return await _userService.backgroundUser(params);'),
+    );
+    expect(content, isNot(contains('BackgroundTask')));
+    expect(content, isNot(contains('BackgroundUseCase')));
   });
 
   test('generates custom future usecase with service dependency', () async {
@@ -312,6 +440,86 @@ void main() {
     expect(content.contains('class OrchestrateOrdersUseCase'), isTrue);
     expect(content.contains('UseCase<Order, OrderParams>'), isTrue);
   });
+
+  test('generates stream orchestrator with watch intent contract', () async {
+    final plugin = UseCasePlugin(
+      outputDir: outputDir,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
+    );
+    final config = GeneratorConfig(
+      name: 'OrchestrateOrders',
+      usecases: ['GetOrder', 'SaveOrder'],
+      paramsType: 'OrderParams',
+      returnsType: 'Order',
+      useCaseType: 'stream',
+      domain: 'order',
+      outputDir: outputDir,
+    );
+    final files = await plugin.generate(config);
+    final content = files.first.content ?? '';
+    expect(
+      content.contains('WatchUseCase<WatchUseCaseIntent<OrderParams>, Order>'),
+      isTrue,
+    );
+    expect(content.contains('Result<Order, AppFailure> read('), isTrue);
+    expect(
+      content.contains('Future<Result<Order, AppFailure>> execute('),
+      isTrue,
+    );
+  });
+
+  test(
+    'generates stream polymorphic usecases with watch intent contract',
+    () async {
+      final plugin = UseCasePlugin(
+        outputDir: outputDir,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
+      );
+      final config = GeneratorConfig(
+        name: 'FetchOrder',
+        variants: ['Cached', 'Remote'],
+        paramsType: 'OrderParams',
+        returnsType: 'Order',
+        useCaseType: 'stream',
+        domain: 'order',
+        outputDir: outputDir,
+      );
+      final files = await plugin.generate(config);
+      final watchSources = files
+          .map((file) => File(file.path).readAsStringSync())
+          .where((content) => content.contains('WatchUseCase<'))
+          .toList();
+      expect(watchSources, hasLength(1));
+      expect(
+        watchSources.single.contains(
+          'WatchUseCase<WatchUseCaseIntent<OrderParams>, Order>',
+        ),
+        isTrue,
+      );
+      final variantSources = files
+          .map((file) => File(file.path).readAsStringSync())
+          .where(
+            (content) => content.contains('Result<Order, AppFailure> read('),
+          )
+          .toList();
+      expect(variantSources, hasLength(2));
+      for (final content in variantSources) {
+        expect(content, contains('extends FetchOrderUseCase'));
+        expect(
+          content.contains('Future<Result<Order, AppFailure>> execute('),
+          isTrue,
+        );
+      }
+    },
+  );
 
   test('generates polymorphic usecases and factory', () async {
     final plugin = UseCasePlugin(

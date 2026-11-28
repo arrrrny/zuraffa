@@ -127,8 +127,12 @@ class GetProductUseCase extends UseCase<Product, QueryParams<Product>> {
     );
     expect(watchFile.existsSync(), isTrue);
     final source = await watchFile.readAsString();
-    expect(source, contains('StreamUseCase<Stock'));
-    expect(source, contains('Stream<Stock> execute('));
+    expect(
+      source,
+      contains('WatchUseCase<WatchUseCaseIntent<QueryParams<Stock>>, Stock>'),
+    );
+    expect(source, contains('Result<Stock, AppFailure> read('));
+    expect(source, contains('Future<Result<Stock, AppFailure>> execute('));
 
     // Re-run: the stream method's execute is already present — honest
     // skip, never a silent re-append.

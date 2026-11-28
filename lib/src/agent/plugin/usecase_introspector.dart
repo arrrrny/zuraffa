@@ -140,7 +140,7 @@ class UseCaseIntrospector {
     // broken metadata. The balanced walk correctly handles arbitrary
     // nesting depth (FR-004).
     final clsPattern = RegExp(
-      r'class\s+(\w+)\s+extends\s+(UseCase|StreamUseCase|CompletableUseCase)\s*<',
+      r'class\s+(\w+)\s+extends\s+(UseCase|WatchUseCase|StreamUseCase|CompletableUseCase)\s*<',
     );
     final match = clsPattern.firstMatch(content);
     if (match == null) return null;
@@ -150,8 +150,20 @@ class UseCaseIntrospector {
     if (typeArgsRaw == null) return null;
     final typeArgs = typeArgsRaw.trim();
     final parts = _splitTopLevelCommas(typeArgs);
-    final returnTypeStr = parts.isNotEmpty ? parts[0].trim() : 'dynamic';
-    final paramsTypeStr = parts.length >= 2 ? parts[1].trim() : 'dynamic';
+    final baseClass = match.group(2);
+    final returnTypeStr = baseClass == 'WatchUseCase'
+        ? (parts.length >= 2 ? parts[1].trim() : 'dynamic')
+        : (parts.isNotEmpty ? parts[0].trim() : 'dynamic');
+    final watchParams = parts.isNotEmpty ? parts[0].trim() : 'dynamic';
+    final paramsTypeStr = baseClass == 'WatchUseCase'
+        ? (watchParams.startsWith('WatchUseCaseIntent<') &&
+                  watchParams.endsWith('>')
+              ? watchParams.substring(
+                  'WatchUseCaseIntent<'.length,
+                  watchParams.length - 1,
+                )
+              : watchParams)
+        : (parts.length >= 2 ? parts[1].trim() : 'dynamic');
 
     final verb = _deriveVerb(className);
     final isAgentInternal = content.contains('@AgentInternal');

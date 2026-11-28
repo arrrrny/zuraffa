@@ -638,6 +638,12 @@ extension TestBuilderEntity on TestBuilder {
         paramsExpr = refer('t$e');
     }
 
+    final watchParamsType = method == 'watchList'
+        ? 'ListQueryParams<$e>'
+        : method == 'watch' && config.queryFieldType == 'NoParams'
+        ? 'NoParams'
+        : 'QueryParams<$e>';
+
     final getOrElseThunk = Method(
       (mm) => mm
         ..lambda = true
@@ -650,19 +656,38 @@ extension TestBuilderEntity on TestBuilder {
       if (isStream) {
         t.statements.add(
           declareFinal('result')
-              .assign(refer('useCase').property('call').call([paramsExpr]))
+              .assign(
+                refer('useCase')
+                    .property('watch')
+                    .call(
+                      [
+                        refer(
+                          'WatchUseCaseIntent<$watchParamsType>',
+                        ).call([paramsExpr]),
+                        refer('ZfaContext').property('root').call([]),
+                      ],
+                      {'owner': refer('useCase')},
+                    ),
+              )
               .statement,
         );
         t.statements.add(
-          refer('expectLater')
-              .call([
-                refer('result'),
-                refer('emits').call([
-                  refer('isA').call([], {}, [refer('Success<$e>')]),
-                ]),
-              ])
+          refer('Future')
+              .property('delayed')
+              .call([refer('Duration').property('zero')])
               .awaited
               .statement,
+        );
+        t.statements.add(
+          refer('expect').call([
+            refer('result').property('value').property('isSuccess'),
+            literalBool(true),
+          ]).statement,
+        );
+        t.statements.add(
+          refer(
+            'addTearDown',
+          ).call([refer('result').property('dispose')]).statement,
         );
       } else {
         t.statements.add(
@@ -699,15 +724,39 @@ extension TestBuilderEntity on TestBuilder {
     final failureBody = Block((t) {
       if (isStream) {
         t.statements.add(
-          refer('expectLater')
-              .call([
-                refer('throwingUseCase').property('call').call([paramsExpr]),
-                refer('emitsError').call([
-                  refer('isA').call([], {}, [refer('Object')]),
-                ]),
-              ])
+          declareFinal('result')
+              .assign(
+                refer('throwingUseCase')
+                    .property('watch')
+                    .call(
+                      [
+                        refer(
+                          'WatchUseCaseIntent<$watchParamsType>',
+                        ).call([paramsExpr]),
+                        refer('ZfaContext').property('root').call([]),
+                      ],
+                      {'owner': refer('throwingUseCase')},
+                    ),
+              )
+              .statement,
+        );
+        t.statements.add(
+          refer('Future')
+              .property('delayed')
+              .call([refer('Duration').property('zero')])
               .awaited
               .statement,
+        );
+        t.statements.add(
+          refer('expect').call([
+            refer('result').property('value').property('isFailure'),
+            literalBool(true),
+          ]).statement,
+        );
+        t.statements.add(
+          refer(
+            'addTearDown',
+          ).call([refer('result').property('dispose')]).statement,
         );
       } else {
         t.statements.add(

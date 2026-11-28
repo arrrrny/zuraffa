@@ -145,7 +145,7 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
         );
       }
 
-      final executeMethod = _buildPolymorphicExecute(
+      final executeMethods = _buildPolymorphicExecute(
         config,
         paramsType,
         returnsType,
@@ -172,7 +172,7 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
                   (b) => b..requiredParameters.addAll(constructorParams),
                 ),
               ],
-        methods: [executeMethod],
+        methods: executeMethods,
         imports: imports,
       );
 
