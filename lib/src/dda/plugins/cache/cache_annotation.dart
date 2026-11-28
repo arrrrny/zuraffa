@@ -39,7 +39,7 @@ enum CacheStrategy {
 /// - **networkOnly**: no caching, pass through.
 ///
 /// ```dart
-/// class ProductRepositoryImpl implements ProductRepository {
+/// class DataProductRepository implements ProductRepository {
 ///   final ProductRemoteDatasource _remote;
 ///   final CacheStore _cache;
 ///

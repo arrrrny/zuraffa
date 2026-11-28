@@ -661,13 +661,15 @@ class GeneratorConfig {
   // Distinct implementation class name for the provider when its name would
   // otherwise collide with the service interface (e.g. `--service
   // OnboardingProvider`): emitting `class OnboardingProvider implements
-  // OnboardingProvider` is recursive. Append `Impl` in that case only;
-  // otherwise keep the provider name verbatim (issue #1825 review).
-  String? get effectiveProviderImpl {
+  // OnboardingProvider` is recursive. Use a role-descriptive suffix in that
+  // case only; otherwise keep the provider name verbatim (issue #1825 review).
+  // The suffix is NOT `Impl` — issue #2196 bans `Impl` in generated names
+  // too, so `zfa` must never emit `class <Name>Impl`.
+  String? get effectiveProviderName {
     final pn = effectiveProvider;
     if (pn == null) return null;
     final es = effectiveService;
-    if (es != null && pn == es) return '${pn}Impl';
+    if (es != null && pn == es) return '${pn}Concrete';
     return pn;
   }
 

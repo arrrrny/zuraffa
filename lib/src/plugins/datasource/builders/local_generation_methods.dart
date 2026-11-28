@@ -1,6 +1,6 @@
 part of 'local_generator.dart';
 
-extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
+extension LocalDataSourceBuilderGeneration on LocalDataSourceBuilder {
   void _generateHiveImplementation(
     GeneratorConfig config,
     String entityName,
