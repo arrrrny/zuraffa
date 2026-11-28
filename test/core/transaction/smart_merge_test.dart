@@ -1,4 +1,4 @@
-@Tags(['slow'])
+@Tags(['slow', 'regression'])
 library;
 
 import 'dart:io';
@@ -180,6 +180,147 @@ class \$Todo {
       expect(result.content, contains("import 'dart:async';"));
       expect(result.content, contains('customFlag'));
       expect(result.content, contains('done'));
+    });
+
+    test(
+      'ast diff detects indentation change inside a triple-quoted string',
+      () {
+        // Two vs four leading spaces on a triple-quoted payload line must
+        // register as a change (CodeRabbit ast_diff.dart:157).
+        const existing =
+            'class A {}\n'
+            'const banner = """\n'
+            '  hello\n'
+            '""";\n';
+        const generated =
+            'class A {}\n'
+            'const banner = """\n'
+            '    hello\n'
+            '""";\n';
+        final entries = AstDiff.diff(
+          existingSource: existing,
+          generatedSource: generated,
+        );
+        expect(entries, isNotEmpty);
+      },
+    );
+
+    test('scanner flags a declaration sharing its line with another', () {
+      const src = 'class A {} class User {}\n';
+      final decls = extractDeclarationsFromSource(src);
+      expect(decls, hasLength(1));
+      expect(decls.first.name, 'A');
+      expect(decls.first.unsafeLineReplace, isTrue);
+    });
+
+    test(
+      'scanner scans an arrow body through to its terminating semicolon',
+      () {
+        // The set literal braces belong to the expression body, not a block
+        // body (CodeRabbit declaration_scanner.dart:258).
+        const src =
+            'Set<int> values() => <int>{\n'
+            '  1,\n'
+            '  2,\n'
+            '}.union({2});\n';
+        final decls = extractDeclarationsFromSource(src);
+        expect(decls, hasLength(1));
+        expect(decls.first.name, 'values');
+        // Ends at the `;` on line 3 (endLine 4).
+        expect(decls.first.endLine, 4);
+      },
+    );
+
+    test(
+      'structural merge reports a conflict for a shared-line declaration',
+      () {
+        const existing = 'class A {} class User {}\n';
+        const generated = 'class A {\n  int x = 0;\n}\n';
+        final result = MergeOrchestrator.merge(
+          existingContent: existing,
+          generatedContent: generated,
+        );
+        // The neighbour `User` must survive, and a conflict is reported.
+        expect(result.conflicts, isNotEmpty);
+        expect(result.content, contains('class User'));
+      },
+    );
+
+    test(
+      'structural merge injects a generated import the existing file lacks',
+      () {
+        const existing =
+            'class \$Todo {\n'
+            '  final String title;\n'
+            '}\n';
+        const generated =
+            "import 'support.dart';\n"
+            '\n'
+            'class \$Todo {\n'
+            '  final Helper? helper;\n'
+            '}\n';
+        final result = MergeOrchestrator.merge(
+          existingContent: existing,
+          generatedContent: generated,
+        );
+        expect(result.content, contains("import 'support.dart';"));
+        expect(result.content, contains('helper'));
+      },
+    );
+
+    test('region parser ignores markers inside a triple-quoted string', () {
+      // A marker-looking line inside a string is not a region
+      // (CodeRabbit region_parser.dart:50).
+      const src =
+          'const doc = """\n'
+          '// GENERATED - DO NOT EDIT\n'
+          'class Fake {}\n'
+          '// END GENERATED\n'
+          '""";\n';
+      final regions = RegionParser.parse(src);
+      expect(regions, isEmpty);
+    });
+
+    test('malformed crossing markers are detected', () {
+      // preserve opens and closes across a generated boundary without
+      // proper nesting (CodeRabbit region_parser.dart:65).
+      const src =
+          '// GENERATED - DO NOT EDIT\n'
+          '// @preserve\n'
+          '// END GENERATED\n'
+          '// @end-preserve\n';
+      expect(RegionParser.hasMalformedMarkers(src), isTrue);
+      final result = MergeOrchestrator.merge(
+        existingContent: src,
+        generatedContent: '// GENERATED - DO NOT EDIT\nclass A {}\n',
+      );
+      expect(result.conflicts, isNotEmpty);
+      expect(result.hasChanges, isFalse);
+    });
+
+    test('merge strategy does not duplicate a sole generated block', () {
+      // Two existing generated regions for A and B, but the generator
+      // returns only A: B keeps its region and a conflict is reported
+      // (CodeRabbit merge_strategy.dart:169).
+      const existing =
+          '// GENERATED - DO NOT EDIT\n'
+          'class A {}\n'
+          '// END GENERATED\n'
+          '// GENERATED - DO NOT EDIT\n'
+          'class B {}\n'
+          '// END GENERATED\n';
+      const generated =
+          '// GENERATED - DO NOT EDIT\n'
+          'class A {\n  int x = 0;\n}\n'
+          '// END GENERATED\n';
+      final result = MergeOrchestrator.merge(
+        existingContent: existing,
+        generatedContent: generated,
+      );
+      // A is updated, B survives, no duplicate A.
+      final aCount = 'class A'.allMatches(result.content).length;
+      expect(aCount, 1);
+      expect(result.content, contains('class B'));
     });
   });
 }

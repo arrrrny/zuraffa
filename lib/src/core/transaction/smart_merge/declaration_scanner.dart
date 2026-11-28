@@ -21,11 +21,19 @@ class Declaration {
   /// Zero-based end line (exclusive, for use with `List.sublist`).
   final int endLine;
 
+  /// Whether this declaration shares its physical line with another
+  /// top-level declaration (e.g. `class A {} class User {}`). A line-based
+  /// replacement of such a declaration would clobber its neighbour, so the
+  /// structural merge reports a conflict for it instead of replacing the
+  /// whole line (CodeRabbit finding on declaration_scanner.dart:115).
+  final bool unsafeLineReplace;
+
   const Declaration({
     required this.kind,
     required this.name,
     required this.startLine,
     required this.endLine,
+    this.unsafeLineReplace = false,
   });
 
   @override
@@ -37,10 +45,12 @@ class Declaration {
       other.kind == kind &&
       other.name == name &&
       other.startLine == startLine &&
-      other.endLine == endLine;
+      other.endLine == endLine &&
+      other.unsafeLineReplace == unsafeLineReplace;
 
   @override
-  int get hashCode => Object.hash(kind, name, startLine, endLine);
+  int get hashCode =>
+      Object.hash(kind, name, startLine, endLine, unsafeLineReplace);
 }
 
 /// Pattern for top-level declarations we care about.
@@ -110,7 +120,13 @@ List<Declaration> extractDeclarationsFromSource(String source) {
       final name = declMatch.group(2)!;
       final endLine = _findDeclarationEnd(lines, i);
       declarations.add(
-        Declaration(kind: kind, name: name, startLine: i, endLine: endLine),
+        Declaration(
+          kind: kind,
+          name: name,
+          startLine: i,
+          endLine: endLine,
+          unsafeLineReplace: _lineHasAnotherDeclaration(declMatch, trimmed),
+        ),
       );
       i = endLine;
       continue;
@@ -175,6 +191,12 @@ int _findDeclarationEnd(List<String> lines, int startLine) {
   int depth = 0;
   int parenDepth = 0;
   bool foundOpen = false;
+  // An arrow (`=>`) body is expression-bodied: it has no `{...}` body
+  // brace, so a `{` after the arrow is a set/map literal or a nested
+  // expression, NOT the function body. The declaration ends at the
+  // terminating `;` once every nested expression has closed
+  // (CodeRabbit finding on declaration_scanner.dart:258).
+  bool arrowBody = false;
   bool inBlockComment = false;
   // Active string delimiter: null when not in a string, otherwise one of
   // `'`, `"`, `'''`, `"""`. Triple-quoted delimiters persist across lines.
@@ -244,6 +266,18 @@ int _findDeclarationEnd(List<String> lines, int startLine) {
         continue;
       }
 
+      // Arrow `=>` at the top level (outside any parameter list) marks an
+      // expression-bodied declaration.
+      if (ch == 0x3D &&
+          j + 1 < runes.length &&
+          runes[j + 1] == 0x3E &&
+          parenDepth == 0 &&
+          !foundOpen) {
+        arrowBody = true;
+        j += 2;
+        continue;
+      }
+
       if (ch == 0x28) {
         // (
         parenDepth++;
@@ -251,16 +285,19 @@ int _findDeclarationEnd(List<String> lines, int startLine) {
         // )
         if (parenDepth > 0) parenDepth--;
       } else if (ch == 0x7B) {
-        // '{' — only a body brace when not inside a parameter list.
+        // '{' — only a body brace when not inside a parameter list AND
+        // the declaration is not expression-bodied (a `{` after `=>` is a
+        // set/map literal).
         if (parenDepth == 0) {
           depth++;
-          foundOpen = true;
+          if (!arrowBody) foundOpen = true;
         }
       } else if (ch == 0x7D) {
         // '}'
-        if (parenDepth == 0) depth--;
-      } else if (ch == 0x3B && !foundOpen && parenDepth == 0) {
-        // ';' before any body '{' — brace-less declaration ends here.
+        if (parenDepth == 0 && depth > 0) depth--;
+      } else if (ch == 0x3B && !foundOpen && parenDepth == 0 && depth <= 0) {
+        // ';' before any block body (or closing every arrow-body
+        // expression) — brace-less / expression-bodied declaration ends.
         return i + 1;
       }
       j++;
@@ -274,6 +311,29 @@ int _findDeclarationEnd(List<String> lines, int startLine) {
   // Unterminated brace or declaration — return end of file.
   return lines.length;
 }
+
+/// Whether [trimmed] (a single physical line) contains a SECOND top-level
+/// declaration keyword after the one already matched by [first]. Used to
+/// flag a declaration that shares its line with another — a line-based
+/// replacement would clobber the neighbour, so the structural merge reports
+/// a conflict instead (CodeRabbit finding on declaration_scanner.dart:115).
+bool _lineHasAnotherDeclaration(RegExpMatch first, String trimmed) {
+  final after = trimmed.substring(first.end).trimLeft();
+  if (after.isEmpty) return false;
+  // A second declaration on the same line: `class A {} class User {}`. The
+  // anchored `_declPattern`/`_functionPattern` only match at column 0, so
+  // search the remainder for an unanchored declaration keyword.
+  return _secondDeclPattern.hasMatch(after);
+}
+
+/// Unanchored search for a declaration keyword appearing mid-line (the
+/// neighbour in a shared-line declaration).
+final _secondDeclPattern = RegExp(
+  r'(?:^|[\s{};])'
+  r'(?:abstract\s+|sealed\s+|final\s+|base\s+|interface\s+)?'
+  r'(class|extension|enum|mixin|typedef)\s+'
+  r'\$?[A-Za-z_][A-Za-z0-9_\$]*',
+);
 
 /// Whether [runes] contains [needle] starting at index [at].
 bool _matchesRunesAt(List<int> runes, int at, String needle) {

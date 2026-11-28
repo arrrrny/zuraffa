@@ -49,6 +49,16 @@ class MergeStrategy {
     final sorted = List<SourceRegion>.from(regions)
       ..sort((a, b) => a.startLine.compareTo(b.startLine));
 
+    // Parse the generated content's generated regions ONCE, and track which
+    // ones have already been assigned to an existing region so a single
+    // generated block is never emitted into two existing regions and no
+    // generated region is silently dropped (CodeRabbit findings on
+    // merge_strategy.dart:169 and :175).
+    final generatedRegions = RegionParser.parse(
+      generatedContent,
+    ).where((r) => r.type == RegionType.generated).toList();
+    final usedGenerated = <int>{};
+
     final existingLines = existingContent.split('\n');
     final buffer = StringBuffer();
     final diffs = <String>[];
@@ -83,10 +93,13 @@ class MergeStrategy {
           region.content,
         );
 
-        // Replace the generated region with the new generated content.
+        // Replace the generated region with the new generated content,
+        // consuming the matching generated region so it cannot be reused.
         final replacement = _findGeneratedReplacement(
           existingRegion: region,
           generatedContent: generatedContent,
+          generatedRegions: generatedRegions,
+          usedGenerated: usedGenerated,
         );
 
         if (replacement != null) {
@@ -125,6 +138,19 @@ class MergeStrategy {
       cursor = region.endLine > cursor ? region.endLine : cursor;
     }
 
+    // Emit any generated region that was never assigned to an existing
+    // region, so generated content is never silently dropped
+    // (CodeRabbit finding on merge_strategy.dart:175).
+    for (int g = 0; g < generatedRegions.length; g++) {
+      if (usedGenerated.contains(g)) continue;
+      final content = generatedRegions[g].content;
+      final formatted = _safeFormat(content);
+      if (buffer.isNotEmpty) buffer.writeln();
+      buffer.write(formatted);
+      buffer.writeln();
+      diffs.add('Appended unmatched generated block ${g + 1}');
+    }
+
     // Emit remaining user code after the last region.
     if (cursor < existingLines.length) {
       buffer.write(existingLines.sublist(cursor).join('\n'));
@@ -146,35 +172,41 @@ class MergeStrategy {
   /// Try to find the replacement content in the generated source
   /// for a given existing generated region.
   ///
+  /// [generatedRegions] is the generated content's parsed generated regions
+  /// and [usedGenerated] tracks which of them (by index) have already been
+  /// assigned to an earlier existing region, so each generated region is
+  /// emitted at most once (CodeRabbit findings on merge_strategy.dart:169
+  /// and :175). The chosen region's index is added to [usedGenerated].
+  ///
   /// When the generated content contains `// GENERATED` / `// END GENERATED`
-  /// markers, returns the full generated block (markers included) so the
-  /// output preserves the marker structure.
-  /// Otherwise falls back to declaration-level matching.
+  /// markers, returns the matching generated block (markers included) so the
+  /// output preserves the marker structure. Otherwise falls back to
+  /// declaration-level matching.
   static String? _findGeneratedReplacement({
     required SourceRegion existingRegion,
     required String generatedContent,
+    required List<SourceRegion> generatedRegions,
+    required Set<int> usedGenerated,
   }) {
     final generatedLines = generatedContent.split('\n');
 
-    // Parse the generated content into its generated regions so each
-    // existing region is matched to its OWN corresponding block — never
-    // a span across every generated block (which would emit A, B, A, B).
-    final generatedRegions = RegionParser.parse(
-      generatedContent,
-    ).where((r) => r.type == RegionType.generated).toList();
-
     if (generatedRegions.isNotEmpty) {
       final names = _declarationNames(existingRegion.content);
-      if (generatedRegions.length == 1) {
-        return generatedRegions.first.content;
+      // Match by declaration name among the regions not yet consumed. A
+      // sole generated block is NOT blindly assigned to every existing
+      // region: it is used only when it corresponds to this region (its
+      // declarations intersect, or this region names none).
+      for (int g = 0; g < generatedRegions.length; g++) {
+        if (usedGenerated.contains(g)) continue;
+        final rNames = _declarationNames(generatedRegions[g].content);
+        final corresponds =
+            names.isEmpty || rNames.isEmpty || rNames.any(names.contains);
+        if (corresponds) {
+          usedGenerated.add(g);
+          return generatedRegions[g].content;
+        }
       }
-      // Match by declaration name; fall back to the first block when the
-      // names do not identify a unique region.
-      for (final r in generatedRegions) {
-        final rNames = _declarationNames(r.content);
-        if (rNames.any(names.contains)) return r.content;
-      }
-      return generatedRegions.first.content;
+      return null;
     }
 
     // Fallback: the generated content has no markers. Collect EVERY
@@ -232,13 +264,27 @@ class MergeStrategy {
 
       final blockLines = block.content.split('\n');
 
+      // A null enclosing declaration is a TOP-LEVEL preserved block: it
+      // must be inserted at a top-level boundary (before the generated end
+      // marker), never inside the last class's body — otherwise a top-level
+      // caller can no longer resolve it (CodeRabbit finding on
+      // merge_strategy.dart:238).
+      if (block.enclosingDeclaration == null) {
+        final topLevelAt = _topLevelInsertIndex(lines);
+        lines.insertAll(topLevelAt, ['', ...blockLines]);
+        continue;
+      }
+
       // Restore the block to its original enclosing declaration so a
-      // preserved method of A does not land inside B; fall back to the
-      // last closing brace when the declaration is unknown.
+      // preserved method of A does not land inside B. When the matched
+      // declaration's closing brace cannot be located, do NOT fall back to
+      // another class's brace (which would misplace the member) — append
+      // the block at the end as a last resort
+      // (CodeRabbit finding on merge_strategy.dart:264).
       final insertAt = _closingBraceFor(lines, block.enclosingDeclaration);
 
       if (insertAt < 0) {
-        // No class brace found — append at end.
+        // No brace found for the named declaration — append at end.
         lines.add('');
         lines.addAll(blockLines);
         continue;
@@ -250,24 +296,34 @@ class MergeStrategy {
     return lines.join('\n');
   }
 
+  /// Index at which a top-level preserved block should be inserted: just
+  /// before the generated end marker when present, otherwise at the end of
+  /// the content.
+  static int _topLevelInsertIndex(List<String> lines) {
+    for (int i = lines.length - 1; i >= 0; i--) {
+      if (lines[i].trim() == RegionParser.generatedEnd) return i;
+    }
+    return lines.length;
+  }
+
   /// Index of the line holding the closing brace of [declName] in [lines]
-  /// (preserved members are inserted BEFORE it), or the last top-level
-  /// closing brace when [declName] is `null` or not found. Returns `-1`
-  /// when no closing brace exists.
+  /// (preserved members are inserted BEFORE it). The closing brace is found
+  /// even when it shares its line with the declaration or other tokens
+  /// (CodeRabbit finding on merge_strategy.dart:264). Returns `-1` when
+  /// [declName] is `null` or its closing brace cannot be located — the
+  /// caller must NOT fall back to an unrelated declaration's brace.
   static int _closingBraceFor(List<String> lines, String? declName) {
-    if (declName != null) {
-      final decls = extractDeclarationsFromSource(lines.join('\n'));
-      for (final d in decls) {
-        if (d.name == declName && d.endLine > d.startLine) {
-          // d.endLine is exclusive (the line after the closing brace).
-          for (int i = d.endLine - 1; i >= d.startLine; i--) {
-            if (lines[i].trim() == '}') return i;
-          }
+    if (declName == null) return -1;
+    final decls = extractDeclarationsFromSource(lines.join('\n'));
+    for (final d in decls) {
+      if (d.name == declName && d.endLine > d.startLine) {
+        // d.endLine is exclusive (the line after the closing brace). Search
+        // the declaration's own span for a line carrying a `}` — including
+        // a `}` that shares its line with other tokens (`class A {}`).
+        for (int i = d.endLine - 1; i >= d.startLine; i--) {
+          if (lines[i].contains('}')) return i;
         }
       }
-    }
-    for (int i = lines.length - 1; i >= 0; i--) {
-      if (lines[i].trim() == '}') return i;
     }
     return -1;
   }

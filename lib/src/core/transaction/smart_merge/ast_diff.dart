@@ -138,8 +138,12 @@ class AstDiff {
   }
 
   /// Concatenate the lines outside [decls]' ranges (excluding the header
-  /// before the first declaration), normalized by trimming each line, so
-  /// formatting-only differences do not register as a change.
+  /// before the first declaration). Each line is normalized by stripping
+  /// only its TRAILING whitespace, so a formatting-only trailing-space
+  /// difference does not register as a change — while LEADING whitespace is
+  /// preserved, so a change to the indentation inside a triple-quoted
+  /// string payload (which `trim()` would have erased) still produces a
+  /// diff entry (CodeRabbit finding on ast_diff.dart:157).
   static String _unclassifiedContent(
     List<String> lines,
     List<Declaration> decls,
@@ -154,7 +158,7 @@ class AstDiff {
     final buffer = StringBuffer();
     for (int i = firstDeclLine; i < lines.length; i++) {
       if (covered[i]) continue;
-      buffer.writeln(lines[i].trim());
+      buffer.writeln(lines[i].trimRight());
     }
     return buffer.toString();
   }

@@ -40,6 +40,10 @@ class RegionParser {
   static List<SourceRegion> parse(String source) {
     final lines = source.split('\n');
     final regions = <SourceRegion>[];
+    // Lines whose leading `//` is a genuine line comment — a marker that
+    // appears inside a string literal or block comment is NOT a marker
+    // (CodeRabbit finding on region_parser.dart:50).
+    final commentLines = _lineCommentLines(lines);
 
     // Stack for nested generated regions.
     final genStack = <_Marker>[];
@@ -47,6 +51,7 @@ class RegionParser {
     final preserveStack = <_Marker>[];
 
     for (int i = 0; i < lines.length; i++) {
+      if (!commentLines.contains(i)) continue;
       final trimmed = lines[i].trim();
 
       // Check for preserve start (only meaningful inside generated).
@@ -113,8 +118,10 @@ class RegionParser {
     final lines = blockContent.split('\n');
     final blocks = <PreservedBlock>[];
     final stack = <int>[];
+    final commentLines = _lineCommentLines(lines);
 
     for (int i = 0; i < lines.length; i++) {
+      if (!commentLines.contains(i)) continue;
       final trimmed = lines[i].trim();
       if (trimmed.startsWith(preserveStart) &&
           !trimmed.startsWith(preserveEnd)) {
@@ -138,6 +145,133 @@ class RegionParser {
     return blocks;
   }
 
+  /// Whether the existing file has interleaved or unclosed preserve/
+  /// generated marker pairs that would silently drop preserved content
+  /// when a generated region is replaced (CodeRabbit finding on
+  /// region_parser.dart:65).
+  ///
+  /// A well-formed file has every `@preserve` closed by `@end-preserve`
+  /// and every `GENERATED` closed by `END GENERATED`, with no preserve
+  /// block straddling a generated boundary. Returns `true` when the marker
+  /// structure is malformed.
+  static bool hasMalformedMarkers(String source) {
+    final lines = source.split('\n');
+    final commentLines = _lineCommentLines(lines);
+    final genStack = <int>[];
+    final preserveStack = <int>[];
+
+    for (int i = 0; i < lines.length; i++) {
+      if (!commentLines.contains(i)) continue;
+      final trimmed = lines[i].trim();
+      if (trimmed.startsWith(preserveStart) &&
+          !trimmed.startsWith(preserveEnd)) {
+        preserveStack.add(i);
+      } else if (trimmed.startsWith(preserveEnd)) {
+        if (preserveStack.isEmpty) return true; // unmatched preserve-end
+        preserveStack.removeLast();
+      } else if (trimmed.startsWith(generatedStart) &&
+          !trimmed.startsWith(generatedEnd)) {
+        genStack.add(i);
+      } else if (trimmed.startsWith(generatedEnd)) {
+        if (genStack.isEmpty) return true; // unmatched generated-end
+        // A preserve opened inside this generated block is still open when
+        // the generated block closes — the preserve straddles the boundary
+        // and its content would be dropped on replacement
+        // (CodeRabbit region_parser.dart:65).
+        if (preserveStack.isNotEmpty) return true;
+        genStack.removeLast();
+      }
+    }
+    // Any marker left open at EOF is malformed.
+    return genStack.isNotEmpty || preserveStack.isNotEmpty;
+  }
+
+  /// The set of line indices whose first non-whitespace characters are a
+  /// genuine `//` line comment — i.e. the `//` is not inside a string
+  /// literal (single, double, or triple-quoted, possibly spanning lines) or
+  /// a block comment. Markers are only recognized on these lines, so the
+  /// same text inside a string or block comment is ignored
+  /// (CodeRabbit finding on region_parser.dart:50).
+  static Set<int> _lineCommentLines(List<String> lines) {
+    final result = <int>{};
+    bool inBlockComment = false;
+    String? stringDelim;
+
+    for (int i = 0; i < lines.length; i++) {
+      final runes = lines[i].runes.toList();
+      int j = 0;
+      bool leadingWs = true;
+      bool isCommentLine = false;
+      while (j < runes.length) {
+        final ch = runes[j];
+
+        if (inBlockComment) {
+          if (ch == 0x2A && j + 1 < runes.length && runes[j + 1] == 0x2F) {
+            inBlockComment = false;
+            j += 2;
+            continue;
+          }
+          j++;
+          continue;
+        }
+
+        if (stringDelim != null) {
+          final delim = stringDelim;
+          if (delim.length == 3) {
+            if (_matchesRunesAt(runes, j, delim)) {
+              j += 3;
+              stringDelim = null;
+              continue;
+            }
+          } else {
+            if (ch == 0x5C) {
+              j += 2;
+              continue;
+            }
+            if (ch == delim.codeUnitAt(0)) {
+              j++;
+              stringDelim = null;
+              continue;
+            }
+          }
+          j++;
+          leadingWs = false;
+          continue;
+        }
+
+        // Not in string/comment.
+        if (ch == 0x2F && j + 1 < runes.length && runes[j + 1] == 0x2F) {
+          // Line comment — a marker is genuine only when the comment is the
+          // first token on the line (only whitespace before it).
+          if (leadingWs) isCommentLine = true;
+          break;
+        }
+        if (ch == 0x2F && j + 1 < runes.length && runes[j + 1] == 0x2A) {
+          inBlockComment = true;
+          j += 2;
+          leadingWs = false;
+          continue;
+        }
+        if (ch == 0x27 || ch == 0x22) {
+          final triple = ch == 0x27 ? "'''" : '"""';
+          if (_matchesRunesAt(runes, j, triple)) {
+            stringDelim = triple;
+            j += 3;
+          } else {
+            stringDelim = ch == 0x27 ? "'" : '"';
+            j++;
+          }
+          leadingWs = false;
+          continue;
+        }
+        if (ch != 0x20 && ch != 0x09) leadingWs = false;
+        j++;
+      }
+      if (isCommentLine) result.add(i);
+    }
+    return result;
+  }
+
   /// The name of the top-level declaration whose line range contains
   /// [line], or `null` when the line is not inside any declaration.
   static String? _enclosingDeclaration(List<String> lines, int line) {
@@ -146,6 +280,16 @@ class RegionParser {
       if (line >= d.startLine && line < d.endLine) return d.name;
     }
     return null;
+  }
+
+  /// Whether [runes] contains [needle] starting at index [at].
+  static bool _matchesRunesAt(List<int> runes, int at, String needle) {
+    final n = needle.runes.toList();
+    if (at + n.length > runes.length) return false;
+    for (int k = 0; k < n.length; k++) {
+      if (runes[at + k] != n[k]) return false;
+    }
+    return true;
   }
 }
 

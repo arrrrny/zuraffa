@@ -52,6 +52,34 @@ class MergeOrchestrator {
 
     // Smart merge: parse regions from existing file.
     final regions = RegionParser.parse(existingContent);
+
+    // A malformed marker structure (interleaved/unclosed preserve or
+    // generated markers) would silently drop preserved content when a
+    // generated region is replaced. Report a conflict and leave the file
+    // unchanged rather than corrupt it (CodeRabbit finding on
+    // region_parser.dart:65).
+    if (RegionParser.hasMalformedMarkers(existingContent)) {
+      return MergeResult(
+        content: existingContent,
+        hasChanges: false,
+        diffSummary: '',
+        conflicts: [
+          MergeConflict(
+            message:
+                'Existing file has interleaved or unclosed preserve/'
+                'generated markers',
+            line: 0,
+            existingContent: existingContent,
+            generatedContent: generatedContent,
+            suggestion:
+                'Fix the marker structure (every @preserve needs @end-preserve '
+                'and every GENERATED needs END GENERATED, with no preserve '
+                'block straddling a generated boundary) before regenerating.',
+          ),
+        ],
+      );
+    }
+
     final diffEntries = AstDiff.diff(
       existingSource: existingContent,
       generatedSource: generatedContent,
@@ -103,7 +131,19 @@ class MergeOrchestrator {
       for (final d in generatedDecls) '${d.kind}:${d.name}': d,
     };
 
+    // Directives (import/export/part) the generated content requires but
+    // the existing file lacks. A generated declaration that references a
+    // new type needs its import merged in, or the output cannot resolve it
+    // (CodeRabbit finding on merge_orchestrator.dart:119). Conflicting
+    // directives (same path, different form) are reported as a conflict
+    // rather than silently dropped.
+    final directiveMerge = _mergeDirectives(
+      existingContent: existingContent,
+      generatedContent: generatedContent,
+    );
+
     final buffer = StringBuffer();
+    final directiveConflicts = directiveMerge.conflicts;
     int cursor = 0;
     for (final decl in existingDecls) {
       // Preserve the existing lines before this declaration (imports,
@@ -113,7 +153,34 @@ class MergeOrchestrator {
         buffer.writeln();
       }
       final gen = generatedByName['${decl.kind}:${decl.name}'];
-      if (gen != null) {
+      if (gen != null && decl.unsafeLineReplace) {
+        // This declaration shares its physical line with another
+        // declaration; a line-based replacement would clobber the
+        // neighbour. Keep the existing line verbatim and report a conflict
+        // (CodeRabbit finding on declaration_scanner.dart:115).
+        buffer.write(
+          existingLines.sublist(decl.startLine, decl.endLine).join('\n'),
+        );
+        directiveConflicts.add(
+          MergeConflict(
+            message:
+                '${decl.kind} ${decl.name} shares a line with another '
+                'declaration; cannot replace it without clobbering its '
+                'neighbour',
+            line: decl.startLine,
+            existingContent: existingLines
+                .sublist(decl.startLine, decl.endLine)
+                .join('\n'),
+            generatedContent: generatedLines
+                .sublist(gen.startLine, gen.endLine)
+                .join('\n'),
+            suggestion:
+                'Put each top-level declaration on its own line, then '
+                'regenerate; the generated change was not applied to avoid '
+                'deleting the adjacent declaration.',
+          ),
+        );
+      } else if (gen != null) {
         buffer.write(
           generatedLines.sublist(gen.startLine, gen.endLine).join('\n'),
         );
@@ -141,21 +208,120 @@ class MergeOrchestrator {
       buffer.write(generatedLines.sublist(d.startLine, d.endLine).join('\n'));
     }
 
+    var merged = buffer.toString();
+    // Inject any missing generated directives into the directive section.
+    if (directiveMerge.missing.isNotEmpty) {
+      merged = _injectDirectives(merged, directiveMerge.missing);
+    }
+
     return MergeResult(
-      content: safeFormat(buffer.toString()),
+      content: safeFormat(merged),
       hasChanges: true,
       diffSummary: AstDiff.buildSummary(diffEntries),
-      conflicts: const [],
+      conflicts: directiveConflicts,
     );
   }
 
-  /// Format Dart source, returning raw on failure.
-  static String safeFormat(String source) {
-    try {
-      return _formatter.format(source);
-    } catch (_) {
-      return source;
+  /// The generated directives (import/export/part lines) that the existing
+  /// file is missing, plus any conflicts where a generated directive shares
+  /// a path with a differently-spelled existing one.
+  static _DirectiveMerge _mergeDirectives({
+    required String existingContent,
+    required String generatedContent,
+  }) {
+    final existingDirectives = _directives(existingContent);
+    final generatedDirectives = _directives(generatedContent);
+
+    final existingPaths = {
+      for (final d in existingDirectives) _directivePath(d),
+    };
+    final existingForms = {for (final d in existingDirectives) d.trim()};
+
+    final missing = <String>[];
+    final conflicts = <MergeConflict>[];
+    final seenMissing = <String>{};
+    for (final d in generatedDirectives) {
+      final path = _directivePath(d);
+      if (existingPaths.contains(path)) {
+        // Same path already imported — a different spelling is a conflict,
+        // an identical line is a no-op.
+        if (!existingForms.contains(d.trim())) {
+          final existingForm = existingDirectives
+              .firstWhere((e) => _directivePath(e) == path)
+              .trim();
+          conflicts.add(
+            MergeConflict(
+              message:
+                  'Conflicting directive for "$path": existing '
+                  '"$existingForm" vs generated "${d.trim()}"',
+              line: 0,
+              existingContent: existingContent,
+              generatedContent: d.trim(),
+              suggestion:
+                  'Reconcile the import/export form manually; the generated '
+                  'form was not merged to avoid duplicate directives.',
+            ),
+          );
+        }
+        continue;
+      }
+      if (seenMissing.add(d.trim())) missing.add(d);
     }
+    return _DirectiveMerge(missing: missing, conflicts: conflicts);
+  }
+
+  /// The directive lines (import/export/part) in [source], in source order.
+  static List<String> _directives(String source) => [
+    for (final line in source.split('\n'))
+      if (() {
+        final t = line.trimLeft();
+        return t.startsWith('import ') ||
+            t.startsWith('export ') ||
+            t.startsWith('part ');
+      }())
+        line,
+  ];
+
+  /// The path/URI a directive targets, used to detect duplicate imports of
+  /// the same library in different forms.
+  static String _directivePath(String directive) {
+    final firstQuote = directive.indexOf("'");
+    final secondQuote = directive.indexOf("'", firstQuote + 1);
+    if (firstQuote >= 0 && secondQuote > firstQuote) {
+      return directive.substring(firstQuote + 1, secondQuote);
+    }
+    return directive.trim();
+  }
+
+  /// Insert [directives] after the last existing directive in [source] (or
+  /// at the top when the file has none), keeping the directive section
+  /// contiguous.
+  static String _injectDirectives(String source, List<String> directives) {
+    final lines = source.split('\n');
+    int lastDirective = -1;
+    for (int i = 0; i < lines.length; i++) {
+      final t = lines[i].trimLeft();
+      if (t.startsWith('import ') ||
+          t.startsWith('export ') ||
+          t.startsWith('part ')) {
+        lastDirective = i;
+      }
+    }
+    final insertAt = lastDirective >= 0 ? lastDirective + 1 : 0;
+    lines.insertAll(insertAt, directives);
+    return lines.join('\n');
+  }
+
+  /// Format Dart source.
+  ///
+  /// A formatter failure is RE-THROWN, never swallowed: returning the
+  /// unformatted buffer as a "successful" merge lets `SmartMergeWriter`
+  /// write a file that does not parse (CodeRabbit finding on
+  /// merge_orchestrator.dart:157). The writer already rethrows merge
+  /// failures and leaves the existing file untouched, so propagating the
+  /// failure routes through that same safe path.
+  static String safeFormat(String source) {
+    return _formatter.format(source);
   }
 
   /// Generate a simple line-level diff between two strings.
@@ -181,4 +347,13 @@ class MergeOrchestrator {
     }
     return buffer.toString().trimRight();
   }
+}
+
+/// Result of merging generated directives into the existing file's
+/// directive section: the directives to inject and any conflicts found.
+class _DirectiveMerge {
+  final List<String> missing;
+  final List<MergeConflict> conflicts;
+
+  const _DirectiveMerge({required this.missing, required this.conflicts});
 }
