@@ -9,8 +9,8 @@ environment:
 # Add regular dependencies here.
 dependencies:
   json_annotation: ^4.12.0
-  zorphy: ^3.0.0-dev.3
-  zorphy_annotation: ^3.0.0-dev.3
+  zorphy: ^3.0.0-dev.6
+  zorphy_annotation: ^3.0.0-dev.6
   zuraffa:
     path: ../..
   # path: ^1.9.0
