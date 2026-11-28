@@ -29,9 +29,19 @@ abstract class ZfaFeatureState {
       <String, AsyncSlice<dynamic>>{};
 
   /// All principal keys currently held, in insertion order.
+  ///
+  /// Returns a fresh unmodifiable snapshot on each call, so callers may hold
+  /// the result without it tracking later mutations. This is a debug/view
+  /// surface, not a hot rebuild path; if it ever lands on one, cache the
+  /// snapshot rather than reallocating per access.
   Set<String> get ids => _idSlices.keys.toSet();
 
   /// The slice bound to [id], or `null` when nothing is bound.
+  ///
+  /// An id's payload type `T` is **fixed for the lifetime of its binding**:
+  /// the first [bind] decides it, and a later [slice]<U> with a different `U`
+  /// throws a [StateError] rather than silently mistyping the slice. Re-bind
+  /// the id (via [bind]) to change its type.
   AsyncSlice<T>? slice<T>(String id) {
     final slice = _idSlices[id];
     if (slice == null) return null;
@@ -44,7 +54,19 @@ abstract class ZfaFeatureState {
   }
 
   /// Replace (or insert) the slice for [id] with an [AsyncSlice<T>].
+  ///
+  /// Re-binding an id replaces its slice wholesale, so a re-bind with a
+  /// different `T` changes the id's payload type. In debug builds an existing
+  /// slice of a different `T` trips an assert, catching an accidental type
+  /// change that would otherwise only surface later at [slice] read time.
   void bind<T>(String id, AsyncSlice<T> slice) {
+    final existing = _idSlices[id];
+    assert(
+      existing == null || existing is AsyncSlice<T>,
+      'Re-binding "$id" changes its payload type from '
+      '${existing.runtimeType} to AsyncSlice<$T>. Unbind it first if that is '
+      'intended.',
+    );
     _idSlices[id] = slice;
   }
 

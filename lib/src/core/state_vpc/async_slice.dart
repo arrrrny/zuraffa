@@ -91,7 +91,21 @@ class $AsyncSliceFailed<T> implements $AsyncSlice<T> {
 /// note on the variant): [appFailure] is the carried [AppFailure], [stale] the
 /// last known value.
 extension AsyncSliceFailedAccessors<T> on AsyncSliceFailed<T> {
-  AppFailure get appFailure => failure as AppFailure;
+  AppFailure get appFailure {
+    assert(
+      failure is AppFailure,
+      'AsyncSliceFailed.failure must be an AppFailure, got '
+      '${failure.runtimeType}.',
+    );
+    return failure as AppFailure;
+  }
 
-  T? get stale => staleData as T?;
+  T? get stale {
+    assert(
+      staleData == null || staleData is T,
+      'AsyncSliceFailed.staleData must be a T?, got '
+      '${staleData.runtimeType}.',
+    );
+    return staleData as T?;
+  }
 }
