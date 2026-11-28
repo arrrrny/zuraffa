@@ -6,10 +6,11 @@
 import 'dart:io';
 
 import '../context/file_system.dart';
+import 'smart_merge/smart_merge.dart';
 import 'smart_merge_writer.dart';
 
 /// Re-export merge types for convenience.
-export 'package:zorphy/src/merge/merge.dart'
+export 'smart_merge/smart_merge.dart'
     show MergeOrchestrator, MergeMode, MergeResult;
 
 class SmartMergeWriter {
