@@ -55,6 +55,7 @@ class ZfaContext {
     required this.cascadeDepth,
     required this.deadline,
     required this.isBackground,
+    required this.baggage,
   });
 
   /// A fresh root context with a live cancellation token, no span, a new cost
@@ -62,6 +63,7 @@ class ZfaContext {
   factory ZfaContext.root({
     CancellationToken? cancellation,
     Deadline? deadline,
+    Map<String, String> baggage = const {},
   }) {
     return ZfaContext._(
       cancellation: cancellation ?? CancellationToken(),
@@ -70,6 +72,7 @@ class ZfaContext {
       cascadeDepth: 0,
       deadline: deadline,
       isBackground: false,
+      baggage: Map<String, String>.of(baggage),
     );
   }
 
@@ -80,6 +83,7 @@ class ZfaContext {
     cascadeDepth: 0,
     deadline: null,
     isBackground: true,
+    baggage: const {},
   );
 
   /// The non-cancelling system context.
@@ -111,6 +115,17 @@ class ZfaContext {
   /// Whether this is the [background] system context.
   final bool isBackground;
 
+  /// Immutable key/value correlation carried across the causal chain.
+  ///
+  /// Baggage is the out-of-band companion to the typed [span] attributes:
+  /// values here survive every [childSpan] hop (a child inherits this scope's
+  /// baggage and may add or override its own keys). It is how a caller-stamped
+  /// correlation id — e.g. a `sourceContractId` set by [ZfaController.dispatch]
+  /// — reaches every use case and reaction in the cascade without being passed
+  /// explicitly. Like the rest of the context it carries coordination metadata
+  /// only, never I/O handles (the Strict Chord rule).
+  final Map<String, String> baggage;
+
   /// Whether this context has crossed [maxCascadeDepth].
   bool get isCascadeLimitExceeded => cascadeDepth > maxCascadeDepth;
 
@@ -120,12 +135,14 @@ class ZfaContext {
   /// cancellation), its span names [parent] = this scope's span (the causal
   /// chain), and [cascadeIncrement] is added to [cascadeDepth]. A [timeout]
   /// installs a fresh [Deadline] on the child; without one the child inherits
-  /// this scope's deadline.
+  /// this scope's deadline. The child inherits this scope's [baggage] and
+  /// merges [baggage] over it (new keys win).
   ZfaContext childSpan({
     required String operation,
     Duration? timeout,
     int cascadeIncrement = 0,
     Map<String, String> attributes = const {},
+    Map<String, String> baggage = const {},
   }) {
     final childSpan = TelemetrySpan(
       operation: operation,
@@ -139,6 +156,7 @@ class ZfaContext {
       cascadeDepth: cascadeDepth + cascadeIncrement,
       deadline: timeout != null ? Deadline.after(timeout) : deadline,
       isBackground: false,
+      baggage: {...this.baggage, ...baggage},
     );
   }
 
