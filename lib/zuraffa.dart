@@ -311,14 +311,8 @@ export 'package:zorphy_annotation/zorphy_annotation.dart';
 /// UseCase base class for single-shot operations
 export 'src/domain/usecase.dart';
 
-/// StreamUseCase for reactive/streaming operations
-export 'src/domain/stream_usecase.dart';
-
 /// SyncUseCase for synchronous operations
 export 'src/domain/sync_usecase.dart';
-
-/// BackgroundUseCase for isolate-based operations
-export 'src/domain/background_usecase.dart';
 
 /// OsBackgroundTask for OS-scheduled background tasks wrapping workmanager
 export 'src/domain/os_background_task.dart';
