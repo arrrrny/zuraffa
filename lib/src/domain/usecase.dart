@@ -15,7 +15,7 @@ import '../core/result.dart';
 /// success or failure.
 ///
 /// This is the **default** UseCase type for single-shot operations.
-/// For streaming/reactive operations, use [StreamUseCase].
+/// For streaming/reactive operations, use [WatchUseCase].
 /// For operations that don't return a value, use [CompletableUseCase].
 ///
 /// ## Key Features

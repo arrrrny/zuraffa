@@ -135,8 +135,7 @@ class FailureReporterRegistry {
   /// This is **fire-and-forget** — it enqueues the failure in the
   /// batch queue and returns immediately. Never throws.
   ///
-  /// Called automatically by [UseCase.call()], [StreamUseCase.call()],
-  /// [BackgroundUseCase.call()], [SyncUseCase.call()], and
+  /// Called automatically by [UseCase.call()], [SyncUseCase.call()], and
   /// [FailureHandler.logAndHandleError()].
   void reportFailure(
     AppFailure failure, {

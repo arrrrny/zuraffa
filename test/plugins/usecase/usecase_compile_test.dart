@@ -56,16 +56,55 @@ dependencies:
       'abstract class ProductRepository {\n'
       '  Future<Product> get(QueryParams<Product> params);\n'
       '  Future<Product> create(Product product);\n'
+      '  Stream<Product> watch(QueryParams<Product> params);\n'
+      '  Stream<List<Product>> watchList(ListQueryParams<Product> params);\n'
       '}\n',
     );
 
-    await UseCasePlugin(
+    final plugin = UseCasePlugin(
       outputDir: libSrc,
       options: const GeneratorOptions(dryRun: false, force: true),
-    ).generate(
+    );
+    await plugin.generate(
       GeneratorConfig(
         name: 'Product',
-        methods: const ['get', 'create'],
+        methods: const ['get', 'create', 'watch', 'watchList'],
+        outputDir: libSrc,
+      ),
+    );
+
+    await _write(
+      p.join(libSrc, 'domain', 'services', 'product_service.dart'),
+      "import 'package:zuraffa/zuraffa.dart';\n"
+      "import '../entities/product/product.dart';\n"
+      'abstract class ProductService {\n'
+      '  Stream<Product> streamProduct(NoParams params);\n'
+      '  Future<Product> backgroundProduct(NoParams params);\n'
+      '}\n',
+    );
+    await plugin.generate(
+      GeneratorConfig(
+        name: 'StreamProduct',
+        service: 'Product',
+        serviceMethod: 'streamProduct',
+        domain: 'product',
+        paramsType: 'NoParams',
+        returnsType: 'Product',
+        useCaseType: 'stream',
+        noEntity: true,
+        outputDir: libSrc,
+      ),
+    );
+    await plugin.generate(
+      GeneratorConfig(
+        name: 'BackgroundProduct',
+        service: 'Product',
+        serviceMethod: 'backgroundProduct',
+        domain: 'product',
+        paramsType: 'NoParams',
+        returnsType: 'Product',
+        useCaseType: 'background',
+        noEntity: true,
         outputDir: libSrc,
       ),
     );
@@ -141,6 +180,84 @@ dependencies:
       isFalse,
       reason: 'unrequested methods must not be generated',
     );
+
+    final entityWatch = File(
+      p.join(
+        libSrc,
+        'domain',
+        'usecases',
+        'product',
+        'watch_product_usecase.dart',
+      ),
+    ).readAsStringSync();
+    expect(
+      entityWatch,
+      contains(
+        'WatchUseCase<WatchUseCaseIntent<QueryParams<Product>>, Product>',
+      ),
+    );
+    expect(entityWatch, contains('Result<Product, AppFailure> read('));
+    expect(
+      entityWatch,
+      contains('Future<Result<Product, AppFailure>> execute('),
+    );
+    expect(entityWatch, isNot(contains('StreamUseCase')));
+
+    final entityWatchList = File(
+      p.join(
+        libSrc,
+        'domain',
+        'usecases',
+        'product',
+        'watch_product_list_usecase.dart',
+      ),
+    ).readAsStringSync();
+    final compactWatchList = entityWatchList.replaceAll(RegExp(r'\s+'), '');
+    expect(
+      compactWatchList,
+      contains(
+        'WatchUseCase<WatchUseCaseIntent<ListQueryParams<Product>>,List<Product>>',
+      ),
+    );
+    expect(
+      entityWatchList,
+      contains('Result<List<Product>, AppFailure> read('),
+    );
+    expect(
+      entityWatchList,
+      contains('Future<Result<List<Product>, AppFailure>> execute('),
+    );
+
+    final watch = File(
+      p.join(
+        libSrc,
+        'domain',
+        'usecases',
+        'product',
+        'stream_product_usecase.dart',
+      ),
+    ).readAsStringSync();
+    expect(
+      watch,
+      contains('WatchUseCase<WatchUseCaseIntent<NoParams>, Product>'),
+    );
+    expect(watch, contains('Result<Product, AppFailure> read('));
+    expect(watch, contains('Future<Result<Product, AppFailure>> execute('));
+    expect(watch, isNot(contains('StreamUseCase')));
+
+    final background = File(
+      p.join(
+        libSrc,
+        'domain',
+        'usecases',
+        'product',
+        'background_product_usecase.dart',
+      ),
+    ).readAsStringSync();
+    expect(background, contains('UseCase<Product, NoParams>'));
+    expect(background, contains('Future<Product> execute('));
+    expect(background, isNot(contains('BackgroundUseCase')));
+    expect(background, isNot(contains('BackgroundTask')));
   });
 
   test('compile: generated usecases pass dart analyze (exit 0)', () async {

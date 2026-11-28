@@ -250,7 +250,7 @@ abstract final class ProductFields {
           className: className,
           content:
               'class $className extends '
-              'StreamUseCase<Product, $wrapper<Product>> {}',
+              'WatchUseCase<WatchUseCaseIntent<$wrapper<Product>>, Product> {}',
         );
       }
 
@@ -273,7 +273,7 @@ abstract final class ProductFields {
       }
     });
 
-    test('generates StreamUseCase handler with streaming response', () async {
+    test('generates WatchUseCase handler with streaming response', () async {
       await createEntity(
         outputDir: outputDir,
         entitySnake: 'product',
@@ -284,7 +284,7 @@ abstract final class ProductFields {
         entitySnake: 'product',
         className: 'WatchProductUseCase',
         content:
-            'class WatchProductUseCase extends StreamUseCase<Product, QueryParams<Product>> {}',
+            'class WatchProductUseCase extends WatchUseCase<WatchUseCaseIntent<QueryParams<Product>>, Product> {}',
       );
 
       final builder = ApiBridgeBuilder(
@@ -298,7 +298,43 @@ abstract final class ProductFields {
       final content = await File(files.first.path).readAsString();
       expect(content, contains('streaming'));
       expect(content, contains('subscriptionId'));
-      expect(content, contains('ZuraffaApiBridge.registerStreamSubscription'));
+      expect(content, contains('ZuraffaApiBridge.registerSignalSubscription'));
+      expect(content, contains('useCase.watch(intent, ZfaContext.root()'));
+      expect(
+        content,
+        contains('WatchUseCaseIntent<QueryParams<Product>>(params)'),
+      );
+    });
+
+    test('parses formatted multiline WatchUseCase signatures', () async {
+      await createEntity(
+        outputDir: outputDir,
+        entitySnake: 'product',
+        entityName: 'Product',
+      );
+      await createUseCase(
+        outputDir: outputDir,
+        entitySnake: 'product',
+        className: 'WatchProductListUseCase',
+        content: '''
+class WatchProductListUseCase extends WatchUseCase<
+  WatchUseCaseIntent<ListQueryParams<Product>>,
+  List<Product>
+> {}
+''',
+      );
+
+      final files = await ApiBridgeBuilder(
+        outputDir: outputDir,
+        options: const GeneratorOptions(dryRun: false, force: true),
+      ).generate(GeneratorConfig(name: 'Product', outputDir: outputDir));
+
+      final content = await File(files.single.path).readAsString();
+      expect(content, contains("returns: 'List<Product>'"));
+      expect(
+        content,
+        contains('WatchUseCaseIntent<ListQueryParams<Product>>(params)'),
+      );
     });
 
     test('returns empty list when no UseCases found', () async {
@@ -365,7 +401,7 @@ abstract final class ProductFields {
         entitySnake: 'barcode_listing',
         className: 'GetBarcodeListingUseCase',
         content:
-            'class GetBarcodeListingUseCase extends StreamUseCase<BarcodeListing, BarcodeSpark> {}',
+            'class GetBarcodeListingUseCase extends WatchUseCase<WatchUseCaseIntent<BarcodeSpark>, BarcodeListing> {}',
       );
 
       final builder = ApiBridgeBuilder(
@@ -562,7 +598,7 @@ abstract final class ProductFields {
           {
             'className': 'WatchStockUseCase',
             'content':
-                'class WatchStockUseCase extends StreamUseCase<Product, int> {}',
+                'class WatchStockUseCase extends WatchUseCase<WatchUseCaseIntent<int>, Product> {}',
           },
         ]);
         expect(content, contains("int.tryParse(args['value']"));
@@ -631,7 +667,7 @@ abstract final class ProductFields {
           {
             'className': 'WatchProductUseCase',
             'content':
-                'class WatchProductUseCase extends StreamUseCase<Product, QueryParams<Product>> {}',
+                'class WatchProductUseCase extends WatchUseCase<WatchUseCaseIntent<QueryParams<Product>>, Product> {}',
           },
         ]);
         expect(content, contains("params: {'args': 'QueryParams<Product>'}"));

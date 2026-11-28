@@ -83,14 +83,19 @@ class FetchUserUseCase extends UseCase<User, NoParams> {
       await writeUseCase('orders', 'watch_orders_usecase.dart', '''
 import 'package:zuraffa/zuraffa.dart';
 
-class WatchOrdersUseCase extends StreamUseCase<Order, NoParams> {
+class WatchOrdersUseCase extends WatchUseCase<WatchUseCaseIntent<NoParams>, Order> {
   final OrderService _service;
 
   WatchOrdersUseCase(this._service);
 
   @override
-  Stream<Order> execute(NoParams params, CancelToken? cancelToken) {
-    return const Stream.empty();
+  Result<Order, AppFailure> read(WatchUseCaseIntent<NoParams> intent, ZfaContext ctx) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<Result<Order, AppFailure>> execute(WatchUseCaseIntent<NoParams> intent, ZfaContext ctx) async {
+    throw UnimplementedError();
   }
 }
 ''');
@@ -118,7 +123,7 @@ class WatchOrdersUseCase extends StreamUseCase<Order, NoParams> {
       expect(result.files.length, equals(1));
       final content = result.files.first.content ?? '';
       expect(content, contains('class FakeOrderService'));
-      expect(content, contains('should emit values from stream'));
+      expect(content, contains('should expose a watch signal'));
     });
 
     test('generates orchestrator test with composed usecases', () async {

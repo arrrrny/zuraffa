@@ -166,7 +166,7 @@ environment:
     expect(output, contains('Future<void>'));
     // The stream variant.
     expect(output, contains('WatchProductUseCase'));
-    expect(output, contains('Stream<Product>'));
+    expect(output, contains('Result<Product, AppFailure>'));
     // The exception contract.
     expect(output, contains('CancelledException'));
   });

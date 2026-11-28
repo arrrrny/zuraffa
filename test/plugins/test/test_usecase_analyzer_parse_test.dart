@@ -80,14 +80,19 @@ class FetchUserUseCase extends UseCase<User, NoParams> {
       await writeUseCase('orders', 'watch_orders_usecase.dart', '''
 import 'package:zuraffa/zuraffa.dart';
 
-class WatchOrdersUseCase extends StreamUseCase<Order, NoParams> {
+class WatchOrdersUseCase extends WatchUseCase<WatchUseCaseIntent<NoParams>, Order> {
   final OrderService _service;
 
   WatchOrdersUseCase(this._service);
 
   @override
-  Stream<Order> execute(NoParams params, CancelToken? cancelToken) {
-    return const Stream.empty();
+  Result<Order, AppFailure> read(WatchUseCaseIntent<NoParams> intent, ZfaContext ctx) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<Result<Order, AppFailure>> execute(WatchUseCaseIntent<NoParams> intent, ZfaContext ctx) async {
+    throw UnimplementedError();
   }
 }
 ''');
@@ -197,8 +202,11 @@ class ChargeBillingUseCase extends UseCase<Billing, NoParams> {
       final snake = StringUtils.camelToSnake(
         className.replaceAll('UseCase', ''),
       );
+      final typeArgs = superclass == 'WatchUseCase'
+          ? 'WatchUseCaseIntent<NoParams>, Thing'
+          : 'Thing, NoParams';
       await writeUseCase('flavors', '${snake}_usecase.dart', '''
-class $className extends $superclass<Thing, NoParams> {
+class $className extends $superclass<$typeArgs> {
   final ThingRepository _repository;
 
   $className(this._repository);
@@ -222,6 +230,10 @@ class $className extends $superclass<Thing, NoParams> {
 
     test('maps every canonical superclass to its flavor', () async {
       expect(await resolveFlavor('PlainThingUseCase', 'UseCase'), 'usecase');
+      expect(
+        await resolveFlavor('WatchThingUseCase', 'WatchUseCase'),
+        'stream',
+      );
       expect(
         await resolveFlavor('StreamThingUseCase', 'StreamUseCase'),
         'stream',

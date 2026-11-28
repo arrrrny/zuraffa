@@ -205,13 +205,14 @@ abstract class SampleRepository {
       },
     );
 
-    test('awaits stream assertions and matches subscription errors', () async {
+    test('awaits watch refresh and checks signal failures', () async {
       await writeEntityFixture('watch');
       final generated = await builder.generateForMethod(config(), 'watch');
       final content = generated.content!;
 
-      expect(content, contains('await expectLater('));
-      expect(content, contains('emitsError(isA<Object>())'));
+      expect(content, contains('await Future.delayed(Duration.zero)'));
+      expect(content, contains('expect(result.value.isFailure, true)'));
+      expect(content, contains('WatchUseCaseIntent<QueryParams<Product>>'));
       expect(content, isNot(contains('throwsA(')));
     });
 

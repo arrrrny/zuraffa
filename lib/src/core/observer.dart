@@ -3,10 +3,10 @@ import 'dart:async';
 import 'failure.dart';
 import 'result.dart';
 
-/// Observer for [StreamUseCase] callback-based listening.
+/// Observer for callback-based stream listening.
 ///
 /// [Observer] provides a callback-based interface for handling
-/// stream emissions from a [StreamUseCase]. It's **optional** —
+/// stream emissions. It's **optional** —
 /// you can also use the stream directly with `.listen()` or `await for`.
 ///
 /// ## When to Use Observer
@@ -117,7 +117,7 @@ class CallbackObserver<T> extends Observer<T> {
   void onDone() => onDoneCallback?.call();
 }
 
-/// Extension to use [Observer] with [StreamUseCase].
+/// Extension to use [Observer] with stream sources.
 ///
 /// Provides a convenient `observe` method for callback-based listening.
 extension ObserverStreamExtension<T> on Stream<Result<T, AppFailure>> {

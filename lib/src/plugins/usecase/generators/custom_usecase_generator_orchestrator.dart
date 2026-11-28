@@ -156,7 +156,7 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
     );
     usecaseImports.addAll(entityImports);
 
-    final executeMethod = _buildOrchestratorExecute(
+    final executeMethods = _buildOrchestratorExecute(
       config,
       paramsType,
       returnsType,
@@ -169,7 +169,7 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
       constructors: [
         Constructor((b) => b..requiredParameters.addAll(usecaseParams)),
       ],
-      methods: [executeMethod],
+      methods: executeMethods,
       imports: usecaseImports,
     );
 

@@ -114,7 +114,8 @@ class StreamUseCaseGenerator {
 
     final paramsType = config.paramsType ?? 'NoParams';
     final returnsType = config.returnsType ?? 'void';
-    final baseClass = 'StreamUseCase<$returnsType, $paramsType>';
+    final baseClass =
+        'WatchUseCase<WatchUseCaseIntent<$paramsType>, $returnsType>';
 
     final dependencyImports = <String>[];
     final dependencyFields = <Field>[];
@@ -182,45 +183,87 @@ class StreamUseCaseGenerator {
       );
     }
 
-    final executeBody = dependencyFields.isNotEmpty
-        ? Block(
-            (b) => b
-              ..statements.add(
-                refer(dependencyFields.first.name)
-                    .property(_methodName(config))
-                    .call([refer('params')])
-                    .returned
-                    .statement,
-              ),
-          )
-        : Block(
-            (b) => b
-              ..statements.add(Code('// TODO: Implement logic'))
-              ..statements.add(
-                refer('UnimplementedError').call([]).thrown.statement,
-              ),
+    final dependencyCall = dependencyFields.isEmpty
+        ? null
+        : refer(dependencyFields.first.name).property(_methodName(config)).call(
+            [refer('intent').property('params')],
           );
 
+    final intentType = 'WatchUseCaseIntent<$paramsType>';
+    final resultType = TypeReference(
+      (t) => t
+        ..symbol = 'Result'
+        ..types.addAll([refer(returnsType), refer('AppFailure')]),
+    );
+    final readMethod = Method(
+      (b) => b
+        ..name = 'read'
+        ..returns = resultType
+        ..requiredParameters.addAll([
+          Parameter(
+            (p) => p
+              ..name = 'intent'
+              ..type = refer(intentType),
+          ),
+          Parameter(
+            (p) => p
+              ..name = 'ctx'
+              ..type = refer('ZfaContext'),
+          ),
+        ])
+        ..annotations.add(CodeExpression(Code('override')))
+        ..body = Block(
+          (bb) => bb
+            ..statements.add(
+              refer(
+                'UnimplementedError',
+              ).call([literalString('Implement read')]).thrown.statement,
+            ),
+        ),
+    );
+    final watchExecuteBody = Block((b) {
+      b.statements.add(
+        refer('ctx').property('throwIfCancelled').call([]).statement,
+      );
+      if (dependencyFields.isEmpty) {
+        b.statements.add(
+          refer(
+            'UnimplementedError',
+          ).call([literalString('Implement execute')]).thrown.statement,
+        );
+      } else {
+        b.statements.add(
+          refer('Result')
+              .property('success')
+              .call([dependencyCall!.property('first').awaited])
+              .returned
+              .statement,
+        );
+      }
+    });
     final executeMethod = Method(
       (b) => b
         ..name = 'execute'
-        ..returns = refer('Stream<$returnsType>')
-        ..requiredParameters.add(
+        ..returns = TypeReference(
+          (t) => t
+            ..symbol = 'Future'
+            ..types.add(resultType),
+        )
+        ..modifier = MethodModifier.async
+        ..requiredParameters.addAll([
           Parameter(
             (p) => p
-              ..name = 'params'
-              ..type = refer(paramsType),
+              ..name = 'intent'
+              ..type = refer(intentType),
           ),
-        )
-        ..requiredParameters.add(
           Parameter(
             (p) => p
-              ..name = 'cancelToken'
-              ..type = refer('CancelToken?'),
+              ..name = 'ctx'
+              ..type = refer('ZfaContext'),
           ),
-        )
+        ])
         ..annotations.add(CodeExpression(Code('override')))
-        ..body = executeBody,
+        ..body = watchExecuteBody,
     );
 
     final spec = UseCaseClassSpec(
@@ -234,7 +277,7 @@ class StreamUseCaseGenerator {
                 (b) => b..requiredParameters.addAll(constructorParams),
               ),
             ],
-      methods: [executeMethod],
+      methods: [readMethod, executeMethod],
       imports: [
         coreImport,
         ...dependencyImports,
@@ -254,13 +297,20 @@ class StreamUseCaseGenerator {
     );
 
     final content = classBuilder.build(spec);
-    final methodSource =
-        '@override\nStream<$returnsType> execute($paramsType params, CancelToken? cancelToken) {\n  $executeBody\n}';
+    final methodSources = [readMethod, executeMethod]
+        .map(
+          (method) => method
+              .accept(
+                DartEmitter(orderDirectives: true, useNullSafetySyntax: true),
+              )
+              .toString(),
+        )
+        .toList();
     return _writeOrAppend(
       config: config,
       filePath: filePath,
       className: className,
-      methodSource: methodSource,
+      methodSources: methodSources,
       content: content,
     );
   }
@@ -275,7 +325,7 @@ class StreamUseCaseGenerator {
     required GeneratorConfig config,
     required String filePath,
     required String className,
-    required String methodSource,
+    required List<String> methodSources,
     required String content,
   }) async {
     if (config.revert) {
@@ -311,25 +361,32 @@ class StreamUseCaseGenerator {
         );
       }
 
-      final existing = await fileSystem.read(filePath);
-      final result = appendExecutor.execute(
-        AppendRequest.method(
-          source: existing,
-          className: className,
-          memberSource: methodSource,
-        ),
-      );
-      if (!result.changed) {
+      var existing = await fileSystem.read(filePath);
+      var changed = false;
+      for (final methodSource in methodSources) {
+        final result = appendExecutor.execute(
+          AppendRequest.method(
+            source: existing,
+            className: className,
+            memberSource: methodSource,
+          ),
+        );
+        if (result.changed) {
+          existing = result.source;
+          changed = true;
+        }
+      }
+      if (!changed) {
         return GeneratedFile(
           path: filePath,
           type: 'usecase',
           action: 'skipped',
-          content: result.source,
+          content: existing,
         );
       }
       return FileUtils.writeFile(
         filePath,
-        result.source,
+        existing,
         'usecase',
         force: true,
         dryRun: config.dryRun,

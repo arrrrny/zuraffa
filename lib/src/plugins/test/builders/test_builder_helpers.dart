@@ -355,34 +355,32 @@ extension TestBuilderHelpers on TestBuilder {
         : [_getDefaultValueForType(paramsType, config.name)];
 
     final testContent = Block((t) {
-      if (useCaseType == 'background') {
+      if (useCaseType == 'stream') {
         t.statements.add(
           declareFinal('result')
-              .assign(refer('useCase').property('buildTask').call(callArgs))
+              .assign(
+                refer('useCase')
+                    .property('watch')
+                    .call(
+                      [
+                        refer('WatchUseCaseIntent<$paramsType>').call(callArgs),
+                        refer('ZfaContext').property('root').call([]),
+                      ],
+                      {'owner': refer('useCase')},
+                    ),
+              )
               .statement,
         );
         t.statements.add(
           refer('expect').call([
-            refer('result'),
-            refer('isA').call([], {}, [refer('BackgroundTask')]),
+            CodeExpression(Code('result.value.isSuccess')),
+            literalBool(true),
           ]).statement,
         );
-      } else if (useCaseType == 'stream') {
         t.statements.add(
-          declareFinal(
-            'result',
-          ).assign(refer('useCase').call(callArgs)).statement,
-        );
-        t.statements.add(
-          refer('expectLater')
-              .call([
-                refer('result'),
-                refer('emits').call([
-                  refer('isA').call([], {}, [refer('Success')]),
-                ]),
-              ])
-              .awaited
-              .statement,
+          refer(
+            'addTearDown',
+          ).call([refer('result').property('dispose')]).statement,
         );
       } else {
         t.statements.add(
@@ -402,7 +400,7 @@ extension TestBuilderHelpers on TestBuilder {
     return refer('test').call([
       literalString(
         useCaseType == 'stream'
-            ? 'should emit values from stream'
+            ? 'should expose a watch signal'
             : 'should return Success',
       ),
       testContent.toClosure(asAsync: true),

@@ -65,7 +65,9 @@ class EntityUseCaseGenerator {
       // The only exception the generated body can raise directly — the
       // cancellation guard every emitted execute carries
       // (`cancelToken?.throwIfCancelled()`).
-      exception: 'CancelledException',
+      exception: plan.isStream
+          ? 'CancellationTokenException'
+          : 'CancelledException',
       fileName: plan.fileName,
       filePath: plan.filePath,
     );
@@ -313,7 +315,7 @@ class EntityUseCaseGenerator {
       config: config,
       filePath: plan.filePath,
       className: plan.className,
-      executeMethodSource: plan.executeMethodSource,
+      executeMethodSources: plan.executeMethodSources,
       content: plan.content,
     );
   }
@@ -506,28 +508,11 @@ class EntityUseCaseGenerator {
       case 'watch':
         className = 'Watch${entityName}UseCase';
         if (config.queryFieldType == 'NoParams') {
-          baseClass = TypeReference(
-            (t) => t
-              ..symbol = 'StreamUseCase'
-              ..types.addAll([refer(entityName), refer('NoParams')]),
-          );
           paramsType = refer('NoParams');
           executeExpression = refer(
             sourceField,
           ).property('watch').call([refer('QueryParams').constInstance([])]);
         } else {
-          baseClass = TypeReference(
-            (t) => t
-              ..symbol = 'StreamUseCase'
-              ..types.addAll([
-                refer(entityName),
-                TypeReference(
-                  (tr) => tr
-                    ..symbol = 'QueryParams'
-                    ..types.add(refer(entityName)),
-                ),
-              ]),
-          );
           paramsType = TypeReference(
             (tr) => tr
               ..symbol = 'QueryParams'
@@ -535,29 +520,25 @@ class EntityUseCaseGenerator {
           );
           executeExpression = refer(
             sourceField,
-          ).property('watch').call([refer('params')]);
+          ).property('watch').call([refer('intent').property('params')]);
         }
         returnType = refer(entityName);
+        baseClass = TypeReference(
+          (t) => t
+            ..symbol = 'WatchUseCase'
+            ..types.addAll([
+              TypeReference(
+                (intent) => intent
+                  ..symbol = 'WatchUseCaseIntent'
+                  ..types.add(paramsType),
+              ),
+              returnType,
+            ]),
+        );
         isStream = true;
         break;
       case 'watchList':
         className = 'Watch${entityName}ListUseCase';
-        baseClass = TypeReference(
-          (t) => t
-            ..symbol = 'StreamUseCase'
-            ..types.addAll([
-              TypeReference(
-                (tr) => tr
-                  ..symbol = 'List'
-                  ..types.add(refer(entityName)),
-              ),
-              TypeReference(
-                (tr) => tr
-                  ..symbol = 'ListQueryParams'
-                  ..types.add(refer(entityName)),
-              ),
-            ]),
-        );
         paramsType = TypeReference(
           (tr) => tr
             ..symbol = 'ListQueryParams'
@@ -568,9 +549,21 @@ class EntityUseCaseGenerator {
             ..symbol = 'List'
             ..types.add(refer(entityName)),
         );
+        baseClass = TypeReference(
+          (t) => t
+            ..symbol = 'WatchUseCase'
+            ..types.addAll([
+              TypeReference(
+                (intent) => intent
+                  ..symbol = 'WatchUseCaseIntent'
+                  ..types.add(paramsType),
+              ),
+              returnType,
+            ]),
+        );
         executeExpression = refer(
           sourceField,
-        ).property('watchList').call([refer('params')]);
+        ).property('watchList').call([refer('intent').property('params')]);
         isStream = true;
         break;
       default:
@@ -656,50 +649,126 @@ class EntityUseCaseGenerator {
       imports.add(repoPath);
     }
 
-    final executeMethod = Method((m) {
-      m
-        ..name = 'execute'
-        ..annotations.add(refer('override'))
-        ..returns = isStream
-            ? TypeReference(
-                (tr) => tr
-                  ..symbol = 'Stream'
-                  ..types.add(returnType),
-              )
-            : isCompletable
-            ? TypeReference(
-                (tr) => tr
-                  ..symbol = 'Future'
-                  ..types.add(refer('void')),
-              )
-            : TypeReference(
-                (tr) => tr
-                  ..symbol = 'Future'
-                  ..types.add(returnType),
-              )
-        ..requiredParameters.addAll([
-          Parameter(
-            (p) => p
-              ..name = paramName
-              ..type = paramsType,
-          ),
-          Parameter(
-            (p) => p
-              ..name = 'cancelToken'
-              ..type = TypeReference(
-                (tr) => tr
-                  ..symbol = 'CancelToken'
-                  ..isNullable = true,
+    final methods = <Method>[];
+    if (isStream) {
+      final intentType = TypeReference(
+        (t) => t
+          ..symbol = 'WatchUseCaseIntent'
+          ..types.add(paramsType),
+      );
+      final resultType = TypeReference(
+        (t) => t
+          ..symbol = 'Result'
+          ..types.addAll([returnType, refer('AppFailure')]),
+      );
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'read'
+            ..annotations.add(refer('override'))
+            ..returns = resultType
+            ..requiredParameters.addAll([
+              Parameter(
+                (p) => p
+                  ..name = 'intent'
+                  ..type = intentType,
               ),
-          ),
-        ])
-        ..modifier = isStream ? null : MethodModifier.async
-        ..body = Block(
-          (b) => b
-            ..statements.add(Code('cancelToken?.throwIfCancelled();'))
-            ..statements.add(executeExpression.returned.statement),
-        );
-    });
+              Parameter(
+                (p) => p
+                  ..name = 'ctx'
+                  ..type = refer('ZfaContext'),
+              ),
+            ])
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer(
+                    'UnimplementedError',
+                  ).call([literalString('Implement read')]).thrown.statement,
+                ),
+            ),
+        ),
+      );
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'execute'
+            ..annotations.add(refer('override'))
+            ..returns = TypeReference(
+              (tr) => tr
+                ..symbol = 'Future'
+                ..types.add(resultType),
+            )
+            ..requiredParameters.addAll([
+              Parameter(
+                (p) => p
+                  ..name = 'intent'
+                  ..type = intentType,
+              ),
+              Parameter(
+                (p) => p
+                  ..name = 'ctx'
+                  ..type = refer('ZfaContext'),
+              ),
+            ])
+            ..modifier = MethodModifier.async
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('ctx').property('throwIfCancelled').call([]).statement,
+                )
+                ..statements.add(
+                  refer('Result')
+                      .property('success')
+                      .call([executeExpression.property('first').awaited])
+                      .returned
+                      .statement,
+                ),
+            ),
+        ),
+      );
+    } else {
+      methods.add(
+        Method((m) {
+          m
+            ..name = 'execute'
+            ..annotations.add(refer('override'))
+            ..returns = isCompletable
+                ? TypeReference(
+                    (tr) => tr
+                      ..symbol = 'Future'
+                      ..types.add(refer('void')),
+                  )
+                : TypeReference(
+                    (tr) => tr
+                      ..symbol = 'Future'
+                      ..types.add(returnType),
+                  )
+            ..requiredParameters.addAll([
+              Parameter(
+                (p) => p
+                  ..name = paramName
+                  ..type = paramsType,
+              ),
+              Parameter(
+                (p) => p
+                  ..name = 'cancelToken'
+                  ..type = TypeReference(
+                    (tr) => tr
+                      ..symbol = 'CancelToken'
+                      ..isNullable = true,
+                  ),
+              ),
+            ])
+            ..modifier = MethodModifier.async
+            ..body = Block(
+              (b) => b
+                ..statements.add(Code('cancelToken?.throwIfCancelled();'))
+                ..statements.add(executeExpression.returned.statement),
+            );
+        }),
+      );
+    }
 
     final sourceFieldRef = Field(
       (f) => f
@@ -723,7 +792,7 @@ class EntityUseCaseGenerator {
         ..extend = baseClass
         ..fields.add(sourceFieldRef)
         ..constructors.add(ctor)
-        ..methods.add(executeMethod),
+        ..methods.addAll(methods),
     );
     final library = const SpecLibrary().library(
       specs: [useCaseClass],
@@ -748,9 +817,15 @@ class EntityUseCaseGenerator {
       isCompletable: isCompletable,
       fileName: fileName,
       filePath: filePath,
-      executeMethodSource: executeMethod
-          .accept(DartEmitter(orderDirectives: true, useNullSafetySyntax: true))
-          .toString(),
+      executeMethodSources: methods
+          .map(
+            (method) => method
+                .accept(
+                  DartEmitter(orderDirectives: true, useNullSafetySyntax: true),
+                )
+                .toString(),
+          )
+          .toList(),
       content: content,
     );
   }
@@ -759,7 +834,7 @@ class EntityUseCaseGenerator {
     required GeneratorConfig config,
     required String filePath,
     required String className,
-    required String executeMethodSource,
+    required List<String> executeMethodSources,
     required String content,
   }) async {
     if (config.revert) {
@@ -790,14 +865,21 @@ class EntityUseCaseGenerator {
       }
 
       var updatedSource = await fileSystem.read(filePath);
-      final result = appendExecutor.execute(
-        AppendRequest.method(
-          source: updatedSource,
-          className: className,
-          memberSource: executeMethodSource,
-        ),
-      );
-      if (!result.changed) {
+      var changed = false;
+      for (final executeMethodSource in executeMethodSources) {
+        final result = appendExecutor.execute(
+          AppendRequest.method(
+            source: updatedSource,
+            className: className,
+            memberSource: executeMethodSource,
+          ),
+        );
+        if (result.changed) {
+          updatedSource = result.source;
+          changed = true;
+        }
+      }
+      if (!changed) {
         return GeneratedFile(
           path: filePath,
           type: 'usecase',
@@ -807,7 +889,7 @@ class EntityUseCaseGenerator {
       }
       return FileUtils.writeFile(
         filePath,
-        result.source,
+        updatedSource,
         'usecase',
         force: true,
         dryRun: options.dryRun,
@@ -843,13 +925,13 @@ class UsecaseMethodContract {
   /// The prescribed class (`Get<Product>UseCase`).
   final String className;
 
-  /// The prescribed base class: `UseCase`, `StreamUseCase` or
+  /// The prescribed base class: `UseCase`, `WatchUseCase` or
   /// `CompletableUseCase`.
   final String baseClass;
 
   /// The execution variant: `future` (`Future<T> execute`), `stream`
-  /// (`Stream<T> execute`) or `void` (`Future<void> execute`, the
-  /// completable shape).
+  /// (`Future<Result<T, AppFailure>> execute`) or `void`
+  /// (`Future<void> execute`, the completable shape).
   final String variant;
 
   /// The result type the usecase is bound to (`Product`,
@@ -884,9 +966,11 @@ class UsecaseMethodContract {
   });
 
   /// The canonical execute signature the gate audits against.
-  String get executeSignature =>
-      '${variant == 'stream' ? 'Stream<$resultType>' : 'Future<$resultType>'} '
-      'execute($paramsType params, CancelToken? cancelToken)';
+  String get executeSignature => baseClass == 'WatchUseCase'
+      ? 'Future<Result<$resultType, AppFailure>> execute('
+            'WatchUseCaseIntent<$paramsType> intent, ZfaContext ctx)'
+      : '${variant == 'stream' ? 'Stream<$resultType>' : 'Future<$resultType>'} '
+            'execute($paramsType params, CancelToken? cancelToken)';
 
   Map<String, dynamic> toJson() => {
     'name': method,
@@ -913,7 +997,7 @@ class _MethodPlan {
   final bool isCompletable;
   final String fileName;
   final String filePath;
-  final String executeMethodSource;
+  final List<String> executeMethodSources;
   final String content;
 
   const _MethodPlan({
@@ -926,7 +1010,7 @@ class _MethodPlan {
     required this.isCompletable,
     required this.fileName,
     required this.filePath,
-    required this.executeMethodSource,
+    required this.executeMethodSources,
     required this.content,
   });
 }
