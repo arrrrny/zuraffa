@@ -56,8 +56,8 @@ if [ -z "$PREV_TAG" ]; then
 fi
 
 # The consumer resolves the same annotation major this package does.
-ZORPHY_ANN="$(awk '/^  zorphy_annotation:/{print $2; exit}' pubspec.yaml)"
-ZORPHY="$(awk '/^  zorphy:/{print $2; exit}' pubspec.yaml)"
+ZORPHY_ANN="$(awk -F'zorphy_annotation:[[:space:]]*' '/^  zorphy_annotation:/{print $2; exit}' pubspec.yaml)"
+ZORPHY="$(awk -F'zorphy:[[:space:]]*' '/^  zorphy:/{print $2; exit}' pubspec.yaml)"
 
 echo "== skew matrix: generator=$GEN_VERSION tag=${OLD_TAG:-<none: pre-release>} prev=$PREV_TAG work=$WORK"
 
