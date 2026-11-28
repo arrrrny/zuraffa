@@ -38,8 +38,10 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/cli/writers/tdd/pubspec_app_dependencies_patcher.dart';
+import 'package:zuraffa/src/skew/skew_contract.dart';
 
-const String kFlutterBarrelConstraint = 'zuraffa_flutter: ^8.0.0';
+final String kFlutterBarrelConstraint =
+    'zuraffa_flutter: $consumerCoreConstraint';
 const String kGetItConstraint = 'get_it: ^9.2.1';
 
 void main() {
