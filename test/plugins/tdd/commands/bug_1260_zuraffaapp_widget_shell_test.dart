@@ -110,6 +110,27 @@ void main() {
 ''');
     }
 
+    /// Writes `zuraffa_flutter` as an EMPTY local package and returns its
+    /// path. The gen preflight runs `zfa tdd init`, whose day-zero app
+    /// module declares the core range derived from the generator's major
+    /// (`zuraffa_flutter: ^8.0.0`); pub.dev cannot resolve a major that is
+    /// not published yet, so `tdd init`'s resolver would fail the run for a
+    /// reason that has nothing to do with the widget-shell behavior under
+    /// test (same device as bug_1349's hermetic fixture and the flutter
+    /// cluster's `zuraffa_ui` stub).
+    String writeFlutterBarrelStub() {
+      final stub = Directory(
+        p.join(tmpDir.path, '.zfa_fixture', 'zuraffa_flutter'),
+      )..createSync(recursive: true);
+      File(
+        p.join(stub.path, 'pubspec.yaml'),
+      ).writeAsStringSync('name: zuraffa_flutter\npublish_to: none\n');
+      File(p.join(stub.path, 'lib', 'zuraffa_flutter.dart'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('');
+      return stub.path;
+    }
+
     /// Seeds a pubspec with the given [dependencies] lines.
     Future<void> seedPubspec({List<String> dependencies = const []}) async {
       final buffer = StringBuffer('''
@@ -123,6 +144,11 @@ environment:
           buffer.writeln('  $dep');
         }
       }
+      final stub = writeFlutterBarrelStub();
+      buffer.writeln('''
+dependency_overrides:
+  zuraffa_flutter:
+    path: $stub''');
       await File(
         p.join(tmpDir.path, 'pubspec.yaml'),
       ).writeAsString(buffer.toString());
