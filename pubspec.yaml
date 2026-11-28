@@ -22,13 +22,8 @@ dependencies:
   path: ^1.9.1
   yaml: ^3.1.4
   uuid: ^4.6.0
-  # dev.6 removed src/merge/merge.dart, which SmartMergeWriter still uses.
-  # Keep consumers on dev.5 until the smart-merge integration is migrated (#2209).
-  zorphy: '>=3.0.0-dev.5 <3.0.0-dev.6'
-  # Pinned to the same window as zorphy so the two move in lockstep; a
-  # zorphy_annotation dev.6 that broke the consumer graph is caught by the
-  # Flutter smoke gate (tools/flutter_smoke_gate.sh stage 3).
-  zorphy_annotation: '>=3.0.0-dev.5 <3.0.0-dev.6'
+  zorphy: ^3.0.0-dev.6
+  zorphy_annotation: ^3.0.0-dev.6
 
   json_annotation: ^4.12.0
 
