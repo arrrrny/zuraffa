@@ -111,6 +111,16 @@ class TimeoutAndRetryMiddleware<I, O> implements ZfaMiddleware<I, O> {
     if (bound == null) return next(intent, ctx);
     // A timeout is modelled as a retryable timeout failure rather than an
     // escaped exception, so the same retry gate applies to it.
+    //
+    // NOTE: [Future.timeout] bounds the *await*, not the work. It does NOT
+    // cancel the source future — the underlying `next` keeps running after the
+    // timeout fires, and the retry loop then replays `next` while the original
+    // attempt may still be in flight. For a `replaySafe: false` intent that is
+    // retry-eligible only because the context carries an `'idempotencyKey'`, the
+    // key is presence-checked (see [intercept]) but never used here to dedup, so
+    // two executions can overlap. Real de-duplication of the side effect is the
+    // caller's responsibility (e.g. honouring the idempotency key downstream);
+    // this middleware cannot enforce it.
     return next(intent, ctx).timeout(
       bound,
       onTimeout: () => Result<O, AppFailure>.failure(

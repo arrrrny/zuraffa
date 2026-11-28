@@ -32,8 +32,9 @@ bool zfaIntentReplaySafe(Object intent) {
     final dynamic value = intent;
     final replaySafe = value.replaySafe;
     if (replaySafe is bool) return replaySafe;
-  } catch (_) {
-    // No such member — fall through to the safe default.
+  } on NoSuchMethodError {
+    // No such member — fall through to the safe default. Any other error from
+    // a real getter propagates instead of being masked as "no metadata".
   }
   return false;
 }
@@ -46,8 +47,9 @@ String zfaIntentName(Object intent) {
     final dynamic value = intent;
     final name = value.intentName;
     if (name is String) return name;
-  } catch (_) {
-    // No such member — fall through to the runtime type.
+  } on NoSuchMethodError {
+    // No such member — fall through to the runtime type. Any other error from
+    // a real getter propagates instead of being masked as "no name".
   }
   return intent.runtimeType.toString();
 }
@@ -60,8 +62,9 @@ String? zfaIntentDigest(Object intent) {
     final dynamic value = intent;
     final digest = value.intentDigest();
     if (digest is String) return digest;
-  } catch (_) {
-    // No such member — the intent carries no digest.
+  } on NoSuchMethodError {
+    // No such member — the intent carries no digest. Any other error from a
+    // real `intentDigest()` propagates instead of being masked as "no digest".
   }
   return null;
 }
@@ -86,13 +89,14 @@ class TelemetryCostMiddleware<I, O> implements ZfaMiddleware<I, O> {
     NextUseCase<I, O> next,
   ) async {
     final parent = ctx.metadata['span'];
+    final intentName = zfaIntentName(intent as Object);
+    final intentDigest = zfaIntentDigest(intent as Object);
     final span = TelemetrySpan(
-      operation: zfaIntentName(intent as Object),
+      operation: intentName,
       parent: parent is TelemetrySpan ? parent : null,
       attributes: <String, String>{
-        'intentName': zfaIntentName(intent as Object),
-        if (zfaIntentDigest(intent as Object) case final String digest)
-          'intentDigest': digest,
+        'intentName': intentName,
+        if (intentDigest case final String digest) 'intentDigest': digest,
       },
     );
     try {
