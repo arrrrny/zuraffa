@@ -33,6 +33,7 @@ import 'dart:async';
 import 'package:args/command_runner.dart';
 import 'package:test/test.dart';
 import 'package:zuraffa/src/commands/setup_command.dart';
+import 'package:zuraffa/src/skew/skew_contract.dart';
 
 void main() {
   group('spec 1395: the setup day-zero pass declares the app-module deps', () {
@@ -59,7 +60,7 @@ void main() {
       // previewed before).
       expect(
         out,
-        contains('zuraffa_flutter: ^8.0.0'),
+        contains('zuraffa_flutter: $consumerCoreConstraint'),
         reason:
             'the generated lib/app.dart imports '
             'package:zuraffa_flutter/zuraffa_flutter.dart — the day-zero '

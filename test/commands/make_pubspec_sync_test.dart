@@ -20,6 +20,7 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
+import 'package:zuraffa/src/skew/skew_contract.dart';
 
 /// Records the spawned `pub add` and simulates its effect on the fixture
 /// pubspec (dependency inserted under `dependencies:`) — hermetic.
@@ -151,7 +152,7 @@ class _IdField {
         final pubspec = File(
           path.join(workspace.path, 'pubspec.yaml'),
         ).readAsStringSync();
-        expect(pubspec, contains('zuraffa: ^8.0.0'));
+        expect(pubspec, contains('zuraffa: $consumerCoreConstraint'));
       },
       timeout: const Timeout(Duration(minutes: 3)),
     );

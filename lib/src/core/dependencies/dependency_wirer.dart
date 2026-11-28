@@ -4,7 +4,10 @@ import 'package:meta/meta.dart';
 import 'package:path/path.dart' as path;
 import 'package:yaml/yaml.dart';
 
-import '../../skew/skew_contract.dart' show consumerCoreConstraint;
+import '../../package/pub_dev.dart';
+import '../../skew/skew_contract.dart'
+    show consumerCoreConstraint, consumerCoreConstraintForVersion;
+import '../../version.dart';
 
 /// Kind of dependency entry in pubspec.yaml.
 enum DependencyKind { regular, dev, override }
@@ -99,6 +102,8 @@ class DependencyWirer {
   /// acceptable analyzer 14.x so freshly wired apps stay on the same
   /// resolver graph the monorepo ships.
   static const pureDartAnalyzerFallback = '^14.0.0';
+
+  static const _zuraffaGitUrl = 'https://github.com/arrrrny/zuraffa.git';
 
   /// The `zorphy_annotation` range wired into consumers. MUST equal the
   /// range this package itself declares (root `pubspec.yaml`): the
@@ -255,6 +260,46 @@ class DependencyWirer {
     ];
   }
 
+  /// Resolves the core dependency used by live wiring. A published stable
+  /// release in the generator's major stays hosted. While a pure-Dart major
+  /// is still unpublished, its prerelease generator wires the repository's
+  /// `master` so a fresh scaffold can resolve the code it is running.
+  ///
+  /// Production seam (called from [wire]) that the skew-contract tests also
+  /// drive directly with an injected [stableVersionResolver]; not test-only,
+  /// so it carries no `@visibleForTesting` annotation.
+  static Future<DependencySpec> resolveCoreSpecForWire({
+    required bool isFlutter,
+    String? generatorVersion,
+    Future<String> Function()? stableVersionResolver,
+  }) async {
+    final runningVersion = generatorVersion ?? version;
+    final runningMajor = int.parse(runningVersion.split('.').first);
+    final hosted = DependencySpec(
+      name: isFlutter ? 'zuraffa_flutter' : 'zuraffa',
+      kind: DependencyKind.regular,
+      version: consumerCoreConstraintForVersion(runningVersion),
+    );
+    if (isFlutter || !runningVersion.contains('-')) return hosted;
+
+    try {
+      final latest = await (stableVersionResolver ?? latestZuraffaVersion)();
+      final latestMajor = int.parse(latest.split('.').first);
+      if (latestMajor >= runningMajor) return hosted;
+    } catch (_) {
+      // Git keeps prerelease scaffolding resolvable instead of guessing a
+      // hosted version when the stable-release lookup is unavailable.
+    }
+
+    return DependencySpec(
+      name: hosted.name,
+      kind: hosted.kind,
+      version: hosted.version,
+      gitUrl: _zuraffaGitUrl,
+      gitRef: 'master',
+    );
+  }
+
   /// Finds which dependencies from [standardSet] are missing from the given
   /// pubspec.yaml content.
   ///
@@ -386,17 +431,22 @@ class DependencyWirer {
     }
 
     final content = pubspecFile.readAsStringSync();
-    final missing = findMissing(content, isFlutter: isFlutter);
+    final baseMissing = findMissing(content, isFlutter: isFlutter);
     // Names already present before wiring — reported as skipped so
     // `WireResult.didNothing` is accurate when everything was already wired.
     final skippedNames = standardSet(
       isFlutter: isFlutter,
-    ).where((s) => !missing.contains(s)).map((s) => s.name).toList();
+    ).where((s) => !baseMissing.contains(s)).map((s) => s.name).toList();
 
-    if (missing.isEmpty) {
+    if (baseMissing.isEmpty) {
       print('✅ All zuraffa dependencies are already present.');
       return WireResult(skipped: skippedNames);
     }
+
+    final coreSpec = await resolveCoreSpecForWire(isFlutter: isFlutter);
+    final missing = baseMissing
+        .map((spec) => spec.name == coreSpec.name ? coreSpec : spec)
+        .toList();
 
     print(
       '🔧 Wiring ${missing.length} missing dependenc${missing.length == 1 ? 'y' : 'ies'}:',

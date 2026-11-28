@@ -1,11 +1,15 @@
 @Tags(['slow'])
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 import 'package:zuraffa/src/commands/initialize_command.dart';
+import 'package:zuraffa/src/skew/skew_contract.dart';
+import 'package:zuraffa/src/version.dart';
 
 import '../helpers/run_zfa_source.dart';
 
@@ -141,6 +145,84 @@ void main() {
           reason: 'actual creation must normalize spaces to underscores',
         );
       });
+
+      test('--dart wires the running prerelease core (issue #2199)', () async {
+        final fixtureDir = Directory(p.join(tempDir.path, 'zuraffa_fixture'))
+          ..createSync(recursive: true);
+        Directory(p.join(fixtureDir.path, 'lib')).createSync();
+        File(p.join(fixtureDir.path, 'pubspec.yaml')).writeAsStringSync(
+          'name: zuraffa\nversion: $version\n'
+          'environment:\n  sdk: ^3.11.0\n',
+        );
+        File(
+          p.join(fixtureDir.path, 'lib', 'zuraffa.dart'),
+        ).writeAsStringSync('library;\n');
+
+        final repoDir = useDir('zfa_init_v8_repro');
+        final fixturePath = p.relative(fixtureDir.path, from: repoDir.path);
+        File(p.join(repoDir.path, 'pubspec.yaml')).writeAsStringSync(
+          'name: zfa_init_v8_repro\n'
+          'environment:\n  sdk: ^3.11.0\n'
+          'dependency_overrides:\n'
+          '  zuraffa:\n'
+          '    path: ${jsonEncode(fixturePath)}\n',
+        );
+
+        final result = await runZfaSource([
+          'init',
+          '--dart',
+          '--deps-only',
+          '--root',
+          repoDir.path,
+        ], workingDirectory: zfaProjectRoot);
+
+        expect(result.exitCode, 0, reason: combinedOutput(result));
+        final content = File(
+          p.join(repoDir.path, 'pubspec.yaml'),
+        ).readAsStringSync();
+        final pubspec = loadYaml(content) as YamlMap;
+        final core = (pubspec['dependencies'] as YamlMap)['zuraffa'];
+        expect(
+          core is YamlMap ? core['version'] : core,
+          consumerCoreConstraint,
+        );
+        // Guard the actual #2199 fix, not just the version string: while the
+        // running prerelease major is unpublished, the wired core MUST carry
+        // the repository `master` Git source. Without this a regression that
+        // dropped `gitUrl`/`gitRef` from `resolveCoreSpecForWire` would still
+        // be green (the bare version string equals `consumerCoreConstraint`
+        // either way). The `dependency_overrides` path fixture below only
+        // keeps resolution hermetic — it does not exercise the Git source, so
+        // the written entry is the only place this regression is visible.
+        expect(
+          core is YamlMap,
+          isTrue,
+          reason:
+              'an unpublished prerelease major must wire zuraffa from Git '
+              '(a map with `git:`), not a bare hosted version string',
+        );
+        final git = (core as YamlMap)['git'];
+        expect(git is YamlMap, isTrue, reason: 'wired core must carry `git:`');
+        expect(
+          (git as YamlMap)['url'],
+          'https://github.com/arrrrny/zuraffa.git',
+        );
+        expect(git['ref'], 'master');
+        final config =
+            jsonDecode(
+                  File(
+                    p.join(repoDir.path, '.dart_tool', 'package_config.json'),
+                  ).readAsStringSync(),
+                )
+                as Map<String, dynamic>;
+        final resolvedCore =
+            (config['packages'] as List<dynamic>).firstWhere(
+                  (entry) =>
+                      (entry as Map<String, dynamic>)['name'] == 'zuraffa',
+                )
+                as Map<String, dynamic>;
+        expect(resolvedCore['rootUri'], contains('zuraffa_fixture'));
+      }, timeout: _networkTimeout);
 
       test('--dart non-dry-run on repo without pubspec creates minimal '
           'pubspec in-place', () async {

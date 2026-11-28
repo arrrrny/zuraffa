@@ -14,6 +14,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as path;
 import 'package:test/test.dart';
+import 'package:zuraffa/src/skew/skew_contract.dart';
 import '../helpers/project_root.dart';
 
 void main() {
@@ -98,7 +99,7 @@ dependencies:
     ).readAsStringSync();
     expect(
       pubspec,
-      contains('zuraffa: ^8.0.0'),
+      contains('zuraffa: $consumerCoreConstraint'),
       reason:
           '#1530: the ensure must declare the core package textually '
           '(offline-safe) — pubspec:\n$pubspec',

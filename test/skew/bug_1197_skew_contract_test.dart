@@ -30,8 +30,61 @@ void main() {
       expect(supportedCoreFloor, '$generatorMajor.0.0');
     });
 
-    test('the consumer constraint is the caret of the floor', () {
-      expect(consumerCoreConstraint, '^$generatorMajor.0.0');
+    test('the consumer constraint admits the running prerelease line', () {
+      final expected = version.contains('-')
+          ? '^$version'
+          : '^$supportedCoreFloor';
+      expect(consumerCoreConstraint, expected);
+      expect(consumerCoreConstraintForVersion('8.0.0-dev.1'), '^8.0.0-dev.1');
+      expect(consumerCoreConstraintForVersion('8.1.0'), '^8.0.0');
+    });
+
+    test(
+      'an unpublished prerelease major wires the resolvable Git core',
+      () async {
+        final spec = await DependencyWirer.resolveCoreSpecForWire(
+          isFlutter: false,
+          generatorVersion: '8.0.0-dev.1',
+          stableVersionResolver: () async => '7.6.1',
+        );
+        expect(spec.name, 'zuraffa');
+        expect(spec.version, '^8.0.0-dev.1');
+        expect(spec.isGit, isTrue);
+        expect(spec.gitUrl, 'https://github.com/arrrrny/zuraffa.git');
+        expect(spec.gitRef, 'master');
+      },
+    );
+
+    test('a published stable core in the same major stays hosted', () async {
+      final spec = await DependencyWirer.resolveCoreSpecForWire(
+        isFlutter: false,
+        generatorVersion: '8.0.0-dev.1',
+        stableVersionResolver: () async => '8.0.0',
+      );
+      expect(spec.version, '^8.0.0-dev.1');
+      expect(spec.isGit, isFalse);
+    });
+
+    test(
+      'an unreadable stable release falls back to Git for prerelease',
+      () async {
+        final spec = await DependencyWirer.resolveCoreSpecForWire(
+          isFlutter: false,
+          generatorVersion: '8.0.0-dev.1',
+          stableVersionResolver: () async =>
+              throw const HttpException('offline'),
+        );
+        expect(spec.isGit, isTrue);
+      },
+    );
+
+    test('pub add receives the prerelease-admitting core constraint', () {
+      final core = DependencyWirer.standardSet(
+        isFlutter: false,
+      ).firstWhere((s) => s.name == 'zuraffa');
+      expect(DependencyWirer.buildPubAddArgs(core), [
+        'zuraffa@$consumerCoreConstraint',
+      ]);
     });
 
     test('every core spec the generator wires declares that constraint', () {
