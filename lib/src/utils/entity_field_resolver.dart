@@ -124,10 +124,14 @@ class EntityFieldResolver {
     );
     if (!entityFile.existsSync()) return null;
 
-    return resolveFromSource(
-      entityFile.readAsStringSync(),
-      className: entityName,
+    final content = entityFile.readAsStringSync();
+    final partFile = File(
+      p.join(p.dirname(entityFile.path), '$snake.zorphy.dart'),
     );
+    final surface = partFile.existsSync()
+        ? '$content\n${partFile.readAsStringSync()}'
+        : content;
+    return resolveFromSource(surface, className: entityName);
   }
 
   /// Resolves the identity declared in [content], the source of a Zorphy
@@ -304,11 +308,15 @@ class EntityFieldResolver {
   }) {
     if (className != null) {
       final target = _cleanClassName(className);
+      ClassDeclaration? fallback;
       for (final declaration in classes) {
-        if (_cleanClassName(declaration.namePart.typeName.lexeme) == target) {
-          return declaration;
+        if (_cleanClassName(declaration.namePart.typeName.lexeme) != target) {
+          continue;
         }
+        if (_declaredArchetypeOf(declaration) != null) return declaration;
+        fallback ??= declaration;
       }
+      if (fallback != null) return fallback;
     }
     for (final declaration in classes) {
       if (_archetypeOf(declaration) == 'ZorphyEntity') return declaration;
@@ -434,10 +442,16 @@ class EntityFieldResolver {
     ClassDeclaration declaration,
     List<ClassDeclaration> classes,
   ) {
-    final byName = {
-      for (final candidate in classes)
-        _cleanClassName(candidate.namePart.typeName.lexeme): candidate,
-    };
+    final byName = <String, ClassDeclaration>{};
+    for (final candidate in classes) {
+      final name = _cleanClassName(candidate.namePart.typeName.lexeme);
+      final existing = byName[name];
+      if (existing == null ||
+          (_declaredArchetypeOf(existing) == null &&
+              _declaredArchetypeOf(candidate) != null)) {
+        byName[name] = candidate;
+      }
+    }
     final visited = <String>{};
 
     String? visit(ClassDeclaration current) {
@@ -459,13 +473,20 @@ class EntityFieldResolver {
 
   static String? _archetypeOf(ClassDeclaration? declaration) {
     if (declaration == null) return null;
-    for (final annotation in declaration.metadata) {
-      final name = annotation.name.name.split('.').last;
-      if (name == 'ZorphyEntity' || name == 'ZorphyValue') return name;
-    }
+    final declared = _declaredArchetypeOf(declaration);
+    if (declared != null) return declared;
     if (_hasArchetypeBase(declaration, 'ZorphyValueBase')) return 'ZorphyValue';
     if (_hasArchetypeBase(declaration, 'ZorphyEntityBase')) {
       return 'ZorphyEntity';
+    }
+    return null;
+  }
+
+  static String? _declaredArchetypeOf(ClassDeclaration? declaration) {
+    if (declaration == null) return null;
+    for (final annotation in declaration.metadata) {
+      final name = annotation.name.name.split('.').last;
+      if (name == 'ZorphyEntity' || name == 'ZorphyValue') return name;
     }
     return null;
   }

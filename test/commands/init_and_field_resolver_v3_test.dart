@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/commands/initialize_command.dart';
 import 'package:zuraffa/src/utils/entity_field_resolver.dart';
@@ -109,6 +112,15 @@ abstract class \$Ticket extends \$Base {
   String get title;
 }
 
+final class Base implements \$Base, ZorphyEntityBase<String> {
+  final String sku;
+}
+
+final class Ticket implements \$Ticket, ZorphyEntityBase<String> {
+  final String sku;
+  final String title;
+}
+
 abstract final class TicketFields {
   static const ZorphyField<Ticket, String> sku = ZorphyField(name: 'sku');
   static const ZorphyField<Ticket, String> title = ZorphyField(name: 'title');
@@ -123,6 +135,58 @@ abstract final class TicketFields {
       expect(resolved?.idField?.name, 'sku');
       expect(resolved?.idField?.type, 'String');
     });
+
+    test(
+      'resolveIdField reads inherited keys from the colocated part',
+      () async {
+        final root = await Directory.systemTemp.createTemp(
+          'issue_2172_resolver_',
+        );
+        addTearDown(() => root.deleteSync(recursive: true));
+        final dir = Directory(
+          p.join(root.path, 'lib', 'src', 'domain', 'entities', 'ticket'),
+        )..createSync(recursive: true);
+
+        File(p.join(dir.path, 'ticket.dart')).writeAsStringSync('''
+part 'ticket.zorphy.dart';
+
+@ZorphyEntity(principalKey: #sku)
+abstract class \$Base {
+  String get sku;
+}
+
+@ZorphyEntity()
+abstract class \$Ticket extends \$Base {
+  String get title;
+}
+''');
+        File(p.join(dir.path, 'ticket.zorphy.dart')).writeAsStringSync('''
+part of 'ticket.dart';
+
+final class Base implements \$Base, ZorphyEntityBase<String> {
+  final String sku;
+}
+
+final class Ticket implements \$Ticket, ZorphyEntityBase<String> {
+  final String sku;
+  final String title;
+}
+
+abstract final class TicketFields {
+  static const ZorphyField<Ticket, String> sku = ZorphyField(name: 'sku');
+  static const ZorphyField<Ticket, String> title = ZorphyField(name: 'title');
+}
+''');
+
+        final resolved = EntityFieldResolver.resolveIdField(
+          entityName: 'Ticket',
+          projectRoot: root.path,
+        );
+
+        expect(resolved?.idField?.name, 'sku');
+        expect(resolved?.idField?.type, 'String');
+      },
+    );
 
     test('keeps generated-only value-object parts identity-free', () {
       const source = '''
