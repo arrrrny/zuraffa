@@ -360,6 +360,122 @@ abstract class \$Ambiguous {
       expect(resolved.hasId, isFalse);
       expect(resolved.idField, isNull);
     });
+
+    test(
+      'merges an inherited identity field from a base class in the same '
+      'source (no descriptor) — a hand-written entity keeps its id',
+      () async {
+        // Regression guard: `_instanceFields` walked only the declaration's
+        // own members, so an entity inheriting its id field from a base
+        // class resolved hasId=false and `zfa make` failed loudly on a
+        // documented-supported input.
+        await writeEntity('StorePrice', '''
+abstract class \$Base {
+  String get depotId;
+}
+
+$entityAnnotation
+abstract class \$StorePrice extends \$Base {
+  double get amount;
+}
+''');
+        final resolved = EntityFieldResolver.resolveIdField(
+          entityName: 'StorePrice',
+          projectRoot: tempRoot.path,
+        );
+        expect(resolved, isNotNull);
+        expect(resolved!.kind, EntitySourceKind.entity);
+        expect(resolved.hasId, isTrue);
+        expect(resolved.idField!.name, 'depotId');
+        expect(resolved.idField!.type, 'String');
+      },
+    );
+
+    test(
+      'a subclass field wins over an inherited field of the same name',
+      () async {
+        await writeEntity('Override', '''
+abstract class \$Base {
+  String get baseId;
+}
+
+abstract class \$Override extends \$Base {
+  int get baseId;
+}
+''');
+        final resolved = EntityFieldResolver.resolveIdField(
+          entityName: 'Override',
+          projectRoot: tempRoot.path,
+        );
+        expect(resolved!.idField!.name, 'baseId');
+        expect(resolved.idField!.type, 'int');
+      },
+    );
+
+    test(
+      'resolves an inherited identity field from a same-file mixin',
+      () async {
+        // CodeRabbit finding: `resolveFromSource` collected only
+        // ClassDeclaration nodes, so a mixin applied via `with` was
+        // invisible to the supertype walk and its `id` field never entered
+        // the inherited field list.
+        await writeEntity('Ticket', '''
+mixin HasId {
+  String get id;
+}
+
+$entityAnnotation
+abstract class \$Ticket with HasId {
+  String get title;
+}
+''');
+        final resolved = EntityFieldResolver.resolveIdField(
+          entityName: 'Ticket',
+          projectRoot: tempRoot.path,
+        );
+        expect(resolved, isNotNull);
+        expect(resolved!.kind, EntitySourceKind.entity);
+        expect(resolved.hasId, isTrue);
+        expect(resolved.idField!.name, 'id');
+        expect(resolved.idField!.type, 'String');
+      },
+    );
+
+    test(
+      'declared principalKey field wins over a stale generated descriptor',
+      () async {
+        // CodeRabbit finding: when an entity changes its principal key, the
+        // generated `<Entity>Fields` part can still list the old field until
+        // build_runner runs. The declared principalKey must be resolved
+        // from the current entity source, not the stale descriptor.
+        await writeEntity('Product', '''
+@ZorphyEntity(principalKey: #sku)
+abstract class \$Product {
+  int get sku;
+  String get name;
+}
+
+class ProductFields {
+  static const ZorphyField<Product, String> id = ZorphyField(
+    'id',
+    (Product e) => e.name,
+  );
+  static const ZorphyField<Product, String> name = ZorphyField(
+    'name',
+    (Product e) => e.name,
+  );
+}
+''');
+        final resolved = EntityFieldResolver.resolveIdField(
+          entityName: 'Product',
+          projectRoot: tempRoot.path,
+        );
+        expect(resolved, isNotNull);
+        expect(resolved!.hasId, isTrue);
+        expect(resolved.idField!.name, 'sku');
+        expect(resolved.idField!.type, 'int');
+      },
+    );
   });
 
   group('annotation detection', () {
@@ -435,6 +551,27 @@ abstract class \$Order {
       expect(fields[0].type, 'String');
       expect(fields[1].type, 'DateTime');
       expect(fields[2].type, 'double');
+    });
+
+    test('reads a descriptor whose ZorphyField type is library-prefixed', () {
+      // A generated `<Entity>Fields` descriptor may write the prefixed
+      // form `zorphy.ZorphyField<...>`; the resolver must still read it
+      // (a strict `lexeme == ZorphyField` check skipped it and fell back
+      // to instance fields, losing the descriptor's value types).
+      final fields = EntityFieldResolver.parseEntityFields('''
+class \$OrderFields {
+  static const zorphy.ZorphyField<\$Order, String> id = null;
+  static const zorphy.ZorphyField<\$Order, int> quantity = null;
+}
+
+abstract class \$Order {
+  String get id;
+  int get quantity;
+}
+''', className: 'OrderFields');
+      expect(fields.map((f) => f.name).toList(), ['id', 'quantity']);
+      expect(fields[0].type, 'String');
+      expect(fields[1].type, 'int');
     });
   });
 

@@ -1,6 +1,5 @@
 import 'package:test/test.dart';
 import 'package:zuraffa/src/commands/initialize_command.dart';
-import 'package:zuraffa/src/config/zfa_config.dart';
 import 'package:zuraffa/src/utils/zorphy_annotations.dart';
 
 /// The entity `zfa init` scaffolds must be a source the zorphy v3 builder
@@ -23,21 +22,16 @@ void main() {
       expect(zorphySymbolArgument(src, 'ZorphyEntity', 'principalKey'), 'id');
     });
 
-    test('declares the build_runner shared part for its own library path', () {
-      final snake = 'product';
-      expect(
-        src,
-        contains(
-          "part '${sharedPartUri('${ZfaConfig.fixedEntityOutput}/$snake/$snake.dart')}'",
-        ),
-      );
+    test('declares the colocated part emitted by the v3 builder', () {
+      expect(src, contains("part 'product.zorphy.dart';"));
+      expect(src, isNot(contains('_br_/')));
     });
 
     test('carries none of the v2 surface', () {
       for (final v2 in [
         '@Zorphy(',
         'with _\$',
-        '.zorphy.dart',
+        '_br_/',
         'FromJson(',
         'package:zorphy_annotation/zorphy.dart',
       ]) {
