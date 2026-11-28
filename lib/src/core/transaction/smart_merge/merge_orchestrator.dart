@@ -79,6 +79,12 @@ class MergeOrchestrator {
   }
 
   /// Structural merge for files without region markers.
+  ///
+  /// Walks the EXISTING file and replaces each generated declaration
+  /// in place, preserving every other line — imports, top-level
+  /// variables and user declarations — so user-owned source is never
+  /// dropped when a generated declaration changes. Generated
+  /// declarations absent from the existing file are appended.
   static MergeResult structuralMerge({
     required String existingContent,
     required String generatedContent,
@@ -89,30 +95,50 @@ class MergeOrchestrator {
     }
 
     final existingLines = existingContent.split('\n');
+    final generatedLines = generatedContent.split('\n');
 
     final existingDecls = extractDeclarationsFromSource(existingContent);
     final generatedDecls = extractDeclarationsFromSource(generatedContent);
-    final generatedNames = {for (final d in generatedDecls) d.name};
+    final generatedByName = {
+      for (final d in generatedDecls) '${d.kind}:${d.name}': d,
+    };
 
-    final userDecls = existingDecls
-        .where((d) => !generatedNames.contains(d.name))
-        .toList();
-
-    if (userDecls.isEmpty) {
-      return MergeResult(
-        content: safeFormat(generatedContent),
-        hasChanges: true,
-        diffSummary: AstDiff.buildSummary(diffEntries),
-        conflicts: const [],
-      );
+    final buffer = StringBuffer();
+    int cursor = 0;
+    for (final decl in existingDecls) {
+      // Preserve the existing lines before this declaration (imports,
+      // top-level variables, comments).
+      if (cursor < decl.startLine) {
+        buffer.write(existingLines.sublist(cursor, decl.startLine).join('\n'));
+        buffer.writeln();
+      }
+      final gen = generatedByName['${decl.kind}:${decl.name}'];
+      if (gen != null) {
+        buffer.write(
+          generatedLines.sublist(gen.startLine, gen.endLine).join('\n'),
+        );
+      } else {
+        // User declaration — keep it verbatim.
+        buffer.write(
+          existingLines.sublist(decl.startLine, decl.endLine).join('\n'),
+        );
+      }
+      buffer.writeln();
+      cursor = decl.endLine;
+    }
+    // Preserve any trailing existing lines after the last declaration.
+    if (cursor < existingLines.length) {
+      buffer.write(existingLines.sublist(cursor).join('\n'));
     }
 
-    final buffer = StringBuffer(safeFormat(generatedContent));
-    for (final decl in userDecls) {
+    // Append generated declarations that have no existing counterpart.
+    final existingNames = {
+      for (final d in existingDecls) '${d.kind}:${d.name}',
+    };
+    for (final d in generatedDecls) {
+      if (existingNames.contains('${d.kind}:${d.name}')) continue;
       buffer.writeln();
-      buffer.write(
-        existingLines.sublist(decl.startLine, decl.endLine).join('\n'),
-      );
+      buffer.write(generatedLines.sublist(d.startLine, d.endLine).join('\n'));
     }
 
     return MergeResult(

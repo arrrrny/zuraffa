@@ -161,29 +161,109 @@ List<Declaration> extractDeclarationsFromSource(String source) {
 /// the declaration ends. Returns the line index **after** the closing
 /// brace (exclusive, for use with `List.sublist`).
 ///
-/// For brace-less declarations (e.g. typedefs), returns [startLine + 1]
-/// when a semicolon is encountered before any opening brace.
+/// For brace-less declarations (e.g. typedefs, expression-bodied
+/// functions), returns [startLine + 1] when a semicolon is encountered
+/// before any opening body brace.
 ///
-/// **Limitation:** Does not ignore braces inside string literals or comments,
-/// so unusual constructs may confuse the scanner.
+/// The scan is lexical: braces inside string literals and comments are
+/// ignored, and a `{` that appears inside a parameter list (while the
+/// paren depth is non-zero) is a named-parameter brace, not the body —
+/// so an expression-bodied function such as
+/// `String helper({required String v}) => v.trim();` ends at its `;`
+/// rather than at the parameter brace.
 int _findDeclarationEnd(List<String> lines, int startLine) {
   int depth = 0;
+  int parenDepth = 0;
   bool foundOpen = false;
+  bool inBlockComment = false;
+  // Active string delimiter: null when not in a string, otherwise one of
+  // `'`, `"`, `'''`, `"""`. Triple-quoted delimiters persist across lines.
+  String? stringDelim;
 
   for (int i = startLine; i < lines.length; i++) {
-    for (final ch in lines[i].runes) {
-      if (ch == 0x7B) {
-        // '{'
-        depth++;
-        foundOpen = true;
+    final runes = lines[i].runes.toList();
+    int j = 0;
+    while (j < runes.length) {
+      final ch = runes[j];
+
+      if (inBlockComment) {
+        if (ch == 0x2A && j + 1 < runes.length && runes[j + 1] == 0x2F) {
+          // */
+          inBlockComment = false;
+          j += 2;
+          continue;
+        }
+        j++;
+        continue;
+      }
+
+      if (stringDelim != null) {
+        final delim = stringDelim;
+        if (delim.length == 3) {
+          if (_matchesRunesAt(runes, j, delim)) {
+            j += 3;
+            stringDelim = null;
+            continue;
+          }
+        } else {
+          if (ch == 0x5C) {
+            // backslash escape — skip the escaped rune
+            j += 2;
+            continue;
+          }
+          if (ch == delim.codeUnitAt(0)) {
+            j++;
+            stringDelim = null;
+            continue;
+          }
+        }
+        j++;
+        continue;
+      }
+
+      // Line comment — rest of the line is ignored.
+      if (ch == 0x2F && j + 1 < runes.length && runes[j + 1] == 0x2F) {
+        break;
+      }
+      // Block comment start.
+      if (ch == 0x2F && j + 1 < runes.length && runes[j + 1] == 0x2A) {
+        inBlockComment = true;
+        j += 2;
+        continue;
+      }
+      // String start.
+      if (ch == 0x27 || ch == 0x22) {
+        final triple = ch == 0x27 ? "'''" : '"""';
+        if (_matchesRunesAt(runes, j, triple)) {
+          stringDelim = triple;
+          j += 3;
+        } else {
+          stringDelim = ch == 0x27 ? "'" : '"';
+          j++;
+        }
+        continue;
+      }
+
+      if (ch == 0x28) {
+        // (
+        parenDepth++;
+      } else if (ch == 0x29) {
+        // )
+        if (parenDepth > 0) parenDepth--;
+      } else if (ch == 0x7B) {
+        // '{' — only a body brace when not inside a parameter list.
+        if (parenDepth == 0) {
+          depth++;
+          foundOpen = true;
+        }
       } else if (ch == 0x7D) {
         // '}'
-        depth--;
-      } else if (ch == 0x3B && !foundOpen) {
-        // ';' before any '{'
-        // Brace-less declaration (e.g. typedef) — end after this line.
+        if (parenDepth == 0) depth--;
+      } else if (ch == 0x3B && !foundOpen && parenDepth == 0) {
+        // ';' before any body '{' — brace-less declaration ends here.
         return i + 1;
       }
+      j++;
     }
     if (foundOpen && depth <= 0) {
       // Return the line after the closing brace.
@@ -193,6 +273,16 @@ int _findDeclarationEnd(List<String> lines, int startLine) {
 
   // Unterminated brace or declaration — return end of file.
   return lines.length;
+}
+
+/// Whether [runes] contains [needle] starting at index [at].
+bool _matchesRunesAt(List<int> runes, int at, String needle) {
+  final n = needle.runes.toList();
+  if (at + n.length > runes.length) return false;
+  for (int k = 0; k < n.length; k++) {
+    if (runes[at + k] != n[k]) return false;
+  }
+  return true;
 }
 
 /// Heuristic: check whether line at [lineIndex] looks like a top-level

@@ -99,7 +99,64 @@ class AstDiff {
       );
     }
 
+    // Check the source spans that fall OUTSIDE every classified
+    // declaration (intervening gaps and the trailing span). A change to
+    // top-level code the scanner skips — e.g. a `const schemaVersion`
+    // value — produces no declaration diff, so without this the merge
+    // would treat the file as unchanged and return the old source.
+    if (!_unclassifiedSpansEqual(
+      existingLines: existingLines,
+      generatedLines: generatedLines,
+      existingDecls: existingDecls,
+      generatedDecls: generatedDecls,
+    )) {
+      entries.add(
+        DiffEntry(
+          description: 'Modified: top-level source outside declarations',
+          type: DiffType.modified,
+          oldLine: -1,
+          newLine: -1,
+        ),
+      );
+    }
+
     return entries;
+  }
+
+  /// Collect the line ranges NOT covered by any declaration (or the
+  /// header, which is handled separately) and compare them between the
+  /// two sources. Returns `true` when every such span is identical.
+  static bool _unclassifiedSpansEqual({
+    required List<String> existingLines,
+    required List<String> generatedLines,
+    required List<Declaration> existingDecls,
+    required List<Declaration> generatedDecls,
+  }) {
+    final existingGaps = _unclassifiedContent(existingLines, existingDecls);
+    final generatedGaps = _unclassifiedContent(generatedLines, generatedDecls);
+    return existingGaps == generatedGaps;
+  }
+
+  /// Concatenate the lines outside [decls]' ranges (excluding the header
+  /// before the first declaration), normalized by trimming each line, so
+  /// formatting-only differences do not register as a change.
+  static String _unclassifiedContent(
+    List<String> lines,
+    List<Declaration> decls,
+  ) {
+    final covered = <bool>[for (var _ in lines) false];
+    for (final d in decls) {
+      for (int i = d.startLine; i < d.endLine && i < covered.length; i++) {
+        covered[i] = true;
+      }
+    }
+    final firstDeclLine = decls.isEmpty ? lines.length : decls.first.startLine;
+    final buffer = StringBuffer();
+    for (int i = firstDeclLine; i < lines.length; i++) {
+      if (covered[i]) continue;
+      buffer.writeln(lines[i].trim());
+    }
+    return buffer.toString();
   }
 
   /// Build a human-readable diff summary.

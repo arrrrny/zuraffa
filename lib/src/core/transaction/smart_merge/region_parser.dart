@@ -17,6 +17,10 @@
 /// Regions may nest. A `@preserve` inside a `GENERATED` block takes
 /// priority — the preserved lines are extracted before the generated
 /// block is replaced, then spliced back in.
+library;
+
+import 'declaration_scanner.dart';
+
 class RegionParser {
   /// Marker that begins a generated (replaceable) region.
   static const String generatedStart = '// GENERATED - DO NOT EDIT';
@@ -100,7 +104,11 @@ class RegionParser {
   ///
   /// When a generated block is about to be replaced, this extracts
   /// any `@preserve`...`@end-preserve` regions so they can be
-  /// spliced into the replacement.
+  /// spliced into the replacement. Only the OUTERMOST block is emitted
+  /// when preserve markers nest, so an inner block is never duplicated.
+  /// Each block records the name of the top-level declaration that
+  /// encloses it (when any) so the splice can restore it to the correct
+  /// declaration rather than the last brace in the replacement.
   static List<PreservedBlock> extractPreservedBlocks(String blockContent) {
     final lines = blockContent.split('\n');
     final blocks = <PreservedBlock>[];
@@ -113,13 +121,31 @@ class RegionParser {
         stack.add(i);
       } else if (trimmed.startsWith(preserveEnd) && stack.isNotEmpty) {
         final start = stack.removeLast();
-        blocks.add(
-          PreservedBlock(content: lines.sublist(start, i + 1).join('\n')),
-        );
+        // Only emit the outermost block: when the closing marker empties
+        // the stack, this block encloses any inner preserved blocks, so
+        // emitting both would duplicate the inner content.
+        if (stack.isEmpty) {
+          blocks.add(
+            PreservedBlock(
+              content: lines.sublist(start, i + 1).join('\n'),
+              enclosingDeclaration: _enclosingDeclaration(lines, start),
+            ),
+          );
+        }
       }
     }
 
     return blocks;
+  }
+
+  /// The name of the top-level declaration whose line range contains
+  /// [line], or `null` when the line is not inside any declaration.
+  static String? _enclosingDeclaration(List<String> lines, int line) {
+    final decls = extractDeclarationsFromSource(lines.join('\n'));
+    for (final d in decls) {
+      if (line >= d.startLine && line < d.endLine) return d.name;
+    }
+    return null;
   }
 }
 
@@ -150,10 +176,15 @@ enum RegionType {
 /// A preserved block extracted from a generated region.
 ///
 /// These are spliced back into the replacement generated content.
+/// [enclosingDeclaration] is the name of the top-level declaration the
+/// block lived in (e.g. `A`), or `null` for a top-level preserve block,
+/// so the splice can restore it to the matching declaration rather than
+/// the last brace of the replacement.
 class PreservedBlock {
   final String content;
+  final String? enclosingDeclaration;
 
-  const PreservedBlock({required this.content});
+  const PreservedBlock({required this.content, this.enclosingDeclaration});
 }
 
 enum _MarkerType { generatedStart, preserveStart }

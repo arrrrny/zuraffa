@@ -71,8 +71,11 @@ class MergeStrategy {
       }
 
       if (region.type == RegionType.preserved) {
-        // Preserved regions are always kept as-is.
+        // Preserved regions are always kept as-is, followed by a line
+        // separator so the following source is not joined onto the
+        // end-marker comment (`// @end-preserveclass A {}`).
         buffer.write(region.content);
+        buffer.writeln();
       } else if (region.type == RegionType.generated) {
         // Extract any @preserve blocks from the existing generated region
         // before replacing it.
@@ -153,47 +156,35 @@ class MergeStrategy {
   }) {
     final generatedLines = generatedContent.split('\n');
 
-    // If the generated content has GENERATED markers, use the full
-    // block (including markers) as the replacement.
-    final genStartIdx = generatedLines.indexWhere(
-      (l) => l.trim().startsWith('// GENERATED'),
-    );
-    final genEndIdx = generatedLines.lastIndexWhere(
-      (l) => l.trim().startsWith('// END GENERATED'),
-    );
+    // Parse the generated content into its generated regions so each
+    // existing region is matched to its OWN corresponding block — never
+    // a span across every generated block (which would emit A, B, A, B).
+    final generatedRegions = RegionParser.parse(
+      generatedContent,
+    ).where((r) => r.type == RegionType.generated).toList();
 
-    if (genStartIdx >= 0 && genEndIdx > genStartIdx) {
-      return generatedLines.sublist(genStartIdx, genEndIdx + 1).join('\n');
+    if (generatedRegions.isNotEmpty) {
+      final names = _declarationNames(existingRegion.content);
+      if (generatedRegions.length == 1) {
+        return generatedRegions.first.content;
+      }
+      // Match by declaration name; fall back to the first block when the
+      // names do not identify a unique region.
+      for (final r in generatedRegions) {
+        final rNames = _declarationNames(r.content);
+        if (rNames.any(names.contains)) return r.content;
+      }
+      return generatedRegions.first.content;
     }
 
-    // Fallback: match declarations by name.
-    final regionContent = existingRegion.content;
-    final declNames = <String>[];
-
-    final classMatch = RegExp(
-      r'(?:abstract\s+|sealed\s+)?class\s+(\$?[A-Za-z_][A-Za-z0-9_\$]*)',
-    ).firstMatch(regionContent);
-    if (classMatch != null) {
-      declNames.add(classMatch.group(1)!);
-    }
-
-    final extMatch = RegExp(r'extension\s+(\w+)').firstMatch(regionContent);
-    if (extMatch != null && !declNames.contains(extMatch.group(1))) {
-      declNames.add(extMatch.group(1)!);
-    }
-
-    final enumMatch = RegExp(
-      r'enum\s+([A-Za-z_][A-Za-z0-9_]*)',
-    ).firstMatch(regionContent);
-    if (enumMatch != null && !declNames.contains(enumMatch.group(1))) {
-      declNames.add(enumMatch.group(1)!);
-    }
-
+    // Fallback: the generated content has no markers. Collect EVERY
+    // declaration in the existing region (not just the first match) and
+    // match all corresponding generated declarations in source order.
+    final declNames = _declarationNames(existingRegion.content);
     if (declNames.isEmpty) return null;
 
     final generatedDecls = extractDeclarationsFromSource(generatedContent);
     final matchingDecls = <Declaration>[];
-
     for (final decl in generatedDecls) {
       if (declNames.contains(decl.name)) {
         matchingDecls.add(decl);
@@ -202,7 +193,6 @@ class MergeStrategy {
 
     if (matchingDecls.isEmpty) return null;
 
-    // Return concatenated declarations in source order.
     final buffer = StringBuffer();
     for (int i = 0; i < matchingDecls.length; i++) {
       final decl = matchingDecls[i];
@@ -212,8 +202,19 @@ class MergeStrategy {
       );
     }
 
-    return buffer.toString();
+    // Wrap the fallback replacement in the generated boundary markers so
+    // a preserved method inside the existing class keeps its generated
+    // markers on the next regeneration pass.
+    return '${RegionParser.generatedStart}\n'
+        '${buffer.toString()}\n'
+        '${RegionParser.generatedEnd}';
   }
+
+  /// The top-level declaration names present in [content], in source
+  /// order.
+  static List<String> _declarationNames(String content) => [
+    for (final d in extractDeclarationsFromSource(content)) d.name,
+  ];
 
   /// Splice preserved blocks into the replacement content.
   static String _splicePreservedBlocks(
@@ -222,35 +223,53 @@ class MergeStrategy {
   ) {
     if (preservedBlocks.isEmpty) return replacement;
 
-    final lines = replacement.split('\n');
+    var lines = replacement.split('\n');
 
-    // Find the last closing brace at column 0 (end of class).
-    int lastBrace = -1;
-    for (int i = lines.length - 1; i >= 0; i--) {
-      if (lines[i].trim() == '}') {
-        lastBrace = i;
-        break;
-      }
-    }
-
-    if (lastBrace < 0) {
-      // No class brace found — append at end.
-      for (final block in preservedBlocks) {
-        lines.add('');
-        lines.addAll(block.content.split('\n'));
-      }
-      return lines.join('\n');
-    }
-
-    // Insert preserved blocks before the last closing brace.
-    final insertLines = <String>[];
     for (final block in preservedBlocks) {
-      insertLines.add('');
-      insertLines.addAll(block.content.split('\n'));
+      // If the replacement already carries this preserved block (e.g. it
+      // was threaded through unchanged), do not insert a duplicate.
+      if (replacement.contains(block.content.trim())) continue;
+
+      final blockLines = block.content.split('\n');
+
+      // Restore the block to its original enclosing declaration so a
+      // preserved method of A does not land inside B; fall back to the
+      // last closing brace when the declaration is unknown.
+      final insertAt = _closingBraceFor(lines, block.enclosingDeclaration);
+
+      if (insertAt < 0) {
+        // No class brace found — append at end.
+        lines.add('');
+        lines.addAll(blockLines);
+        continue;
+      }
+
+      lines.insertAll(insertAt, ['', ...blockLines]);
     }
 
-    lines.insertAll(lastBrace, insertLines);
     return lines.join('\n');
+  }
+
+  /// Index of the line holding the closing brace of [declName] in [lines]
+  /// (preserved members are inserted BEFORE it), or the last top-level
+  /// closing brace when [declName] is `null` or not found. Returns `-1`
+  /// when no closing brace exists.
+  static int _closingBraceFor(List<String> lines, String? declName) {
+    if (declName != null) {
+      final decls = extractDeclarationsFromSource(lines.join('\n'));
+      for (final d in decls) {
+        if (d.name == declName && d.endLine > d.startLine) {
+          // d.endLine is exclusive (the line after the closing brace).
+          for (int i = d.endLine - 1; i >= d.startLine; i--) {
+            if (lines[i].trim() == '}') return i;
+          }
+        }
+      }
+    }
+    for (int i = lines.length - 1; i >= 0; i--) {
+      if (lines[i].trim() == '}') return i;
+    }
+    return -1;
   }
 
   /// Format Dart source, returning raw on failure.
