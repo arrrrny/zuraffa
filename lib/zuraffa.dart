@@ -475,6 +475,21 @@ export 'src/core/middleware/zfa_middleware.dart'
     show ZfaMiddleware, ZfaMiddlewareContext, NextUseCase;
 export 'src/core/middleware/middleware_pipeline.dart' show MiddlewarePipeline;
 
+/// Built-in typed onion middleware (ZFA-006): policy gating, timeout/retry,
+/// and telemetry-cost spans. Exported here so the feature is reachable to
+/// consumers (lean core barrel check, #1661).
+export 'src/core/middleware/policy_gate_middleware.dart'
+    show PolicyGateMiddleware, ZfaPolicyRule, ZfaPolicyDecision;
+export 'src/core/middleware/timeout_and_retry_middleware.dart'
+    show TimeoutAndRetryMiddleware;
+export 'src/core/middleware/telemetry_cost_middleware.dart'
+    show
+        TelemetryCostMiddleware,
+        ZfaIntentMetadata,
+        zfaIntentReplaySafe,
+        zfaIntentName,
+        zfaIntentDigest;
+
 /// DIGenerator — code_builder-based DI registration generation.
 export 'src/dda/plugins/di/di_generator.dart';
 
