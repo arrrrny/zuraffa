@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/core/dependencies/dependency_wirer.dart';
+import 'package:zuraffa/src/skew/skew_contract.dart';
 
 void main() {
   group('DependencyWirer', () {
@@ -51,7 +52,7 @@ void main() {
 
         expect(zuraffaFlutter.kind, DependencyKind.regular);
         expect(zuraffaFlutter.isGit, isFalse);
-        expect(zuraffaFlutter.version, '^8.0.0');
+        expect(zuraffaFlutter.version, consumerCoreConstraint);
       });
 
       test('zuraffa (dart) is a hosted dependency', () {
@@ -59,7 +60,7 @@ void main() {
         final zuraffa = specs.firstWhere((s) => s.name == 'zuraffa');
 
         expect(zuraffa.isGit, isFalse);
-        expect(zuraffa.version, '^8.0.0');
+        expect(zuraffa.version, consumerCoreConstraint);
       });
 
       test('zorphy_annotation is a hosted dependency', () {
