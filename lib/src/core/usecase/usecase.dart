@@ -40,10 +40,26 @@ import '../result.dart';
 /// ```
 abstract class UseCase<I extends ZorphyIntentBase, O> {
   /// Creates a use case with an optional composed [middleware] chain.
-  const UseCase({List<ZfaMiddleware<I, O>> middleware = const []})
-    : _middleware = middleware;
+  UseCase({List<ZfaMiddleware<I, O>> middleware = const []})
+    : _pipeline = _composePipeline(middleware);
 
-  final List<ZfaMiddleware<I, O>> _middleware;
+  /// The composed middleware pipeline, built once at construction.
+  ///
+  /// The middleware set is fixed per instance, so the pipeline is composed a
+  /// single time here and reused across every [call] instead of being rebuilt
+  /// on each invocation.
+  final MiddlewarePipeline<I, O> _pipeline;
+
+  static MiddlewarePipeline<I, O> _composePipeline<
+    I extends ZorphyIntentBase,
+    O
+  >(List<ZfaMiddleware<I, O>> middleware) {
+    final pipeline = MiddlewarePipeline<I, O>();
+    for (final m in middleware) {
+      pipeline.use(m);
+    }
+    return pipeline;
+  }
 
   /// Execute [intent] under [ctx], wrapped in the middleware chain.
   ///
@@ -51,11 +67,6 @@ abstract class UseCase<I extends ZorphyIntentBase, O> {
   /// [Result.failure] carrying an [AppFailure]. Cancellation and unexpected
   /// throws are funnelled onto the same [Result.failure] channel.
   Future<Result<O, AppFailure>> call(I intent, ZfaContext ctx) async {
-    final pipeline = MiddlewarePipeline<I, O>();
-    for (final middleware in _middleware) {
-      pipeline.use(middleware);
-    }
-
     final middlewareContext = ZfaMiddlewareContext(
       useCaseName: '$runtimeType',
       timestamp: DateTime.now(),
@@ -63,7 +74,7 @@ abstract class UseCase<I extends ZorphyIntentBase, O> {
 
     try {
       ctx.throwIfCancelled();
-      return await pipeline.execute(
+      return await _pipeline.execute(
         intent,
         middlewareContext,
         (current, _) => execute(current, ctx),

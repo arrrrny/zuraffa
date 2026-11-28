@@ -44,10 +44,26 @@ import '../signals/zfa_signal.dart';
 /// ```
 abstract class WatchUseCase<I extends ZorphyIntentBase, O> {
   /// Creates a watch use case with an optional composed [middleware] chain.
-  const WatchUseCase({List<ZfaMiddleware<I, O>> middleware = const []})
-    : _middleware = middleware;
+  WatchUseCase({List<ZfaMiddleware<I, O>> middleware = const []})
+    : _pipeline = _composePipeline(middleware);
 
-  final List<ZfaMiddleware<I, O>> _middleware;
+  /// The composed middleware pipeline, built once at construction.
+  ///
+  /// The middleware set is fixed per instance, so the pipeline is composed a
+  /// single time here and reused across every refresh instead of being rebuilt
+  /// on each one.
+  final MiddlewarePipeline<I, O> _pipeline;
+
+  static MiddlewarePipeline<I, O> _composePipeline<
+    I extends ZorphyIntentBase,
+    O
+  >(List<ZfaMiddleware<I, O>> middleware) {
+    final pipeline = MiddlewarePipeline<I, O>();
+    for (final m in middleware) {
+      pipeline.use(m);
+    }
+    return pipeline;
+  }
 
   /// Return an owner-bound signal for [intent] under [ctx].
   ///
@@ -62,6 +78,10 @@ abstract class WatchUseCase<I extends ZorphyIntentBase, O> {
     final seed = _readSafely(intent, ctx);
     final signal = ZfaSignal<Result<O, AppFailure>>(seed, owner: owner);
     scheduleMicrotask(() async {
+      // Skip the async execute work entirely if the owner was disposed between
+      // watch() returning and this microtask firing — the result would only be
+      // discarded.
+      if (signal.isDisposed) return;
       final refreshed = await _executeThroughPipeline(intent, ctx);
       if (signal.isDisposed) return;
       signal.value = refreshed;
@@ -105,10 +125,6 @@ abstract class WatchUseCase<I extends ZorphyIntentBase, O> {
     I intent,
     ZfaContext ctx,
   ) async {
-    final pipeline = MiddlewarePipeline<I, O>();
-    for (final middleware in _middleware) {
-      pipeline.use(middleware);
-    }
     final middlewareContext = ZfaMiddlewareContext(
       useCaseName: '$runtimeType',
       timestamp: DateTime.now(),
@@ -116,7 +132,7 @@ abstract class WatchUseCase<I extends ZorphyIntentBase, O> {
 
     try {
       ctx.throwIfCancelled();
-      return await pipeline.execute(
+      return await _pipeline.execute(
         intent,
         middlewareContext,
         (current, _) => execute(current, ctx),
