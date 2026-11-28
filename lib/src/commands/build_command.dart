@@ -919,16 +919,17 @@ class BuildCommand extends Command {
   /// True when [partName] — the URI of a `part` directive — names a
   /// generated file the build is expected to write.
   ///
-  /// `lib/_br_/.../<library>.part.dart` is the shared part every zorphy
-  /// v3 source declares (build_runner's "add to library" output); a
-  /// source only declares one when it carries a zorphy archetype.
+  /// A colocated `<library>.zorphy.dart` is the current Zorphy output;
+  /// `lib/_br_/.../<library>.part.dart` is its retired shared-part layout.
   /// `.g.dart` is json_serializable's output.
   static bool _isGeneratedPart(String partName) =>
-      partName.endsWith('.part.dart') || partName.endsWith('.g.dart');
+      partName.endsWith('.zorphy.dart') ||
+      partName.endsWith('.part.dart') ||
+      partName.endsWith('.g.dart');
 
   /// True when at least one generated file exists under `lib/` or
-  /// `test/`: a shared part in `_br_/` (zorphy v3) or a `.g.dart` (the
-  /// dirs covered by the canonical `generate_for`).
+  /// `test/`: a colocated `.zorphy.dart`, a shared part in `_br_/`, or a
+  /// `.g.dart` (the dirs covered by the canonical `generate_for`).
   @visibleForTesting
   bool hasGeneratedOutputs({String? projectRoot}) {
     const roots = <String>['lib', 'test'];
@@ -946,10 +947,12 @@ class BuildCommand extends Command {
     return false;
   }
 
-  /// True when [name] is a generated-output filename. `.part.dart` counts
-  /// only in build_runner's reserved `_br_` directories — a hand-written
-  /// `part` file elsewhere is source, not build output.
+  /// True when [name] is a generated-output filename. `.zorphy.dart` is the
+  /// current colocated Zorphy output and `.g.dart` is json_serializable's;
+  /// `.part.dart` counts only in build_runner's reserved `_br_` directories —
+  /// a hand-written `part` file elsewhere is source, not build output.
   static bool _isGeneratedOutput(String name, {String? path}) =>
+      name.endsWith('.zorphy.dart') ||
       name.endsWith('.g.dart') ||
       (name.endsWith('.part.dart') &&
           (path ?? '').contains('${p.separator}_br_${p.separator}'));

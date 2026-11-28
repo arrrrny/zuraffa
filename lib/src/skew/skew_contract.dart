@@ -75,11 +75,19 @@ final int generatorMajor = int.parse(version.split('.').first);
 /// at `^6.0.0` while this package shipped 7.6.1.
 final String supportedCoreFloor = '$generatorMajor.0.0';
 
+/// The consumer constraint for [generatorVersion]. A prerelease generator
+/// starts at its own prerelease so pub can resolve that line before the
+/// stable floor exists; a stable generator keeps the major-wide floor.
+String consumerCoreConstraintForVersion(String generatorVersion) =>
+    generatorVersion.contains('-')
+    ? '^$generatorVersion'
+    : '^${generatorVersion.split('.').first}.0.0';
+
 /// The constraint the generator declares for the core whenever it
 /// writes a consumer pubspec (scaffold wiring, the pubsync ensure, the
 /// day-zero app deps): the widest range that admits supported cores,
 /// and only those.
-final String consumerCoreConstraint = '^$supportedCoreFloor';
+final String consumerCoreConstraint = consumerCoreConstraintForVersion(version);
 
 /// The prescription for a core from another major: a caret constraint
 /// never crosses a major, so the pin moves before the upgrade.

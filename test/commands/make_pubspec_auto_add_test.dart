@@ -29,6 +29,7 @@ import 'package:zuraffa/src/cli/plugin_loader.dart';
 import 'package:zuraffa/src/commands/entity_command.dart';
 import 'package:zuraffa/src/commands/make_command.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_registry.dart';
+import 'package:zuraffa/src/skew/skew_contract.dart';
 
 import '../helpers/cwd_mutex.dart';
 
@@ -185,7 +186,7 @@ dev_dependencies:
 
       // The pubspec declares the core package — via the textual ensure.
       final pubspec = File('${dir.path}/pubspec.yaml').readAsStringSync();
-      expect(pubspec, contains('zuraffa: ^8.0.0'));
+      expect(pubspec, contains('zuraffa: $consumerCoreConstraint'));
 
       // The ensure success surfaces in the completion output…
       expect(output, contains('Ensured zuraffa'));
@@ -231,7 +232,7 @@ dev_dependencies:
         // (not behind the user's back).
         expect(output, contains('Ensured zuraffa'));
         final pubspec = File('${dir.path}/pubspec.yaml').readAsStringSync();
-        expect(pubspec, contains('zuraffa: ^8.0.0'));
+        expect(pubspec, contains('zuraffa: $consumerCoreConstraint'));
       },
       timeout: const Timeout(Duration(minutes: 3)),
     );

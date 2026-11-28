@@ -49,6 +49,18 @@ Future<void> writeSharedPart(String libraryPath) async {
   await part.writeAsString('// generated');
 }
 
+Future<void> writeColocatedSource(String libraryPath) async {
+  final file = File(libraryPath);
+  await file.parent.create(recursive: true);
+  final partName = '${p.basenameWithoutExtension(libraryPath)}.zorphy.dart';
+  await file.writeAsString(
+    "import 'package:zorphy_annotation/zorphy_annotation.dart';\n\n"
+    "part '$partName';\n\n"
+    '@ZorphyEntity(principalKey: #id)\n'
+    'abstract class \$Foo {\n  String get id;\n}\n',
+  );
+}
+
 /// The sandbox root of an absolute [libraryPath]: everything before its
 /// `lib` segment.
 String _sandboxRoot(String libraryPath) {
@@ -144,6 +156,24 @@ void main() {
         ).writeAsString('// hand-written');
         expect(command.hasGeneratedOutputs(projectRoot: sandbox.path), isFalse);
       });
+
+      test(
+        'true when lib/ has a colocated .zorphy.dart output (#2200)',
+        () async {
+          final output = File(
+            p.join(
+              sandbox.path,
+              'lib/src/domain/entities/product/product.zorphy.dart',
+            ),
+          );
+          await output.parent.create(recursive: true);
+          await output.writeAsString('// generated');
+          expect(
+            command.hasGeneratedOutputs(projectRoot: sandbox.path),
+            isTrue,
+          );
+        },
+      );
     });
 
     group('hasZorphyAnnotatedSources', () {
@@ -413,6 +443,16 @@ void main() {
         expect(command.verifyOutputsOrFail(projectRoot: sandbox.path), isTrue);
       });
 
+      test('returns true when an annotated source has colocated .zorphy.dart '
+          'output (#2200)', () async {
+        final source = p.join(sandbox.path, 'lib/src/foo.dart');
+        await writeColocatedSource(source);
+        await File(
+          p.join(sandbox.path, 'lib/src/foo.zorphy.dart'),
+        ).writeAsString('// generated');
+        expect(command.verifyOutputsOrFail(projectRoot: sandbox.path), isTrue);
+      });
+
       test('returns false + actionable error when annotated sources exist but '
           '0 outputs', () async {
         await Directory(
@@ -624,6 +664,34 @@ void main() {
           isFalse,
         );
       });
+
+      test('false when a source declares a missing colocated .zorphy.dart part '
+          '(#2200)', () async {
+        await writeColocatedSource(p.join(sandbox.path, 'lib/src/foo.dart'));
+        final output = capturePrintSync(
+          () => command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+        );
+        expect(output, contains('foo.zorphy.dart'));
+        expect(
+          command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+          isFalse,
+        );
+      });
+
+      test(
+        'true when a source declares an existing colocated .zorphy.dart part '
+        '(#2200)',
+        () async {
+          await writeColocatedSource(p.join(sandbox.path, 'lib/src/foo.dart'));
+          await File(
+            p.join(sandbox.path, 'lib/src/foo.zorphy.dart'),
+          ).writeAsString('// generated');
+          expect(
+            command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+            isTrue,
+          );
+        },
+      );
 
       test('true when an annotated source declares its shared part and the '
           'part exists', () async {

@@ -23,6 +23,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/writers/tdd/pubspec_app_dependencies_patcher.dart';
+import 'package:zuraffa/src/skew/skew_contract.dart';
 
 void main() {
   group('spec 1395: app-deps patcher dry-run + additivity', () {
@@ -45,7 +46,10 @@ void main() {
 
       expect(
         missing,
-        containsAll(['zuraffa_flutter: ^8.0.0', 'get_it: ^9.2.1']),
+        containsAll([
+          'zuraffa_flutter: $consumerCoreConstraint',
+          'get_it: ^9.2.1',
+        ]),
         reason:
             'the preview must report the app module\'s runtime deps when '
             'nothing is declared yet',
