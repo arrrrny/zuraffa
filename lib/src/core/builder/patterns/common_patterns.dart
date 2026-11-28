@@ -230,7 +230,10 @@ class CommonPatterns {
       ).firstMatch(content);
       if (extendsMatch != null) {
         useCaseType = extendsMatch.group(1)?.toLowerCase();
-        final typesStr = _extractBalancedTypeArgs(content, extendsMatch.end);
+        final typesStr = StringUtils.extractBalancedTypeArgs(
+          content,
+          extendsMatch.end,
+        );
         if (typesStr != null) {
           final types = _splitByComma(typesStr);
           if (useCaseType == 'completableusecase') {
@@ -397,17 +400,6 @@ class CommonPatterns {
       }
     }
     return -1;
-  }
-
-  static String? _extractBalancedTypeArgs(String content, int start) {
-    var depth = 1;
-    for (var i = start; i < content.length; i++) {
-      final char = content[i];
-      if (char == '<') depth++;
-      if (char == '>') depth--;
-      if (depth == 0) return content.substring(start, i);
-    }
-    return null;
   }
 
   static List<String> _splitByComma(String input) {

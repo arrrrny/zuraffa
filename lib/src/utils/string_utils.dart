@@ -130,6 +130,23 @@ class StringUtils {
     return input.replaceAll('_', '/');
   }
 
+  /// Returns the balanced `<…>` type-argument substring starting at [start]
+  /// (the index just past an opening `<`), or `null` when the brackets never
+  /// balance. [start] is the position of the first type-argument character;
+  /// the scan tracks nested `<`/`>` depth and returns the content up to the
+  /// matching close. Shared by every generator that parses a generic
+  /// supertype signature so the scanning rule cannot drift between them.
+  static String? extractBalancedTypeArgs(String content, int start) {
+    var depth = 1;
+    for (var i = start; i < content.length; i++) {
+      final char = content[i];
+      if (char == '<') depth++;
+      if (char == '>') depth--;
+      if (depth == 0) return content.substring(start, i);
+    }
+    return null;
+  }
+
   /// Pluralizes an identifier preserving its casing.
   ///
   /// Handles the common English cases used by entity names so generated

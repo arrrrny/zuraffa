@@ -137,7 +137,15 @@ class ZuraffaApiBridge {
       subscription?.cancel();
       signal.dispose();
     });
-    subscription = signal.listen(onValue);
+    try {
+      subscription = signal.listen(onValue);
+    } catch (_) {
+      // `listen` failed: the record's cancel callback would dispose an
+      // already-failed signal, so drop the record and rethrow rather than
+      // leaving a dangling subscription behind.
+      _streamSubscriptions.remove(subscriptionId);
+      rethrow;
+    }
     return subscriptionId;
   }
 

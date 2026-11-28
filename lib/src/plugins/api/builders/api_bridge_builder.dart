@@ -308,7 +308,7 @@ class ApiBridgeBuilder {
     final match = re.firstMatch(content);
     if (match == null) return null;
 
-    final typeArgs = _extractBalancedTypeArgs(content, match.end);
+    final typeArgs = StringUtils.extractBalancedTypeArgs(content, match.end);
     if (typeArgs == null) return null;
     final comma = _topLevelComma(typeArgs);
     if (comma == -1) return null;
@@ -334,17 +334,6 @@ class ApiBridgeBuilder {
       isWatch: isWatch,
       hasFromJson: _paramsTypeHasFromJson(paramsType),
     );
-  }
-
-  String? _extractBalancedTypeArgs(String content, int start) {
-    var depth = 1;
-    for (var i = start; i < content.length; i++) {
-      final char = content[i];
-      if (char == '<') depth++;
-      if (char == '>') depth--;
-      if (depth == 0) return content.substring(start, i);
-    }
-    return null;
   }
 
   /// Index of the first comma at generic nesting depth 0 in [s], or -1.

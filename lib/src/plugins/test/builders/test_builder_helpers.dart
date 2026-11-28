@@ -373,9 +373,7 @@ extension TestBuilderHelpers on TestBuilder {
         );
         t.statements.add(
           refer('expect').call([
-            CodeExpression(
-              Code('result.value.isSuccess || result.value.isFailure'),
-            ),
+            CodeExpression(Code('result.value.isSuccess')),
             literalBool(true),
           ]).statement,
         );
