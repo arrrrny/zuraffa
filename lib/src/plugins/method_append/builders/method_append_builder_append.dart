@@ -404,7 +404,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     Reference returnType,
     Object params,
   ) async {
-    return _appendToDataSourceImpl(
+    return _appendToDataSource(
       config,
       filePath,
       className,
@@ -424,7 +424,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     Reference returnType,
     Object params,
   ) async {
-    return _appendToDataSourceImpl(
+    return _appendToDataSource(
       config,
       filePath,
       className,
@@ -579,7 +579,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     Reference returnType,
     Object params,
   ) async {
-    return _appendToDataSourceImpl(
+    return _appendToDataSource(
       config,
       filePath,
       className,
@@ -592,7 +592,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     );
   }
 
-  Future<GeneratedFile?> _appendToDataSourceImpl(
+  Future<GeneratedFile?> _appendToDataSource(
     GeneratorConfig config,
     String filePath,
     String className,

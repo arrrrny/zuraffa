@@ -864,7 +864,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final serviceName = config.effectiveService;
     final serviceSnake = config.serviceSnake;
     final providerName = config.effectiveProvider;
-    final providerImplName = config.effectiveProviderImpl ?? providerName;
+    final providerImplName = config.effectiveProviderName ?? providerName;
     if (serviceName == null || serviceSnake == null || providerName == null) {
       return null;
     }
@@ -1026,7 +1026,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     FileSystem fs,
   ) async {
     final providerName = config.effectiveProvider;
-    final providerImplName = config.effectiveProviderImpl ?? providerName;
+    final providerImplName = config.effectiveProviderName ?? providerName;
     final providerSnake = config.providerSnake;
     if (providerName == null || providerSnake == null) {
       return null;

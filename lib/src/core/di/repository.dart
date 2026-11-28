@@ -2,7 +2,7 @@
 ///
 /// ```dart
 /// @Repository()
-/// class ProductRepositoryImpl implements ProductRepository { ... }
+/// class DataProductRepository implements ProductRepository { ... }
 /// ```
 class Repository {
   const Repository({this.name});

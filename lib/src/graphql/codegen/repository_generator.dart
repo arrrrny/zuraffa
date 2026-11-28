@@ -6,7 +6,10 @@ import 'package:zuraffa/zuraffa.dart';
 ///
 /// Creates:
 /// - `{Name}Repository` — abstract interface
-/// - `{Name}RepositoryImpl` — implementation delegating to datasource
+/// - `Data{Name}Repository` — implementation delegating to datasource
+///
+/// The implementation name is role-descriptive, never `{Name}RepositoryImpl`:
+/// issue #2196 bans the `Impl` suffix in generated names too.
 ///
 /// ```dart
 /// final gen = RepositoryGenerator(typeMapper: mapper);
@@ -22,7 +25,7 @@ class RepositoryGenerator {
 
   String generate({required String name, required List<RepoMethod> methods}) {
     final interfaceName = '${name}Repository';
-    final implName = '${name}RepositoryImpl';
+    final implName = 'Data${name}Repository';
     final datasourceName = '\$${name}Datasource';
 
     final library = cb.Library((b) {

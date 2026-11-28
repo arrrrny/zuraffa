@@ -17,7 +17,7 @@ import '../datasource_provenance.dart';
 import '../../../utils/crud_method_vocabulary.dart';
 
 part 'local_crud_methods.dart';
-part 'local_generator_impl.dart';
+part 'local_generation_methods.dart';
 part 'local_helper_methods.dart';
 part 'local_stream_methods.dart';
 

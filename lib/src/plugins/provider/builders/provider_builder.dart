@@ -57,7 +57,7 @@ class ProviderBuilder {
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final serviceName = config.effectiveService;
     final providerName = config.effectiveProvider;
-    final providerImplName = config.effectiveProviderImpl ?? providerName;
+    final providerImplName = config.effectiveProviderName ?? providerName;
     final providerSnake = config.providerSnake;
     final serviceSnake = config.serviceSnake;
     if (serviceName == null ||
