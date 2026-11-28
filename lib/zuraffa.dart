@@ -522,6 +522,16 @@ export 'src/state/domain_state.dart';
 // ViewState — developer-editable transient UI state.
 export 'src/state/view_state.dart';
 
+// ============================================================
+// V8 State — Normalized ID slices (ZFA-012)
+// ============================================================
+
+// AsyncSlice<T> — closed generic async-load union (idle/loading/ready/failed).
+export 'src/core/state_vpc/async_slice.dart';
+
+// ZfaFeatureState — ID-keyed AsyncSlice registry contract.
+export 'src/core/state_vpc/zfa_feature_state.dart';
+
 // DualLayerPresenter — strict domain/view state separation.
 export 'src/state/presenter/dual_layer_presenter.dart';
 
