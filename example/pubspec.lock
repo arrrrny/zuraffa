@@ -889,18 +889,18 @@ packages:
     dependency: transitive
     description:
       name: zorphy
-      sha256: "e6e335e82395ac1a4637cf6c4a8d03495d578925d5a992d117f1bddf0f387cfa"
+      sha256: "2001a3af58746e52a7f26c51855707c94e3500ab636108724ea1658147d21ced"
       url: "https://pub.dev"
     source: hosted
-    version: "3.0.0-dev.5"
+    version: "3.0.0-dev.6"
   zorphy_annotation:
     dependency: "direct main"
     description:
       name: zorphy_annotation
-      sha256: 136ec60460d4a42b667b1d523caf4fc328950ef7a0e181fc5735e74e50041c7d
+      sha256: f46470723e53ee1c0e4fb06390d94808e931528eacd99f98acc963154077fef6
       url: "https://pub.dev"
     source: hosted
-    version: "3.0.0-dev.5"
+    version: "3.0.0-dev.6"
   zuraffa:
     dependency: "direct main"
     description:

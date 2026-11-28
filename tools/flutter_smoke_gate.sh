@@ -94,8 +94,13 @@ EOF
 cat > "$TMP_APP/test/smoke_test.dart" <<'EOF'
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/zuraffa.dart';
+import 'package:zuraffa/src/core/transaction/smart_merge_writer.dart';
 
 void main() {
+  test('smart merge writer compiles against the resolved zorphy API', () {
+    expect(SmartMergeWriter.writeMerged, isA<Function>());
+  });
+
   test('zuraffa public surface resolves and compiles under flutter_test', () {
     // The import above pulls zuraffa.dart's full public export surface —
     // including src/core/ast/*, which hard-import package:analyzer. If a
