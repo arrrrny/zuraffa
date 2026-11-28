@@ -368,7 +368,61 @@ class EntityFieldResolver {
       final descriptors = _descriptorFields(candidate);
       if (descriptors.isNotEmpty) return descriptors;
     }
-    return _instanceFields(declaration);
+    // No generated `<Entity>Fields` descriptor: fall back to instance
+    // fields, merging any inherited from supertypes declared in the same
+    // source. A hand-written entity that inherits its identity field from a
+    // base class (and has no descriptor) must still resolve that field —
+    // otherwise `hasId` is false and `zfa make` fails loudly on a
+    // documented-supported input (file doc lines 33–34). Mirrors the
+    // supertype walk `_inheritedPrincipalKey` already does for the
+    // principal key.
+    return _instanceFieldsIncludingInherited(declaration, classes);
+  }
+
+  /// Instance fields of [declaration] followed by the instance fields of its
+  /// supertypes (transitively), de-duplicated by field name — the
+  /// declaration's own fields win. Only supertypes declared in [classes]
+  /// (the same source file) are followed; an imported base class is not
+  /// visible to this source-only resolver.
+  static List<EntityFieldInfo> _instanceFieldsIncludingInherited(
+    ClassDeclaration declaration,
+    List<ClassDeclaration> classes,
+  ) {
+    final byName = <String, ClassDeclaration>{};
+    for (final candidate in classes) {
+      final name = _cleanClassName(candidate.namePart.typeName.lexeme);
+      final existing = byName[name];
+      if (existing == null ||
+          (_declaredArchetypeOf(existing) == null &&
+              _declaredArchetypeOf(candidate) != null)) {
+        byName[name] = candidate;
+      }
+    }
+
+    final fields = <EntityFieldInfo>[];
+    final seen = <String>{};
+    final visited = <String>{};
+
+    void addAll(ClassDeclaration current) {
+      for (final field in _instanceFields(current)) {
+        if (seen.add(field.name)) fields.add(field);
+      }
+    }
+
+    addAll(declaration);
+    void visit(ClassDeclaration current) {
+      for (final supertype in _supertypes(current)) {
+        final base = byName[_cleanClassName(supertype.name.lexeme)];
+        if (base == null) continue;
+        final name = _cleanClassName(base.namePart.typeName.lexeme);
+        if (!visited.add(name)) continue;
+        addAll(base);
+        visit(base);
+      }
+    }
+
+    visit(declaration);
+    return fields;
   }
 
   static List<EntityFieldInfo> _instanceFields(ClassDeclaration declaration) {
@@ -400,7 +454,15 @@ class EntityFieldResolver {
     for (final member in declaration.body.members) {
       if (member is! FieldDeclaration || !member.isStatic) continue;
       final type = member.fields.type;
-      if (type is! NamedType || type.name.lexeme != 'ZorphyField') continue;
+      // Match on the bare type name: a generated descriptor may write the
+      // prefixed form (`zorphy.ZorphyField<...>`), which a strict
+      // `lexeme == 'ZorphyField'` check silently skips — falling back to
+      // instance fields and losing the descriptor's value types. Mirrors the
+      // `.split('.').last` normalization `_archetypeOf` already uses.
+      if (type is! NamedType ||
+          type.name.lexeme.split('.').last != 'ZorphyField') {
+        continue;
+      }
       final arguments = type.typeArguments?.arguments;
       if (arguments == null || arguments.length < 2) continue;
       final valueType = arguments[1].toSource();
