@@ -69,7 +69,7 @@ void main() {
         );
 
         expect(zorphyAnn.isGit, isFalse);
-        expect(zorphyAnn.version, '^3.0.0-dev.5');
+        expect(zorphyAnn.version, '>=3.0.0-dev.5 <3.0.0-dev.6');
       });
 
       test('build_runner is a dev dependency', () {
