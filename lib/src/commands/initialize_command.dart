@@ -9,7 +9,6 @@ import '../config/zfa_config.dart';
 import '../core/dependencies/dependency_wirer.dart';
 import '../utils/file_utils.dart';
 import '../utils/string_utils.dart';
-import '../utils/zorphy_annotations.dart';
 import 'speckit_scaffolding.dart';
 
 class InitializeCommand {
@@ -383,15 +382,12 @@ DESCRIPTION:
 
   /// The sample entity `zfa init` scaffolds, in the zorphy v3 source shape
   /// the `zorphy` builder consumes: a `@ZorphyEntity` whose `principalKey`
-  /// names a declared `id` getter, and build_runner's shared part. The
-  /// part URI is derived from the library's own path — the one place that
-  /// knows the `_br_/` convention is [sharedPartUri].
+  /// names a declared `id` getter, and the colocated `.zorphy.dart` part
+  /// emitted by the v3 builder.
   @visibleForTesting
   static String generateEntityContent(String entityName) {
     final snake = StringUtils.camelToSnake(entityName);
-    final partUri = sharedPartUri(
-      path.posix.join(fixedEntityOutput, snake, '$snake.dart'),
-    );
+    final partUri = '$snake.zorphy.dart';
     return '''
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 

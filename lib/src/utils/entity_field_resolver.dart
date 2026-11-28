@@ -5,7 +5,7 @@
 // that the generated presenter / test / datasource code references a
 // field that actually exists on the entity's Fields class.
 //
-// The source is read through the v3 archetype annotations:
+// The source is read through the analyzer AST and the v3 archetype annotations:
 //
 //   - `@ZorphyValue()` marks a value object: no identity, no CRUD
 //     surface. An id-like field name on one is never resolved.
@@ -39,15 +39,15 @@
 
 import 'dart:io';
 
+import 'package:analyzer/dart/analysis/utilities.dart';
+import 'package:analyzer/dart/ast/ast.dart';
 import 'package:path/path.dart' as p;
 
 import 'string_utils.dart';
-import 'zorphy_annotations.dart';
 
 /// The semantic kind of a Zorphy class, read from its annotation.
 ///
-/// Mirrors `ZorphyKind` from the annotation package using source-text
-/// detection so the resolver stays dependency-light.
+/// Mirrors `ZorphyKind` from the annotation package using class metadata.
 enum EntitySourceKind { entity, valueObject }
 
 /// A single parsed field declaration: a Dart type string and a field name.
@@ -124,7 +124,10 @@ class EntityFieldResolver {
     );
     if (!entityFile.existsSync()) return null;
 
-    return resolveFromSource(entityFile.readAsStringSync());
+    return resolveFromSource(
+      entityFile.readAsStringSync(),
+      className: entityName,
+    );
   }
 
   /// Resolves the identity declared in [content], the source of a Zorphy
@@ -132,18 +135,31 @@ class EntityFieldResolver {
   ///
   /// The one resolution every surface consults (`zfa make`, the tdd make
   /// gate, the entity analyzer) — see the file doc comment for the order.
-  static EntityIdResolution? resolveFromSource(String content) {
-    final fields = parseEntityFields(content);
+  static EntityIdResolution? resolveFromSource(
+    String content, {
+    String? className,
+  }) {
+    final unit = _parseCompilationUnit(content);
+    if (unit == null) return null;
+    final classes = unit.declarations.whereType<ClassDeclaration>().toList();
+    final declaration = _findDeclaration(
+      classes: classes,
+      className: className,
+    );
+    if (declaration == null) return null;
+    final fields = _fieldsForDeclaration(declaration, classes);
     if (fields.isEmpty) return null;
 
     // Value objects have no identity — never resolve (or invent) an id.
-    if (detectsValueObject(content)) {
+    if (_archetypeOf(declaration) == 'ZorphyValue') {
       return const EntityIdResolution(kind: EntitySourceKind.valueObject);
     }
     const kind = EntitySourceKind.entity;
 
     // 1. the `principalKey` field the annotation declares
-    final principalKey = principalKeyField(content);
+    final principalKey =
+        _principalKeyOf(declaration) ??
+        _inheritedPrincipalKey(declaration, classes);
     if (principalKey != null) {
       for (final f in fields) {
         if (f.name == principalKey) {
@@ -216,7 +232,10 @@ class EntityFieldResolver {
     );
     if (!entityFile.existsSync()) return null;
 
-    final fields = parseEntityFields(entityFile.readAsStringSync());
+    final fields = parseEntityFields(
+      entityFile.readAsStringSync(),
+      className: entityName,
+    );
     if (fields.isEmpty) return null;
 
     EntityFieldInfo? firstNullableStringOrInt;
@@ -241,80 +260,254 @@ class EntityFieldResolver {
   }
 
   /// True when [content] declares the v3 value-object archetype
-  /// (`@ZorphyValue`). Comments are ignored, so a doc comment that
-  /// merely mentions the annotation does not classify the class.
-  static bool detectsValueObject(String content) =>
-      zorphyArchetypeOf(content) == 'ZorphyValue';
+  /// (`@ZorphyValue`). Comments and string literals do not classify the class.
+  static bool detectsValueObject(String content) {
+    final unit = _parseCompilationUnit(content);
+    if (unit == null) return false;
+    final classes = unit.declarations.whereType<ClassDeclaration>().toList();
+    return _archetypeOf(_findDeclaration(classes: classes)) == 'ZorphyValue';
+  }
 
   /// The field named by `@ZorphyEntity(principalKey: #<field>)` in
   /// [content], or null when no principal key is declared there.
-  static String? principalKeyField(String content) =>
-      zorphySymbolArgument(content, 'ZorphyEntity', 'principalKey');
+  static String? principalKeyField(String content) {
+    final unit = _parseCompilationUnit(content);
+    if (unit == null) return null;
+    final classes = unit.declarations.whereType<ClassDeclaration>().toList();
+    return _principalKeyOf(_findDeclaration(classes: classes));
+  }
 
   /// Parses `<entity>.dart` source content for field declarations.
   ///
-  /// Recognises both forms emitted by `zfa entity create`:
-  ///   - `  Type get fieldName;`     (Zorphy abstract entity, the default)
-  ///   - `  final Type fieldName;`   (concrete class hand-written)
-  ///   - `  Type fieldName;`        (concrete class without final)
-  ///
-  /// Returns the list of [EntityFieldInfo] in declaration order.
-  /// Comments and method bodies are ignored.
-  static List<EntityFieldInfo> parseEntityFields(String content) {
-    final fields = <EntityFieldInfo>[];
-
-    // Strip /* block comments */ so the regex does not match field-like
-    // text inside them.
-    final cleaned = content.replaceAll(RegExp(r'/\*[\s\S]*?\*/'), '');
-
-    // Match a single line of the form `  Type get fieldName;` OR
-    // `  final Type fieldName;` OR `  Type fieldName;`.
-    //
-    // Group 1 = type (greedy enough to include `Map<String, dynamic>?`)
-    // Group 2 = field name
-    //
-    // We require the line to start with whitespace (indentation inside a
-    // class body) and to end with a semicolon, so we don't accidentally
-    // pick up method declarations or top-level statements.
-    final pattern = RegExp(
-      r'^\s+(?:final\s+)?([A-Za-z_][\w<>?,\s]*?)\s+(?:get\s+)?([A-Za-z_]\w*)\s*;',
-      multiLine: true,
+  /// Recognises instance fields and getters on the Zorphy class, plus the
+  /// static `ZorphyField<Entity, Value>` constants on a generated
+  /// `<Entity>Fields` descriptor. Returns fields in declaration order.
+  static List<EntityFieldInfo> parseEntityFields(
+    String content, {
+    String? className,
+  }) {
+    final unit = _parseCompilationUnit(content);
+    if (unit == null) return const [];
+    final classes = unit.declarations.whereType<ClassDeclaration>().toList();
+    final declaration = _findDeclaration(
+      classes: classes,
+      className: className,
     );
+    return declaration == null
+        ? const []
+        : _fieldsForDeclaration(declaration, classes);
+  }
 
-    for (final match in pattern.allMatches(cleaned)) {
-      final type = match.group(1)!.trim();
-      final name = match.group(2)!.trim();
-      if (type.isEmpty || name.isEmpty) continue;
-      // Skip well-known non-field keywords that the regex might catch.
-      if (_reservedTypeTokens.contains(type)) continue;
-      // Skip method-returning constructors like `MyClass` followed by what
-      // looks like a parameter list — these are handled by the
-      // `(?:get\s+)?` branch only when there is no `(`, which is already
-      // enforced by the trailing `\s*;`.
-      fields.add(EntityFieldInfo(name: name, type: type));
+  static ClassDeclaration? _findDeclaration({
+    required List<ClassDeclaration> classes,
+    String? className,
+  }) {
+    if (className != null) {
+      final target = _cleanClassName(className);
+      for (final declaration in classes) {
+        if (_cleanClassName(declaration.namePart.typeName.lexeme) == target) {
+          return declaration;
+        }
+      }
     }
+    for (final declaration in classes) {
+      if (_archetypeOf(declaration) == 'ZorphyEntity') return declaration;
+    }
+    for (final declaration in classes) {
+      if (_archetypeOf(declaration) == 'ZorphyValue') return declaration;
+    }
+    for (final declaration in classes) {
+      if (!declaration.namePart.typeName.lexeme.endsWith('Fields') ||
+          _descriptorFields(declaration).isEmpty) {
+        continue;
+      }
+      return _concreteClassForDescriptor(declaration, classes) ?? declaration;
+    }
+    for (final declaration in classes) {
+      if (_instanceFields(declaration).isNotEmpty) return declaration;
+    }
+    return classes.isNotEmpty ? classes.first : null;
+  }
 
+  static CompilationUnit? _parseCompilationUnit(String content) {
+    try {
+      var result = parseString(content: content, throwIfDiagnostics: false);
+      // Annotation-only helper inputs need a declaration for analyzer metadata.
+      if (result.unit.declarations.whereType<ClassDeclaration>().isEmpty &&
+          content.trim().isNotEmpty) {
+        result = parseString(
+          content: '$content\nclass _ZorphyResolverProbe {}',
+          throwIfDiagnostics: false,
+        );
+      }
+      return result.unit;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static List<EntityFieldInfo> _fieldsForDeclaration(
+    ClassDeclaration declaration,
+    List<ClassDeclaration> classes,
+  ) {
+    if (declaration.namePart.typeName.lexeme.endsWith('Fields')) {
+      final descriptors = _descriptorFields(declaration);
+      if (descriptors.isNotEmpty) return descriptors;
+    }
+    final cleanName = _cleanClassName(declaration.namePart.typeName.lexeme);
+    for (final candidate in classes) {
+      if (candidate.namePart.typeName.lexeme != '${cleanName}Fields') continue;
+      final descriptors = _descriptorFields(candidate);
+      if (descriptors.isNotEmpty) return descriptors;
+    }
+    return _instanceFields(declaration);
+  }
+
+  static List<EntityFieldInfo> _instanceFields(ClassDeclaration declaration) {
+    final fields = <EntityFieldInfo>[];
+    for (final member in declaration.body.members) {
+      if (member is FieldDeclaration && !member.isStatic) {
+        final type = member.fields.type;
+        if (type == null) continue;
+        for (final variable in member.fields.variables) {
+          fields.add(
+            EntityFieldInfo(name: variable.name.lexeme, type: type.toSource()),
+          );
+        }
+      } else if (member is MethodDeclaration &&
+          member.isGetter &&
+          !member.isStatic) {
+        final type = member.returnType;
+        if (type == null) continue;
+        fields.add(
+          EntityFieldInfo(name: member.name.lexeme, type: type.toSource()),
+        );
+      }
+    }
     return fields;
   }
 
-  /// Tokens that may appear in the type position of a class body line but
-  /// are not actually field types (e.g. `static`, `const`, `void` for a
-  /// method that happens to end with `;`). These are filtered out by
-  /// [parseEntityFields].
-  static const Set<String> _reservedTypeTokens = {
-    'static',
-    'const',
-    'final',
-    'void',
-    'return',
-    'if',
-    'else',
-    'for',
-    'while',
-    'switch',
-    'case',
-    'default',
-  };
+  static List<EntityFieldInfo> _descriptorFields(ClassDeclaration declaration) {
+    final fields = <EntityFieldInfo>[];
+    for (final member in declaration.body.members) {
+      if (member is! FieldDeclaration || !member.isStatic) continue;
+      final type = member.fields.type;
+      if (type is! NamedType || type.name.lexeme != 'ZorphyField') continue;
+      final arguments = type.typeArguments?.arguments;
+      if (arguments == null || arguments.length < 2) continue;
+      final valueType = arguments[1].toSource();
+      for (final variable in member.fields.variables) {
+        fields.add(
+          EntityFieldInfo(name: variable.name.lexeme, type: valueType),
+        );
+      }
+    }
+    return fields;
+  }
+
+  static ClassDeclaration? _concreteClassForDescriptor(
+    ClassDeclaration descriptor,
+    List<ClassDeclaration> classes,
+  ) {
+    final descriptorName = descriptor.namePart.typeName.lexeme;
+    final entityName = descriptorName.substring(
+      0,
+      descriptorName.length - 'Fields'.length,
+    );
+    for (final declaration in classes) {
+      if (_cleanClassName(declaration.namePart.typeName.lexeme) == entityName) {
+        return declaration;
+      }
+    }
+    return null;
+  }
+
+  static String _cleanClassName(String name) {
+    var clean = name;
+    while (clean.startsWith(r'$')) {
+      clean = clean.substring(1);
+    }
+    return clean;
+  }
+
+  static String? _inheritedPrincipalKey(
+    ClassDeclaration declaration,
+    List<ClassDeclaration> classes,
+  ) {
+    final byName = {
+      for (final candidate in classes)
+        _cleanClassName(candidate.namePart.typeName.lexeme): candidate,
+    };
+    final visited = <String>{};
+
+    String? visit(ClassDeclaration current) {
+      for (final supertype in _supertypes(current)) {
+        final base = byName[_cleanClassName(supertype.name.lexeme)];
+        if (base == null) continue;
+        final name = _cleanClassName(base.namePart.typeName.lexeme);
+        if (!visited.add(name)) continue;
+        final key = _principalKeyOf(base);
+        if (key != null) return key;
+        final inherited = visit(base);
+        if (inherited != null) return inherited;
+      }
+      return null;
+    }
+
+    return visit(declaration);
+  }
+
+  static String? _archetypeOf(ClassDeclaration? declaration) {
+    if (declaration == null) return null;
+    for (final annotation in declaration.metadata) {
+      final name = annotation.name.name.split('.').last;
+      if (name == 'ZorphyEntity' || name == 'ZorphyValue') return name;
+    }
+    if (_hasArchetypeBase(declaration, 'ZorphyValueBase')) return 'ZorphyValue';
+    if (_hasArchetypeBase(declaration, 'ZorphyEntityBase')) {
+      return 'ZorphyEntity';
+    }
+    return null;
+  }
+
+  static bool _hasArchetypeBase(ClassDeclaration declaration, String baseName) {
+    return _supertypes(declaration).any((type) => type.name.lexeme == baseName);
+  }
+
+  static Iterable<NamedType> _supertypes(ClassDeclaration declaration) sync* {
+    final extendsClause = declaration.extendsClause;
+    if (extendsClause != null) {
+      yield extendsClause.superclass;
+    }
+    final withClause = declaration.withClause;
+    if (withClause != null) {
+      yield* withClause.mixinTypes;
+    }
+    final implementsClause = declaration.implementsClause;
+    if (implementsClause != null) {
+      yield* implementsClause.interfaces;
+    }
+  }
+
+  static String? _principalKeyOf(ClassDeclaration? declaration) {
+    if (declaration == null) return null;
+    for (final annotation in declaration.metadata) {
+      if (annotation.name.name.split('.').last != 'ZorphyEntity') continue;
+      final arguments = annotation.arguments?.arguments;
+      if (arguments == null) continue;
+      for (final argument in arguments) {
+        if (argument is! NamedArgument ||
+            argument.name.lexeme != 'principalKey') {
+          continue;
+        }
+        final value = argument.argumentExpression;
+        if (value is SymbolLiteral && value.components.length == 1) {
+          return value.components.single.lexeme;
+        }
+      }
+    }
+    return null;
+  }
 
   /// Converts a PascalCase / camelCase name to snake_case — DELEGATED to
   /// [StringUtils.camelToSnake], the exact function `zfa entity create`
