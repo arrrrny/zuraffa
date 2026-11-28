@@ -311,14 +311,8 @@ export 'package:zorphy_annotation/zorphy_annotation.dart';
 /// UseCase base class for single-shot operations
 export 'src/domain/usecase.dart';
 
-/// StreamUseCase for reactive/streaming operations
-export 'src/domain/stream_usecase.dart';
-
 /// SyncUseCase for synchronous operations
 export 'src/domain/sync_usecase.dart';
-
-/// BackgroundUseCase for isolate-based operations
-export 'src/domain/background_usecase.dart';
 
 /// OsBackgroundTask for OS-scheduled background tasks wrapping workmanager
 export 'src/domain/os_background_task.dart';
@@ -480,6 +474,21 @@ export 'src/dda/plugins/middleware/track_event_generator.dart';
 export 'src/core/middleware/zfa_middleware.dart'
     show ZfaMiddleware, ZfaMiddlewareContext, NextUseCase;
 export 'src/core/middleware/middleware_pipeline.dart' show MiddlewarePipeline;
+
+/// Built-in typed onion middleware (ZFA-006): policy gating, timeout/retry,
+/// and telemetry-cost spans. Exported here so the feature is reachable to
+/// consumers (lean core barrel check, #1661).
+export 'src/core/middleware/policy_gate_middleware.dart'
+    show PolicyGateMiddleware, ZfaPolicyRule, ZfaPolicyDecision;
+export 'src/core/middleware/timeout_and_retry_middleware.dart'
+    show TimeoutAndRetryMiddleware;
+export 'src/core/middleware/telemetry_cost_middleware.dart'
+    show
+        TelemetryCostMiddleware,
+        ZfaIntentMetadata,
+        zfaIntentReplaySafe,
+        zfaIntentName,
+        zfaIntentDigest;
 
 /// DIGenerator — code_builder-based DI registration generation.
 export 'src/dda/plugins/di/di_generator.dart';
