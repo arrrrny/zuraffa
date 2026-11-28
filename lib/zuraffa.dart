@@ -398,6 +398,11 @@ export 'src/core/context/zfa_cost_ledger.dart';
 export 'src/core/reactions/zfa_reaction.dart';
 export 'src/core/reactions/zfa_reaction_bus.dart';
 
+/// ZfaController — the lean v8 controller: a typed
+/// `dispatch(ZorphyIntent, ZfaContext)` loop over `domainState`/`uiState`
+/// signals, retiring the multi-method controller + presenter ceremony.
+export 'src/core/state_vpc/zfa_controller.dart';
+
 /// TelemetryMesh — global trace/span coordinator and auto-instrumentation.
 export 'src/core/otel_log_exporter.dart' show OtelLogExporter;
 export 'src/core/trace_observer.dart' show TraceObserver;
