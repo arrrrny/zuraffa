@@ -663,7 +663,7 @@ class GeneratorConfig {
   // OnboardingProvider`): emitting `class OnboardingProvider implements
   // OnboardingProvider` is recursive. Append `Impl` in that case only;
   // otherwise keep the provider name verbatim (issue #1825 review).
-  String? get effectiveProviderImpl {
+  String? get effectiveProviderName {
     final pn = effectiveProvider;
     if (pn == null) return null;
     final es = effectiveService;

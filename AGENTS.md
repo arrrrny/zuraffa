@@ -187,6 +187,17 @@ zfa build
 - **Do not hand-create entities.** Use `zfa entity create`.
 - **Do not call `build_runner` directly in normal agent flows.** Use `zfa build`.
 - **Do not invent alternate folder structures.** Zuraffa v7 assumes a fixed domain root.
+- **Never name a class or file with `Impl` (issue #2196).** The `*Impl` suffix (and a
+  bare `class Impl`, or an `impl` token in a file name like `local_generator_impl.dart`)
+  describes WHAT a class is mechanically instead of its ROLE, and reads horribly. Use the
+  role-descriptive convention the generators already follow: interface `ProductRepository`,
+  implementation `DataProductRepository`, a test fake `InMemoryUserRepository`, a builder
+  `LocalDataSourceBuilder`. This bans `Impl` in hand-written AND generated names — `zfa`
+  must never emit one. `test/core/no_impl_naming_scan_test.dart` is the CI gate: it fails on
+  any `class \w*Impl` declaration or `impl`-token `.dart` file name under lib/, bin/, test/,
+  example/, examples/ (generated `.zorphy.dart` / `.g.dart` excluded). The word
+  `implementation` (e.g. `implementation_generator.dart`) is fine — only the `Impl`
+  anti-pattern is banned.
 - **Always run `dart pub get --no-example` before formatting, then `dart format lib test` before every commit and push.** Formatting without package resolution (a fresh clone has none) makes `dart format` fail to resolve `analysis_options.yaml`'s `package:lints/recommended.yaml` include — it spams a `Package resolution error` warning per file and rewrites hundreds of unrelated files (#1506). CI enforces `dart format --set-exit-if-changed lib test` — any unformatted file blocks the build. Run pub get, format, stage the results, then commit. Never push without formatting first.
 
 ## No-JIT rule: every zfa child is a COMPILED binary

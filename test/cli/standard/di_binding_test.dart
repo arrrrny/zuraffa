@@ -16,7 +16,7 @@ void main() {
         final container = FakeDiContainer();
         container.register<UserRepository>(
           'UserRepository',
-          UserRepositoryImpl(),
+          UserRepositoryInMemory(),
         );
 
         final shared = SharedCommand.of(
@@ -154,7 +154,7 @@ abstract class UserRepository {
   List<String> all();
 }
 
-class UserRepositoryImpl implements UserRepository {
+class UserRepositoryInMemory implements UserRepository {
   @override
   List<String> all() => const ['alice', 'bob'];
 }

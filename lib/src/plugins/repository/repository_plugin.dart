@@ -314,7 +314,7 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final fs = context?.fileSystem ?? const DefaultFileSystem();
     final interfaceSource =
         interfaceFile.first.content ?? await fs.read(interfaceFile.first.path);
-    final implSource =
+    final implementationSource =
         implFile.first.content ?? await fs.read(implFile.first.path);
 
     final freshPair =
@@ -326,7 +326,7 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final result = const RepositoryConformanceChecker().check(
       interfaceSource: interfaceSource,
-      implementationSource: implSource,
+      implementationSource: implementationSource,
       interfaceClassName: '${config.name}Repository',
       implementationClassName: 'Data${config.name}Repository',
       requiredInterfaceMethods: freshPair ? const {} : contributed,
@@ -347,8 +347,8 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         context: context,
         interfacePath: interfaceFile.first.path,
         interfaceSource: interfaceSource,
-        implPath: implFile.first.path,
-        implSource: implSource,
+        implementationPath: implFile.first.path,
+        implementationSource: implementationSource,
       );
       return;
     }
@@ -377,8 +377,8 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     required PluginContext? context,
     required String interfacePath,
     required String interfaceSource,
-    required String implPath,
-    required String implSource,
+    required String implementationPath,
+    required String implementationSource,
   }) async {
     try {
       final projectRoot = repositoryProjectRootFor(
@@ -398,8 +398,8 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         ),
         implementation: RepositoryContractFile(
           className: 'Data${config.name}Repository',
-          path: _projectRelativePosix(implPath, projectRoot),
-          sha256: repositoryContractDigest(implSource),
+          path: _projectRelativePosix(implementationPath, projectRoot),
+          sha256: repositoryContractDigest(implementationSource),
         ),
         methods: methods,
         methodsSha256: RepositoryContractManifest.hashOfMethods(methods),

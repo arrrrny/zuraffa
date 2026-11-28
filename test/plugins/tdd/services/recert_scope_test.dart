@@ -189,23 +189,23 @@ void main() {
         'reaching the write set only through the `if (...)` alternative '
         'stays in scope', () async {
       await seedTree();
-      // The neighbor's test reaches lib/impl_io.dart ONLY via the
+      // The neighbor's test reaches lib/io_thing.dart ONLY via the
       // conditional directive's `if (dart.library.io)` branch. Recording
       // just the first URI would under-approximate the closure and drop
       // this test from the trimmed set — the one unsafe direction.
-      await write('lib/impl_stub.dart', 'class Impl {}\n');
-      await write('lib/impl_io.dart', 'class Impl {}\n');
+      await write('lib/stub.dart', 'class Stub {}\n');
+      await write('lib/io_thing.dart', 'class IoThing {}\n');
       await write(
         'test/conditional_test.dart',
-        "import 'package:demo/impl_stub.dart'\n"
-            "    if (dart.library.io) 'package:demo/impl_io.dart';\n"
+        "import 'package:demo/stub.dart'\n"
+            "    if (dart.library.io) 'package:demo/io_thing.dart';\n"
             "import 'package:test/test.dart';\n"
             'void main() {}\n',
       );
 
       final scope = await RecertScope.compute(
         projectRoot: root.path,
-        writtenFiles: {'lib/impl_io.dart'},
+        writtenFiles: {'lib/io_thing.dart'},
         ownTestPath: 'test/own_test.dart',
       );
       expect(scope.inScope, contains('test/conditional_test.dart'));
