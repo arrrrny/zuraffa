@@ -186,6 +186,28 @@ void main() {
           core is YamlMap ? core['version'] : core,
           consumerCoreConstraint,
         );
+        // Guard the actual #2199 fix, not just the version string: while the
+        // running prerelease major is unpublished, the wired core MUST carry
+        // the repository `master` Git source. Without this a regression that
+        // dropped `gitUrl`/`gitRef` from `resolveCoreSpecForWire` would still
+        // be green (the bare version string equals `consumerCoreConstraint`
+        // either way). The `dependency_overrides` path fixture below only
+        // keeps resolution hermetic — it does not exercise the Git source, so
+        // the written entry is the only place this regression is visible.
+        expect(
+          core is YamlMap,
+          isTrue,
+          reason:
+              'an unpublished prerelease major must wire zuraffa from Git '
+              '(a map with `git:`), not a bare hosted version string',
+        );
+        final git = (core as YamlMap)['git'];
+        expect(git is YamlMap, isTrue, reason: 'wired core must carry `git:`');
+        expect(
+          (git as YamlMap)['url'],
+          'https://github.com/arrrrny/zuraffa.git',
+        );
+        expect(git['ref'], 'master');
         final config =
             jsonDecode(
                   File(

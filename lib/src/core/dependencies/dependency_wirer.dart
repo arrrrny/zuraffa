@@ -265,7 +265,10 @@ class DependencyWirer {
   /// release in the generator's major stays hosted. While a pure-Dart major
   /// is still unpublished, its prerelease generator wires the repository's
   /// `master` so a fresh scaffold can resolve the code it is running.
-  @visibleForTesting
+  ///
+  /// Production seam (called from [wire]) that the skew-contract tests also
+  /// drive directly with an injected [stableVersionResolver]; not test-only,
+  /// so it carries no `@visibleForTesting` annotation.
   static Future<DependencySpec> resolveCoreSpecForWire({
     required bool isFlutter,
     String? generatorVersion,
