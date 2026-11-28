@@ -22,8 +22,17 @@ dependencies:
   path: ^1.9.1
   yaml: ^3.1.4
   uuid: ^4.6.0
-  zorphy: ^3.0.0-dev.5
-  zorphy_annotation: ^3.0.0-dev.5
+  # Issue #2214: zorphy 3.0.0-dev.6 (latest matching ^3.0.0-dev.5) dropped
+  # lib/src/merge/merge.dart, which lib/src/core/transaction/
+  # smart_merge_writer.dart hard-imports (MergeMode / MergeOrchestrator). The
+  # committed pubspec.lock pins dev.5 for the in-repo lanes, but the
+  # flutter_consumer_smoke gate does a FRESH lock-less resolve of a throwaway
+  # consumer app, which grabbed dev.6 and failed to compile. Pin EXACTLY
+  # dev.5 (the version that still carries merge.dart) so a fresh resolve
+  # cannot pull the broken dev.6. Widen again once zorphy republishes a dev
+  # that restores the merge surface.
+  zorphy: 3.0.0-dev.5
+  zorphy_annotation: 3.0.0-dev.5
 
   json_annotation: ^4.12.0
 
