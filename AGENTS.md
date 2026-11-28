@@ -191,7 +191,7 @@ zfa build
   bare `class Impl`, or an `impl` token in a file name like `local_generator_impl.dart`)
   describes WHAT a class is mechanically instead of its ROLE, and reads horribly. Use the
   role-descriptive convention the generators already follow: interface `ProductRepository`,
-  implementation `DataProductRepository`, a test fake `InMemoryUserRepository`, a builder
+  implementation `DataProductRepository`, a test fake `UserRepositoryInMemory`, a builder
   `LocalDataSourceBuilder`. This bans `Impl` in hand-written AND generated names — `zfa`
   must never emit one. `test/core/no_impl_naming_scan_test.dart` is the CI gate: it fails on
   any `class \w*Impl` declaration or `impl`-token `.dart` file name under lib/, bin/, test/,

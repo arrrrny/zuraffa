@@ -31,6 +31,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:zuraffa/zuraffa.dart';
 
 const String repoRoot = '.';
 
@@ -146,6 +147,36 @@ void main() {
             'a file name must describe its role, not that it holds an '
             'implementation: `local_generation_methods.dart`, never '
             '`local_generator_impl.dart`. Offenders: $offenders',
+      );
+    });
+
+    // The source sweeps above only see checked-in text. They cannot catch a
+    // generator that BUILDS an `Impl` name at runtime and emits it as a class
+    // (issue #2196 / review of #2197). This test exercises the generator's
+    // string output directly and asserts the emitted code carries no `Impl`
+    // class name — the gap the source scan structurally cannot close.
+    test('the graphql repository generator emits no `Impl` class name', () {
+      final gen = RepositoryGenerator(typeMapper: TypeMapper());
+      final code = gen.generate(
+        name: 'Product',
+        methods: [
+          RepoMethod(
+            name: 'getProduct',
+            returnType: const GraphQLScalarType(name: 'ID'),
+            args: const [],
+          ),
+        ],
+      );
+      // The interface keeps its role name; the implementation is
+      // `DataProductRepository`, never `ProductRepositoryImpl`.
+      expect(code, contains('abstract class ProductRepository'));
+      expect(code, contains('class DataProductRepository'));
+      expect(
+        _implClassDecl.hasMatch(code),
+        isFalse,
+        reason:
+            'the generator emitted an `Impl` class name — issue #2196 bans '
+            'it in generated names too. Output:\n$code',
       );
     });
   });
