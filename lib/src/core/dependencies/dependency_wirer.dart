@@ -105,7 +105,7 @@ class DependencyWirer {
   /// generated code is only as new as the annotation major both sides
   /// resolve, and a pinned tripwire test (`dependency_wirer_test.dart`)
   /// keeps the two from drifting apart.
-  static const zorphyAnnotationConstraint = '^3.0.0-dev.6';
+  static const zorphyAnnotationConstraint = '^3.0.0-dev.5';
 
   /// Flutter apps need both `analyzer` and `meta` overlays: the Flutter
   /// SDK pins `meta 1.18.0` while analyzer >=13.1.0 requires

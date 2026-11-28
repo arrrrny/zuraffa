@@ -661,10 +661,10 @@ packages:
     dependency: "direct main"
     description:
       name: zorphy
-      sha256: "2001a3af58746e52a7f26c51855707c94e3500ab636108724ea1658147d21ced"
+      sha256: e6e335e82395ac1a4637cf6c4a8d03495d578925d5a992d117f1bddf0f387cfa
       url: "https://pub.dev"
     source: hosted
-    version: "3.0.0-dev.6"
+    version: "3.0.0-dev.5"
   zorphy_annotation:
     dependency: "direct main"
     description:
